@@ -1,3 +1,9 @@
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Check if required environment variables are set
 const requiredEnvVars = [
   'DISCORD_BOT_TOKEN',
@@ -23,4 +29,4 @@ console.log('🚀 Starting Gemini Discord Trading Bot...');
 console.log('🔧 Environment variables configured correctly');
 
 // Start the Discord bot
-require('./discord-bot.js');
+import('./discord-bot.js');

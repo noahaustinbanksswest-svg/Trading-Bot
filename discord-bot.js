@@ -1,6 +1,6 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
-const crypto = require('crypto');
-const axios = require('axios');
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } from 'discord.js';
+import crypto from 'crypto';
+import axios from 'axios';
 
 // Discord Bot Configuration
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -878,4 +878,4 @@ class DiscordTradingBot {
 const bot = new DiscordTradingBot();
 bot.start();
 
-module.exports = DiscordTradingBot;
+export default DiscordTradingBot;
