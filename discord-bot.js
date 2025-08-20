@@ -12,7 +12,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_SECRET = process.env.GEMINI_API_SECRET;
 const GEMINI_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://api.gemini.com' : 'https://api.sandbox.gemini.com';
 
-// Trading Settings (stored in memory for now)
+// Trading Settings (monitoring only - no trade initiation)
 const tradingSettings = {
   dailyBuyLimit: 1000,
   stopLossPercent: 5,
@@ -20,7 +20,15 @@ const tradingSettings = {
   enableStopLoss: true,
   enableProfitTaking: true,
   enabledPairs: ['btcusd', 'ethusd'],
-  isTrading: false
+  lastDailyReset: new Date().toDateString()
+};
+
+// Daily tracking data
+let dailyBuyData = {
+  totalBought: 0,
+  purchases: [],
+  limitReached: false,
+  lastUpdate: new Date()
 };
 
 class GeminiAPI {
@@ -73,18 +81,6 @@ class GeminiAPI {
     }
   }
 
-  async placeOrder(orderRequest) {
-    try {
-      const endpoint = '/v1/order/new';
-      const headers = this.generateHeaders(endpoint, orderRequest);
-      
-      const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to place order: ${error.message}`);
-    }
-  }
-
   async getActiveOrders() {
     try {
       const endpoint = '/v1/orders';
@@ -94,6 +90,18 @@ class GeminiAPI {
       return response.data;
     } catch (error) {
       throw new Error(`Failed to get active orders: ${error.message}`);
+    }
+  }
+
+  async getTrades() {
+    try {
+      const endpoint = '/v1/mytrades';
+      const headers = this.generateHeaders(endpoint);
+      
+      const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get trades: ${error.message}`);
     }
   }
 }
@@ -115,8 +123,8 @@ class DiscordTradingBot {
 
   setupEventHandlers() {
     this.client.once('ready', () => {
-      console.log(`🤖 Discord bot ready! Logged in as ${this.client.user.tag}`);
-      this.startPriceMonitoring();
+      console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
+      this.startDailyTracking();
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -132,11 +140,24 @@ class DiscordTradingBot {
     const commands = [
       new SlashCommandBuilder()
         .setName('portfolio')
-        .setDescription('Display your crypto portfolio and trading status'),
+        .setDescription('Display your crypto portfolio and daily buy tracking'),
       
       new SlashCommandBuilder()
+        .setName('tracker')
+        .setDescription('View daily buy tracking and trading limits')
+        .addStringOption(option =>
+          option.setName('type')
+            .setDescription('Type of tracking info')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Daily Buys', value: 'daily_buys' },
+              { name: 'Trading Status', value: 'status' },
+              { name: 'Limits', value: 'limits' }
+            )),
+
+      new SlashCommandBuilder()
         .setName('settings')
-        .setDescription('Configure trading settings')
+        .setDescription('Configure monitoring settings')
         .addStringOption(option =>
           option.setName('setting')
             .setDescription('Setting to modify')
@@ -144,33 +165,12 @@ class DiscordTradingBot {
             .addChoices(
               { name: 'Daily Buy Limit', value: 'daily_limit' },
               { name: 'Stop Loss %', value: 'stop_loss' },
-              { name: 'Take Profit %', value: 'take_profit' },
-              { name: 'Toggle Trading', value: 'toggle_trading' }
+              { name: 'Take Profit %', value: 'take_profit' }
             ))
         .addStringOption(option =>
           option.setName('value')
             .setDescription('New value for the setting')
             .setRequired(false)),
-
-      new SlashCommandBuilder()
-        .setName('trade')
-        .setDescription('Execute a trade')
-        .addStringOption(option =>
-          option.setName('pair')
-            .setDescription('Trading pair (e.g., btcusd)')
-            .setRequired(true))
-        .addStringOption(option =>
-          option.setName('side')
-            .setDescription('Buy or sell')
-            .setRequired(true)
-            .addChoices(
-              { name: 'Buy', value: 'buy' },
-              { name: 'Sell', value: 'sell' }
-            ))
-        .addNumberOption(option =>
-          option.setName('amount')
-            .setDescription('Amount to trade')
-            .setRequired(true)),
 
       new SlashCommandBuilder()
         .setName('prices')
@@ -203,11 +203,11 @@ class DiscordTradingBot {
         case 'portfolio':
           await this.showPortfolio(interaction);
           break;
+        case 'tracker':
+          await this.handleTracker(interaction);
+          break;
         case 'settings':
           await this.handleSettings(interaction);
-          break;
-        case 'trade':
-          await this.handleTrade(interaction);
           break;
         case 'prices':
           await this.showPrices(interaction);
@@ -232,20 +232,17 @@ class DiscordTradingBot {
         case 'refresh_portfolio':
           await this.refreshPortfolio(interaction);
           break;
-        case 'toggle_trading':
-          await this.toggleTrading(interaction);
+        case 'view_daily_buys':
+          await this.showDailyBuyTracker(interaction);
           break;
         case 'view_orders':
           await this.showActiveOrders(interaction);
           break;
-        case 'quick_buy_btc':
-          await this.quickTrade(interaction, 'btcusd', 'buy', 0.001);
-          break;
-        case 'quick_sell_btc':
-          await this.quickTrade(interaction, 'btcusd', 'sell', 0.001);
+        case 'price_alerts':
+          await this.showPriceAlerts(interaction);
           break;
         case 'emergency_stop':
-          await this.emergencyStop(interaction);
+          await this.emergencyStopMonitoring(interaction);
           break;
         default:
           await interaction.reply({ content: 'Unknown action', ephemeral: true });
@@ -291,11 +288,14 @@ class DiscordTradingBot {
         }
       }
 
+      // Update daily buy tracking
+      await this.updateDailyBuyTracking();
+
       const embed = this.createPortfolioEmbed({
         totalValue,
         usdBalance: parseFloat(usdBalance.amount),
         holdings,
-        isTrading: tradingSettings.isTrading
+        dailyBuyData
       });
 
       const buttons = this.createPortfolioButtons();
@@ -311,35 +311,33 @@ class DiscordTradingBot {
   }
 
   createPortfolioEmbed(data) {
+    const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
+    const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
+
     const embed = new EmbedBuilder()
-      .setTitle('📊 Crypto Portfolio')
-      .setColor(tradingSettings.isTrading ? 0x4CAF50 : 0xFF9800)
+      .setTitle('📊 Crypto Portfolio & Daily Tracking')
+      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
       .addFields(
         { name: '💰 Total Portfolio Value', value: `$${data.totalValue.toFixed(2)}`, inline: true },
         { name: '💵 USD Balance', value: `$${data.usdBalance.toFixed(2)}`, inline: true },
-        { name: '🤖 Trading Status', value: tradingSettings.isTrading ? '🟢 Active' : '🔴 Inactive', inline: true }
+        { name: '📊 Daily Buy Status', value: limitStatus, inline: true }
+      )
+      .addFields(
+        { name: '📈 Daily Buys Today', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
+        { name: '💳 Daily Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
+        { name: '🔄 Remaining Limit', value: `$${remainingLimit.toFixed(2)}`, inline: true }
       )
       .setTimestamp()
-      .setFooter({ text: 'Gemini Trading Bot' });
+      .setFooter({ text: 'Gemini Monitoring Bot • Updated' });
 
     // Add cryptocurrency holdings
     if (data.holdings.length > 0) {
       const holdingsText = data.holdings
-        .map(h => `**${h.currency}**: ${h.amount.toFixed(8)} ($${h.value.toFixed(2)})`)
+        .map(h => `**${h.currency}**: ${h.amount.toFixed(8)} • $${h.price.toFixed(2)} • Value: $${h.value.toFixed(2)}`)
         .join('\n');
       
-      embed.addFields({ name: '🏦 Cryptocurrency Holdings', value: holdingsText, inline: false });
+      embed.addFields({ name: '🏦 Current Holdings', value: holdingsText, inline: false });
     }
-
-    // Add trading settings
-    embed.addFields({
-      name: '⚙️ Trading Settings',
-      value: `**Daily Limit**: $${tradingSettings.dailyBuyLimit}
-**Stop Loss**: ${tradingSettings.stopLossPercent}%
-**Take Profit**: ${tradingSettings.takeProfitPercent}%
-**Enabled Pairs**: ${tradingSettings.enabledPairs.join(', ').toUpperCase()}`,
-      inline: false
-    });
 
     return embed;
   }
@@ -353,42 +351,127 @@ class DiscordTradingBot {
           .setStyle(ButtonStyle.Primary)
           .setEmoji('🔄'),
         new ButtonBuilder()
-          .setCustomId('toggle_trading')
-          .setLabel(tradingSettings.isTrading ? 'Stop Trading' : 'Start Trading')
-          .setStyle(tradingSettings.isTrading ? ButtonStyle.Danger : ButtonStyle.Success)
-          .setEmoji('⚡'),
+          .setCustomId('view_daily_buys')
+          .setLabel('Daily Buy Tracker')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('📊'),
         new ButtonBuilder()
           .setCustomId('view_orders')
           .setLabel('Active Orders')
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('📋'),
         new ButtonBuilder()
-          .setCustomId('quick_buy_btc')
-          .setLabel('Quick Buy BTC')
-          .setStyle(ButtonStyle.Success)
-          .setEmoji('⬆️'),
+          .setCustomId('price_alerts')
+          .setLabel('Price Alerts')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🔔'),
         new ButtonBuilder()
           .setCustomId('emergency_stop')
-          .setLabel('Emergency Stop')
+          .setLabel('Stop Monitoring')
           .setStyle(ButtonStyle.Danger)
           .setEmoji('🛑')
       );
   }
 
+  async updateDailyBuyTracking() {
+    try {
+      const today = new Date().toDateString();
+      
+      // Reset daily data if it's a new day
+      if (tradingSettings.lastDailyReset !== today) {
+        dailyBuyData = {
+          totalBought: 0,
+          purchases: [],
+          limitReached: false,
+          lastUpdate: new Date()
+        };
+        tradingSettings.lastDailyReset = today;
+        console.log('📅 Daily buy tracking reset for new day');
+      }
+
+      // Get today's trades to calculate daily purchases
+      const trades = await this.gemini.getTrades();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      let dailyTotal = 0;
+      const todayPurchases = [];
+
+      trades.forEach(trade => {
+        const tradeDate = new Date(trade.timestampms);
+        
+        if (tradeDate >= todayStart && trade.side === 'buy') {
+          const tradeValue = parseFloat(trade.amount) * parseFloat(trade.price);
+          dailyTotal += tradeValue;
+          todayPurchases.push({
+            symbol: trade.symbol,
+            amount: trade.amount,
+            price: trade.price,
+            value: tradeValue,
+            time: tradeDate
+          });
+        }
+      });
+
+      dailyBuyData.totalBought = dailyTotal;
+      dailyBuyData.purchases = todayPurchases;
+      dailyBuyData.limitReached = dailyTotal >= tradingSettings.dailyBuyLimit;
+      dailyBuyData.lastUpdate = new Date();
+
+      if (dailyBuyData.limitReached) {
+        console.log(`⚠️ Daily buy limit reached: $${dailyTotal.toFixed(2)}/$${tradingSettings.dailyBuyLimit}`);
+      }
+
+    } catch (error) {
+      console.error('Error updating daily buy tracking:', error.message);
+    }
+  }
+
+  async showDailyBuyTracker(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      await this.updateDailyBuyTracking();
+
+      const embed = new EmbedBuilder()
+        .setTitle('📊 Daily Buy Tracker')
+        .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
+        .addFields(
+          { name: '💳 Daily Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
+          { name: '📈 Today\'s Buys', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
+          { name: '🔄 Remaining', value: `$${Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought).toFixed(2)}`, inline: true }
+        );
+
+      if (dailyBuyData.purchases.length > 0) {
+        const purchasesList = dailyBuyData.purchases
+          .slice(-5) // Show last 5 purchases
+          .map(p => `**${p.symbol.toUpperCase()}**: ${p.amount} @ $${parseFloat(p.price).toFixed(2)} = $${p.value.toFixed(2)}`)
+          .join('\n');
+        
+        embed.addFields({ name: '🛒 Recent Purchases', value: purchasesList, inline: false });
+      } else {
+        embed.addFields({ name: '🛒 Recent Purchases', value: 'No purchases today', inline: false });
+      }
+
+      if (dailyBuyData.limitReached) {
+        embed.addFields({ 
+          name: '🚨 Trading Status', 
+          value: '**DAILY LIMIT REACHED** - No more buys allowed today', 
+          inline: false 
+        });
+      }
+
+      embed.setTimestamp(dailyBuyData.lastUpdate);
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      await interaction.editReply(`❌ Failed to fetch daily tracking: ${error.message}`);
+    }
+  }
+
   async refreshPortfolio(interaction) {
     await interaction.deferUpdate();
     await this.showPortfolio(interaction);
-  }
-
-  async toggleTrading(interaction) {
-    await interaction.deferReply({ ephemeral: true });
-    
-    tradingSettings.isTrading = !tradingSettings.isTrading;
-    
-    const status = tradingSettings.isTrading ? 'activated' : 'deactivated';
-    const emoji = tradingSettings.isTrading ? '🟢' : '🔴';
-    
-    await interaction.editReply(`${emoji} Trading has been ${status}!`);
   }
 
   async showActiveOrders(interaction) {
@@ -425,72 +508,141 @@ class DiscordTradingBot {
     }
   }
 
-  async quickTrade(interaction, symbol, side, amount) {
-    await interaction.deferReply({ ephemeral: true });
-
-    if (!tradingSettings.isTrading) {
-      await interaction.editReply('❌ Trading is currently disabled. Enable it first.');
-      return;
-    }
-
-    try {
-      const order = await this.gemini.placeOrder({
-        symbol: symbol,
-        amount: amount.toString(),
-        side: side,
-        type: 'exchange market'
-      });
-
-      const embed = new EmbedBuilder()
-        .setTitle('✅ Trade Executed')
-        .setColor(0x4CAF50)
-        .addFields(
-          { name: 'Symbol', value: symbol.toUpperCase(), inline: true },
-          { name: 'Side', value: side.toUpperCase(), inline: true },
-          { name: 'Amount', value: amount.toString(), inline: true },
-          { name: 'Order ID', value: order.order_id, inline: false }
-        )
-        .setTimestamp();
-
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.editReply(`❌ Trade failed: ${error.message}`);
-    }
-  }
-
-  async emergencyStop(interaction) {
+  async showPriceAlerts(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      // Stop all trading
-      tradingSettings.isTrading = false;
+      const alerts = [];
       
-      // Cancel all active orders
-      const orders = await this.gemini.getActiveOrders();
-      let cancelledCount = 0;
-
-      for (const order of orders) {
-        try {
-          await this.gemini.cancelOrder(order.order_id);
-          cancelledCount++;
-        } catch (error) {
-          console.error(`Failed to cancel order ${order.order_id}:`, error.message);
-        }
+      for (const pair of tradingSettings.enabledPairs) {
+        const ticker = await this.gemini.getTicker(pair);
+        const currentPrice = parseFloat(ticker.last);
+        const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
+        
+        alerts.push({
+          symbol: pair,
+          price: currentPrice,
+          change: change,
+          high: parseFloat(ticker.high),
+          low: parseFloat(ticker.low)
+        });
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('🛑 Emergency Stop Activated')
+        .setTitle('🔔 Price Alerts & Monitoring')
+        .setColor(0xFF9800)
+        .setTimestamp();
+
+      alerts.forEach(alert => {
+        const changeEmoji = alert.change >= 0 ? '📈' : '📉';
+        embed.addFields({
+          name: `${changeEmoji} ${alert.symbol.toUpperCase()}`,
+          value: `**Current**: $${alert.price.toFixed(2)}
+**24h Change**: ${alert.change.toFixed(2)}%
+**24h High**: $${alert.high.toFixed(2)}
+**24h Low**: $${alert.low.toFixed(2)}`,
+          inline: true
+        });
+      });
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      await interaction.editReply(`❌ Failed to fetch price alerts: ${error.message}`);
+    }
+  }
+
+  async emergencyStopMonitoring(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      // Stop all monitoring temporarily
+      console.log('🛑 Emergency monitoring stop triggered by user');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🛑 Monitoring Paused')
         .setColor(0xF44336)
         .addFields(
-          { name: 'Trading Status', value: '🔴 Stopped', inline: true },
-          { name: 'Orders Cancelled', value: cancelledCount.toString(), inline: true }
+          { name: 'Status', value: '🔴 Monitoring temporarily paused', inline: true },
+          { name: 'Action', value: 'Use /portfolio to resume monitoring', inline: true }
         )
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      await interaction.editReply(`❌ Emergency stop failed: ${error.message}`);
+      await interaction.editReply(`❌ Error pausing monitoring: ${error.message}`);
     }
+  }
+
+  async handleTracker(interaction) {
+    const type = interaction.options.getString('type') || 'daily_buys';
+    
+    switch (type) {
+      case 'daily_buys':
+        await this.showDailyBuyTracker(interaction);
+        break;
+      case 'status':
+        await this.showTradingStatus(interaction);
+        break;
+      case 'limits':
+        await this.showLimits(interaction);
+        break;
+      default:
+        await interaction.reply({ content: '❌ Unknown tracker type', ephemeral: true });
+    }
+  }
+
+  async showTradingStatus(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    await this.updateDailyBuyTracking();
+
+    const embed = new EmbedBuilder()
+      .setTitle('📊 Trading Status Overview')
+      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
+      .addFields(
+        { name: '📅 Daily Buy Status', value: dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Active', inline: true },
+        { name: '💰 Today\'s Spending', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
+        { name: '🔄 Trades Today', value: dailyBuyData.purchases.length.toString(), inline: true }
+      )
+      .addFields({
+        name: '⚙️ Current Settings',
+        value: `**Daily Limit**: $${tradingSettings.dailyBuyLimit}
+**Stop Loss**: ${tradingSettings.stopLossPercent}%
+**Take Profit**: ${tradingSettings.takeProfitPercent}%
+**Monitored Pairs**: ${tradingSettings.enabledPairs.join(', ').toUpperCase()}`,
+        inline: false
+      })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  }
+
+  async showLimits(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    const embed = new EmbedBuilder()
+      .setTitle('💳 Trading Limits & Controls')
+      .setColor(0x2196F3)
+      .addFields(
+        { name: '💰 Daily Buy Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
+        { name: '📉 Stop Loss %', value: `${tradingSettings.stopLossPercent}%`, inline: true },
+        { name: '📈 Take Profit %', value: `${tradingSettings.takeProfitPercent}%`, inline: true }
+      )
+      .addFields({
+        name: '🎯 Monitored Trading Pairs',
+        value: tradingSettings.enabledPairs.map(pair => `• ${pair.toUpperCase()}`).join('\n'),
+        inline: false
+      })
+      .addFields({
+        name: '⚠️ Automatic Actions',
+        value: `• **Stop Loss**: ${tradingSettings.enableStopLoss ? '✅ Enabled' : '❌ Disabled'}
+• **Take Profit**: ${tradingSettings.enableProfitTaking ? '✅ Enabled' : '❌ Disabled'}
+• **Daily Limit**: Always active`,
+        inline: false
+      })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
   }
 
   async handleSettings(interaction) {
@@ -503,7 +655,7 @@ class DiscordTradingBot {
       case 'daily_limit':
         if (value) {
           tradingSettings.dailyBuyLimit = parseFloat(value);
-          await interaction.editReply(`✅ Daily buy limit set to $${value}`);
+          await interaction.editReply(`✅ Daily buy limit updated to $${value}`);
         } else {
           await interaction.editReply(`📊 Current daily buy limit: $${tradingSettings.dailyBuyLimit}`);
         }
@@ -512,7 +664,7 @@ class DiscordTradingBot {
       case 'stop_loss':
         if (value) {
           tradingSettings.stopLossPercent = parseFloat(value);
-          await interaction.editReply(`✅ Stop loss set to ${value}%`);
+          await interaction.editReply(`✅ Stop loss updated to ${value}%`);
         } else {
           await interaction.editReply(`📊 Current stop loss: ${tradingSettings.stopLossPercent}%`);
         }
@@ -521,57 +673,14 @@ class DiscordTradingBot {
       case 'take_profit':
         if (value) {
           tradingSettings.takeProfitPercent = parseFloat(value);
-          await interaction.editReply(`✅ Take profit set to ${value}%`);
+          await interaction.editReply(`✅ Take profit updated to ${value}%`);
         } else {
           await interaction.editReply(`📊 Current take profit: ${tradingSettings.takeProfitPercent}%`);
         }
         break;
 
-      case 'toggle_trading':
-        tradingSettings.isTrading = !tradingSettings.isTrading;
-        const status = tradingSettings.isTrading ? 'enabled' : 'disabled';
-        await interaction.editReply(`⚡ Trading ${status}!`);
-        break;
-
       default:
         await interaction.editReply('❌ Unknown setting');
-    }
-  }
-
-  async handleTrade(interaction) {
-    const pair = interaction.options.getString('pair');
-    const side = interaction.options.getString('side');
-    const amount = interaction.options.getNumber('amount');
-
-    await interaction.deferReply();
-
-    if (!tradingSettings.isTrading) {
-      await interaction.editReply('❌ Trading is currently disabled.');
-      return;
-    }
-
-    try {
-      const order = await this.gemini.placeOrder({
-        symbol: pair,
-        amount: amount.toString(),
-        side: side,
-        type: 'exchange market'
-      });
-
-      const embed = new EmbedBuilder()
-        .setTitle('📈 Trade Order Placed')
-        .setColor(side === 'buy' ? 0x4CAF50 : 0xF44336)
-        .addFields(
-          { name: 'Pair', value: pair.toUpperCase(), inline: true },
-          { name: 'Side', value: side.toUpperCase(), inline: true },
-          { name: 'Amount', value: amount.toString(), inline: true },
-          { name: 'Order ID', value: order.order_id, inline: false }
-        )
-        .setTimestamp();
-
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.editReply(`❌ Trade failed: ${error.message}`);
     }
   }
 
@@ -592,7 +701,7 @@ class DiscordTradingBot {
           { name: '24h Low', value: `$${ticker.low}`, inline: true },
           { name: 'Bid', value: `$${ticker.bid}`, inline: true },
           { name: 'Ask', value: `$${ticker.ask}`, inline: true },
-          { name: 'Volume', value: `${ticker.volume[ticker.volume.BTC] || 'N/A'}`, inline: true }
+          { name: '24h Change', value: `${ticker.changes?.[0] || 'N/A'}%`, inline: true }
         )
         .setTimestamp();
 
@@ -602,52 +711,44 @@ class DiscordTradingBot {
     }
   }
 
-  startPriceMonitoring() {
-    console.log('📊 Starting price monitoring...');
+  startDailyTracking() {
+    console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Monitor prices every 30 seconds
+    // Update tracking every 60 seconds
     setInterval(async () => {
-      if (!tradingSettings.isTrading) return;
-
       try {
-        await this.checkStopLossAndTakeProfit();
-      } catch (error) {
-        console.error('Error in price monitoring:', error.message);
-      }
-    }, 30000);
-  }
-
-  async checkStopLossAndTakeProfit() {
-    try {
-      const balances = await this.gemini.getBalances();
-      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
-
-      for (const balance of cryptoBalances) {
-        const symbol = `${balance.currency.toLowerCase()}usd`;
+        await this.updateDailyBuyTracking();
         
-        if (!tradingSettings.enabledPairs.includes(symbol)) continue;
-
-        try {
-          const ticker = await this.gemini.getTicker(symbol);
-          const currentPrice = parseFloat(ticker.last);
-          
-          // Here you would implement your stop-loss and take-profit logic
-          // This is a simplified example
-          console.log(`Monitoring ${symbol}: $${currentPrice}`);
-          
-        } catch (error) {
-          console.error(`Error monitoring ${symbol}:`, error.message);
+        // Check if limit was just reached
+        if (dailyBuyData.limitReached) {
+          console.log(`🚨 Daily buy limit reached: $${dailyBuyData.totalBought.toFixed(2)}`);
         }
+        
+      } catch (error) {
+        console.error('Error in daily tracking update:', error.message);
       }
-    } catch (error) {
-      console.error('Error in stop-loss/take-profit check:', error.message);
-    }
+    }, 60000);
+
+    // Reset daily data at midnight
+    setInterval(() => {
+      const today = new Date().toDateString();
+      if (tradingSettings.lastDailyReset !== today) {
+        dailyBuyData = {
+          totalBought: 0,
+          purchases: [],
+          limitReached: false,
+          lastUpdate: new Date()
+        };
+        tradingSettings.lastDailyReset = today;
+        console.log('🌅 Daily tracking reset for new day');
+      }
+    }, 60000 * 60); // Check every hour
   }
 
   async start() {
     try {
       await this.client.login(BOT_TOKEN);
-      console.log('🚀 Discord trading bot started successfully!');
+      console.log('🚀 Discord monitoring bot started successfully!');
     } catch (error) {
       console.error('❌ Failed to start bot:', error);
     }
