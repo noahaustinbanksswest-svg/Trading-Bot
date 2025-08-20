@@ -275,13 +275,15 @@ class DiscordTradingBot {
           const currentPrice = parseFloat(ticker.last);
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
+          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
           totalValue += value;
 
           holdings.push({
             currency: balance.currency,
             amount: amount,
             price: currentPrice,
-            value: value
+            value: value,
+            change: change
           });
         } catch (error) {
           console.error(`Error getting price for ${balance.currency}:`, error.message);
@@ -315,29 +317,52 @@ class DiscordTradingBot {
     const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
 
     const embed = new EmbedBuilder()
-      .setTitle('📊 Crypto Portfolio & Daily Tracking')
-      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
+      .setTitle('💰 Live Portfolio Dashboard')
+      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
       .addFields(
-        { name: '💰 Total Portfolio Value', value: `$${data.totalValue.toFixed(2)}`, inline: true },
-        { name: '💵 USD Balance', value: `$${data.usdBalance.toFixed(2)}`, inline: true },
-        { name: '📊 Daily Buy Status', value: limitStatus, inline: true }
-      )
-      .addFields(
-        { name: '📈 Daily Buys Today', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
-        { name: '💳 Daily Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
+        { name: '📊 Total Portfolio Value', value: `**$${data.totalValue.toFixed(2)}**`, inline: true },
+        { name: '📈 Daily Buy Status', value: limitStatus, inline: true },
         { name: '🔄 Remaining Limit', value: `$${remainingLimit.toFixed(2)}`, inline: true }
       )
       .setTimestamp()
-      .setFooter({ text: 'Gemini Monitoring Bot • Updated' });
+      .setFooter({ text: 'Live Portfolio • Auto-updating' });
 
-    // Add cryptocurrency holdings
+    // Add cryptocurrency holdings with live prices
     if (data.holdings.length > 0) {
-      const holdingsText = data.holdings
-        .map(h => `**${h.currency}**: ${h.amount.toFixed(8)} • $${h.price.toFixed(2)} • Value: $${h.value.toFixed(2)}`)
+      const cryptoText = data.holdings
+        .map(h => {
+          const changeIndicator = h.change >= 0 ? '📈' : '📉';
+          return `${changeIndicator} **${h.currency}**\n` +
+                 `Amount: \`${h.amount.toFixed(8)}\`\n` +
+                 `Live Price: **$${h.price.toFixed(2)}**\n` +
+                 `Value: **$${h.value.toFixed(2)}**\n`;
+        })
         .join('\n');
       
-      embed.addFields({ name: '🏦 Current Holdings', value: holdingsText, inline: false });
+      embed.addFields({ 
+        name: '🪙 Cryptocurrency Holdings', 
+        value: cryptoText || 'No crypto holdings detected', 
+        inline: false 
+      });
+    } else {
+      embed.addFields({ 
+        name: '🪙 Cryptocurrency Holdings', 
+        value: 'No cryptocurrency holdings detected', 
+        inline: false 
+      });
     }
+
+    // Add USD/Stablecoin information separately
+    const stablecoinInfo = `💵 **USD Balance**: $${data.usdBalance.toFixed(2)}\n` +
+                          `📊 **Daily Buys**: $${dailyBuyData.totalBought.toFixed(2)}\n` +
+                          `💳 **Daily Limit**: $${tradingSettings.dailyBuyLimit}\n` +
+                          `🕐 **Last Updated**: ${new Date().toLocaleTimeString()}`;
+
+    embed.addFields({ 
+      name: '💰 USD & Trading Information', 
+      value: stablecoinInfo, 
+      inline: false 
+    });
 
     return embed;
   }
