@@ -111,8 +111,6 @@ class DiscordTradingBot {
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
       ],
     });
 
@@ -123,10 +121,11 @@ class DiscordTradingBot {
   }
 
   setupEventHandlers() {
-    this.client.once('ready', () => {
+    this.client.once('ready', async () => {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       this.startDailyTracking();
       this.startAutoUpdating();
+      await this.sendDashboardEmbed();
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -566,6 +565,88 @@ class DiscordTradingBot {
       console.error(`Error updating portfolio message:`, error.message);
       // Remove invalid message from tracking
       this.activePortfolioMessages.delete(messageId);
+    }
+  }
+
+  async sendDashboardEmbed() {
+    try {
+      // Find the dashboard channel
+      const guild = this.client.guilds.cache.first();
+      if (!guild) {
+        console.log('❌ No guild found');
+        return;
+      }
+
+      const dashboardChannel = guild.channels.cache.find(channel => 
+        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+      );
+
+      if (!dashboardChannel) {
+        console.log('❌ Dashboard channel not found. Create a channel named "dashboard"');
+        return;
+      }
+
+      console.log(`📊 Sending portfolio embed to #${dashboardChannel.name}`);
+      
+      // Get portfolio data
+      const balances = await this.gemini.getBalances();
+      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+      const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+
+      let totalValue = parseFloat(usdBalance.amount);
+      const holdings = [];
+
+      // Get current prices and calculate portfolio value
+      for (const balance of cryptoBalances) {
+        try {
+          const symbol = `${balance.currency.toLowerCase()}usd`;
+          const ticker = await this.gemini.getTicker(symbol);
+          const currentPrice = parseFloat(ticker.last);
+          const amount = parseFloat(balance.amount);
+          const value = amount * currentPrice;
+          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
+          totalValue += value;
+
+          holdings.push({
+            currency: balance.currency,
+            amount: amount,
+            price: currentPrice,
+            value: value,
+            change: change
+          });
+        } catch (error) {
+          console.error(`Error getting price for ${balance.currency}:`, error.message);
+        }
+      }
+
+      // Update daily buy tracking
+      await this.updateDailyBuyTracking();
+
+      const embed = this.createPortfolioEmbed({
+        totalValue,
+        usdBalance: parseFloat(usdBalance.amount),
+        holdings,
+        dailyBuyData
+      });
+
+      const buttons = this.createPortfolioButtons();
+
+      const message = await dashboardChannel.send({
+        embeds: [embed],
+        components: [buttons],
+      });
+
+      // Store this message for auto-updating
+      this.activePortfolioMessages.set(message.id, {
+        channelId: dashboardChannel.id,
+        messageId: message.id,
+        lastUpdate: Date.now()
+      });
+
+      console.log(`✅ Portfolio dashboard sent to #${dashboardChannel.name}`);
+
+    } catch (error) {
+      console.error('❌ Error sending dashboard embed:', error.message);
     }
   }
 
