@@ -10,7 +10,7 @@ const GUILD_ID = process.env.DISCORD_GUILD_ID;
 // Gemini API Configuration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_SECRET = process.env.GEMINI_API_SECRET;
-const GEMINI_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://api.gemini.com' : 'https://api.sandbox.gemini.com';
+const GEMINI_BASE_URL = 'https://api.gemini.com';
 
 // Trading Settings (monitoring only - no trade initiation)
 const tradingSettings = {
@@ -117,6 +117,7 @@ class DiscordTradingBot {
     });
 
     this.gemini = new GeminiAPI();
+    this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
     this.setupEventHandlers();
     this.registerCommands();
   }
@@ -125,6 +126,7 @@ class DiscordTradingBot {
     this.client.once('ready', () => {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       this.startDailyTracking();
+      this.startAutoUpdating();
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -302,9 +304,16 @@ class DiscordTradingBot {
 
       const buttons = this.createPortfolioButtons();
 
-      await interaction.editReply({
+      const message = await interaction.editReply({
         embeds: [embed],
         components: [buttons],
+      });
+
+      // Store this message for auto-updating
+      this.activePortfolioMessages.set(message.id, {
+        channelId: interaction.channelId,
+        messageId: message.id,
+        lastUpdate: Date.now()
       });
 
     } catch (error) {
@@ -497,6 +506,91 @@ class DiscordTradingBot {
   async refreshPortfolio(interaction) {
     await interaction.deferUpdate();
     await this.showPortfolio(interaction);
+  }
+
+  async updatePortfolioMessage(channelId, messageId) {
+    try {
+      const channel = await this.client.channels.fetch(channelId);
+      const message = await channel.messages.fetch(messageId);
+      
+      // Get fresh portfolio data
+      const balances = await this.gemini.getBalances();
+      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+      const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+
+      let totalValue = parseFloat(usdBalance.amount);
+      const holdings = [];
+
+      // Get current prices and calculate portfolio value
+      for (const balance of cryptoBalances) {
+        try {
+          const symbol = `${balance.currency.toLowerCase()}usd`;
+          const ticker = await this.gemini.getTicker(symbol);
+          const currentPrice = parseFloat(ticker.last);
+          const amount = parseFloat(balance.amount);
+          const value = amount * currentPrice;
+          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
+          totalValue += value;
+
+          holdings.push({
+            currency: balance.currency,
+            amount: amount,
+            price: currentPrice,
+            value: value,
+            change: change
+          });
+        } catch (error) {
+          console.error(`Error getting price for ${balance.currency}:`, error.message);
+        }
+      }
+
+      // Update daily buy tracking
+      await this.updateDailyBuyTracking();
+
+      const embed = this.createPortfolioEmbed({
+        totalValue,
+        usdBalance: parseFloat(usdBalance.amount),
+        holdings,
+        dailyBuyData
+      });
+
+      const buttons = this.createPortfolioButtons();
+
+      await message.edit({
+        embeds: [embed],
+        components: [buttons],
+      });
+
+      console.log(`📊 Auto-updated portfolio message in channel ${channelId}`);
+    } catch (error) {
+      console.error(`Error updating portfolio message:`, error.message);
+      // Remove invalid message from tracking
+      this.activePortfolioMessages.delete(messageId);
+    }
+  }
+
+  startAutoUpdating() {
+    console.log('🔄 Starting automatic portfolio updates every 30 seconds...');
+    
+    setInterval(async () => {
+      const messagesToUpdate = Array.from(this.activePortfolioMessages.values());
+      
+      for (const msgData of messagesToUpdate) {
+        // Only update messages that are less than 1 hour old
+        const messageAge = Date.now() - msgData.lastUpdate;
+        if (messageAge < 3600000) { // 1 hour
+          try {
+            await this.updatePortfolioMessage(msgData.channelId, msgData.messageId);
+            msgData.lastUpdate = Date.now();
+          } catch (error) {
+            console.error('Error in auto-update:', error.message);
+          }
+        } else {
+          // Remove old messages from tracking
+          this.activePortfolioMessages.delete(msgData.messageId);
+        }
+      }
+    }, 30000); // Update every 30 seconds
   }
 
   async showActiveOrders(interaction) {
