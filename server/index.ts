@@ -67,12 +67,16 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    log(`🌐 Enhanced web server running on port ${port}`);
+    log(`🔗 Keep-alive endpoints available: /api/health, /api/ping`);
+    log(`📊 Bot management endpoints: /api/bot/status, /api/bot/ping`);
     
-    // Bot management with proper process tracking
+    // Enhanced bot management with crash detection
     let botProcess: ChildProcess | null = null;
     let restartCount = 0;
-    const MAX_RESTARTS = 10;
+    let lastPingTime = Date.now();
+    const MAX_RESTARTS = 25; // Increased restart attempts
+    const PING_TIMEOUT = 10000; // 10 seconds without ping = restart
     
     function startBot() {
       if (botProcess) {
@@ -98,17 +102,19 @@ app.use((req, res, next) => {
       });
     }
     
-    function scheduleRestart() {
+    function scheduleRestart(reason = 'unknown') {
       if (restartCount >= MAX_RESTARTS) {
         console.error(`🛑 Max restarts (${MAX_RESTARTS}) reached. Stopping bot auto-restart.`);
         return;
       }
       
       restartCount++;
-      const delay = Math.min(5000 * restartCount, 60000); // Exponential backoff, max 1 minute
+      const delay = Math.min(2000 + (restartCount * 1000), 30000); // Faster restart, max 30 seconds
+      
+      log(`🔄 Scheduling bot restart (reason: ${reason}, attempt ${restartCount}/${MAX_RESTARTS}) in ${delay}ms...`);
       
       setTimeout(() => {
-        log(`🔄 Restarting Discord bot (attempt ${restartCount}/${MAX_RESTARTS})...`);
+        log(`🚀 Restarting Discord bot (attempt ${restartCount}/${MAX_RESTARTS})...`);
         startBot();
       }, delay);
     }
@@ -116,10 +122,29 @@ app.use((req, res, next) => {
     // Start the bot
     startBot();
     
-    // Reset restart counter every hour
+    // Enhanced monitoring and restart system
     setInterval(() => {
-      restartCount = 0;
-    }, 3600000);
+      const timeSinceLastPing = Date.now() - lastPingTime;
+      
+      if (timeSinceLastPing > PING_TIMEOUT && botProcess) {
+        log(`⚠️ Bot ping timeout (${timeSinceLastPing}ms since last ping), restarting...`);
+        scheduleRestart('ping timeout');
+      }
+    }, 5000); // Check every 5 seconds
+    
+    // Reset restart counter every 30 minutes (more frequent reset for stability)
+    setInterval(() => {
+      if (restartCount > 0) {
+        log(`🔄 Resetting restart counter (was ${restartCount})`);
+        restartCount = 0;
+      }
+    }, 1800000); // 30 minutes
+    
+    // Track ping updates through middleware
+    app.use('/api/bot/ping', (req, res, next) => {
+      lastPingTime = Date.now();
+      next();
+    });
     
     // Graceful shutdown
     process.on('SIGINT', () => {

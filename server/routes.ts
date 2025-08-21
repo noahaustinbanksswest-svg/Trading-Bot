@@ -335,19 +335,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Keep-alive endpoints for infrastructure stability
+  // Enhanced keep-alive endpoints for maximum uptime
   app.get("/api/health", (req, res) => {
-    res.json({ 
+    const health = {
       status: "healthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      version: process.version
-    });
+      version: process.version,
+      pid: process.pid,
+      platform: process.platform,
+      nodeVersion: process.version
+    };
+    console.log(`🏥 Health check requested - uptime: ${Math.floor(process.uptime())}s`);
+    res.json(health);
   });
 
   app.get("/api/ping", (req, res) => {
-    res.json({ pong: Date.now() });
+    const pong = { 
+      pong: Date.now(),
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    };
+    console.log(`🏓 Ping received - responding with pong`);
+    res.json(pong);
+  });
+
+  // Enhanced keep-alive endpoint that responds every second
+  app.get("/api/keep-alive", (req, res) => {
+    res.json({
+      alive: true,
+      timestamp: Date.now(),
+      uptime: process.uptime(),
+      status: "running"
+    });
   });
 
   // Bot status and management endpoints
@@ -363,6 +384,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/bot/ping", async (req, res) => {
     try {
       const { status, errorMessage } = req.body;
+      
+      // Enhanced logging for bot pings
+      const pingTime = new Date().toLocaleTimeString();
+      console.log(`🤖 Bot ping at ${pingTime} - Status: ${status || 'running'}`);
       
       const [existingStatus] = await db.select().from(botStatus).limit(1);
       
@@ -384,8 +409,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      res.json({ message: "Ping recorded" });
+      res.json({ 
+        message: "Ping recorded successfully",
+        timestamp: new Date().toISOString(),
+        status: status || "running"
+      });
     } catch (error) {
+      console.error(`❌ Failed to record bot ping:`, error);
       res.status(500).json({ error: "Failed to record ping" });
     }
   });

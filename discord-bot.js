@@ -1196,15 +1196,25 @@ class DiscordTradingBot {
   }
 
   startKeepAlive() {
-    console.log('💗 Starting keep-alive ping system...');
+    console.log('💗 Starting enhanced keep-alive ping system (every 1 second)...');
     
-    // Send keep-alive ping every 30 seconds
+    // Send keep-alive ping every 1 second for maximum uptime
     setInterval(async () => {
       await sendKeepAlivePing('running');
-    }, 30000);
+    }, 1000); // 1 second intervals
     
     // Initial ping
     sendKeepAlivePing('running');
+    
+    // Additional heartbeat every 5 seconds with status update
+    setInterval(async () => {
+      try {
+        await sendKeepAlivePing('running', null);
+        console.log('💗 Keep-alive heartbeat sent successfully');
+      } catch (error) {
+        console.error('💔 Keep-alive heartbeat failed:', error.message);
+      }
+    }, 5000);
   }
 
   async showActiveOrders(interaction) {
