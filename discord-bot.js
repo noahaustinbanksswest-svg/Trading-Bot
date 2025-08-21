@@ -1543,10 +1543,16 @@ class DiscordTradingBot {
           console.log(`   Base Amount: ${autoTradeSettings.stopAtLoss}`);
           console.log(`   Fee-Adjusted Threshold: ${feeAdjustedBase.toFixed(8)} (includes ${(totalFeeRate * 100).toFixed(2)}% fees + buffer)`);
           
-          if (cryptoHolding.amount <= feeAdjustedBase) {
+          // Should sell when ABOVE the threshold, stop when reaching the base
+          console.log(`🔍 Condition Check: ${cryptoHolding.amount.toFixed(8)} > ${feeAdjustedBase.toFixed(8)} = ${cryptoHolding.amount > feeAdjustedBase}`);
+          
+          if (cryptoHolding.amount > feeAdjustedBase) {
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `${autoTradeSettings.selectedCrypto} holdings reached fee-adjusted base: ${cryptoHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} ${autoTradeSettings.selectedCrypto} (STOP SELLING with ${(totalFeeRate * 100).toFixed(2)}% buffer)`;
+            reason = `${autoTradeSettings.selectedCrypto} above base threshold: ${cryptoHolding.amount.toFixed(8)} > ${feeAdjustedBase.toFixed(8)} ${autoTradeSettings.selectedCrypto} - SELLING to reach base amount`;
+            console.log(`🚨 CONDITION MET! shouldExecuteTrade = true, reason: ${reason}`);
+          } else {
+            console.log(`✅ ${autoTradeSettings.selectedCrypto} at safe level: ${cryptoHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} (STOP SELLING - reached base)`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
