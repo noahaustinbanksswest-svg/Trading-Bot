@@ -1993,23 +1993,34 @@ class DiscordTradingBot {
           console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
           
           if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
-            // NEW: Check for $1 price rise trigger
-            const baselinePrice = autoTradeSettings.baselinePrice || currentPrice; // Initialize if not set
-            const priceIncrease = currentPrice - baselinePrice;
+            // DYNAMIC SWING TRADING: Track recent low and trigger on $1 rise from any low
+            if (!this.priceHistory) this.priceHistory = [];
             
-            console.log(`📈 PRICE RISE CHECK:`);
-            console.log(`   Baseline Price: $${baselinePrice.toFixed(2)}`);
+            // Keep last 30 price points (30 seconds of history)
+            this.priceHistory.push(currentPrice);
+            if (this.priceHistory.length > 30) {
+              this.priceHistory.shift();
+            }
+            
+            // Find the lowest price in recent history
+            const recentLow = Math.min(...this.priceHistory);
+            const priceRiseFromLow = currentPrice - recentLow;
+            
+            console.log(`📈 DYNAMIC SWING TRADING CHECK:`);
+            console.log(`   Recent Low (30s): $${recentLow.toFixed(2)}`);
             console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
-            console.log(`   Price Increase: $${priceIncrease.toFixed(2)}`);
-            console.log(`   Trigger Threshold: $1.00`);
+            console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
+            console.log(`   Swing Trigger: $1.00`);
+            console.log(`   Price History: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
             
-            if (priceIncrease >= 1.00) {
+            if (priceRiseFromLow >= 1.00) {
               autoTradeSettings.conditions.portfolioValueReached = true;
               shouldExecuteTrade = true;
-              reason = `🚀 PRICE TRIGGER: ${autoTradeSettings.selectedCrypto} rose $${priceIncrease.toFixed(2)} (${baselinePrice.toFixed(2)} → ${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
-              console.log(`🚨 CONDITION MET! shouldExecuteTrade = true, reason: ${reason}`);
+              reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+              console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
             } else {
-              console.log(`⏰ Waiting for trigger: Need $${(1.00 - priceIncrease).toFixed(2)} more rise to reach $1.00 threshold`);
+              const neededRise = 1.00 - priceRiseFromLow;
+              console.log(`🔄 Monitoring swings: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
             }
           } else {
             console.log(`✅ ${autoTradeSettings.selectedCrypto} protected: ${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss} base (STOP SELLING - would breach base)`);
