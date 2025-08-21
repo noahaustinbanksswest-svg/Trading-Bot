@@ -1220,6 +1220,14 @@ class DiscordTradingBot {
   startAutoUpdating() {
     console.log('🔄 Starting automatic portfolio updates every 1 second...');
     
+    // FORCE IMMEDIATE RECONNECTION
+    console.log('🚨 FORCING IMMEDIATE DASHBOARD RECONNECTION...');
+    setTimeout(() => {
+      this.findOrCreateDashboardEmbed().catch(error => {
+        console.error('❌ Immediate reconnection failed:', error.message);
+      });
+    }, 2000);
+    
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
@@ -1235,9 +1243,14 @@ class DiscordTradingBot {
           await this.findOrCreateDashboardEmbed();
         }
       } else {
-        console.log(`⚠️ No dashboard message tracked - reconnecting...`);
+        console.log(`⚠️ No dashboard message tracked - FORCE RECONNECTING...`);
         // Automatically reconnect to dashboard when tracking is lost
-        await this.findOrCreateDashboardEmbed();
+        try {
+          await this.findOrCreateDashboardEmbed();
+          console.log(`🔗 Dashboard reconnection attempt completed`);
+        } catch (error) {
+          console.error(`❌ Dashboard reconnection failed:`, error.message);
+        }
       }
     }, 1000); // Update every 1 second for maximum accuracy
   }
