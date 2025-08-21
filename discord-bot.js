@@ -460,6 +460,14 @@ class DiscordTradingBot {
     this.dashboardChannelId = null; // Track dashboard channel
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
+    
+    // Real-time data storage
+    this.realTimeBalances = new Map(); // Store live balance data
+    this.realTimePrices = new Map();   // Store live price data
+    this.priceHistory = [];           // Store price history for swing trading
+    this.lastBalanceUpdate = null;
+    this.lastPriceUpdate = null;
+    
     this.setupEventHandlers();
     this.registerCommands();
   }
@@ -1217,8 +1225,239 @@ class DiscordTradingBot {
     }
   }
 
+  initializeRealTimeMonitoring() {
+    console.log('🚀 Initializing REAL-TIME monitoring system...');
+    
+    // Create intelligent data refresh intervals
+    this.startBalanceStreaming();
+    this.startPriceStreaming();
+    this.startSwingMonitoring();
+  }
+  
+  startBalanceStreaming() {
+    console.log('💰 Starting balance streaming (every 10 seconds)...');
+    
+    // Fetch fresh balance data every 10 seconds (instead of every 1 second)
+    setInterval(async () => {
+      try {
+        const balances = await this.gemini.getBalances();
+        
+        // Update real-time balance cache
+        this.realTimeBalances.clear();
+        balances.forEach(balance => {
+          this.realTimeBalances.set(balance.currency, {
+            amount: parseFloat(balance.amount),
+            available: parseFloat(balance.available || '0'),
+            timestamp: Date.now()
+          });
+        });
+        
+        this.lastBalanceUpdate = Date.now();
+        console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
+        
+        // Trigger immediate portfolio update with fresh data
+        if (this.dashboardMessageId && this.dashboardChannelId) {
+          await this.updatePortfolioMessageFromRealTimeData();
+        }
+        
+      } catch (error) {
+        if (!error.message.includes('429')) {
+          console.error('❌ Balance streaming error:', error.message);
+        }
+      }
+    }, 10000); // Every 10 seconds for balance updates
+  }
+  
+  startPriceStreaming() {
+    console.log('📈 Starting price streaming (every 3 seconds)...');
+    
+    // Fetch fresh price data every 3 seconds for rapid swing detection
+    setInterval(async () => {
+      try {
+        // Get prices for all currencies we have balances for
+        const currencies = Array.from(this.realTimeBalances.keys()).filter(c => c !== 'USD');
+        
+        for (const currency of currencies) {
+          try {
+            const symbol = `${currency}USD`;
+            const ticker = await this.gemini.getTicker(symbol);
+            const price = parseFloat(ticker.last);
+            
+            // Update real-time price cache
+            this.realTimePrices.set(currency, {
+              price: price,
+              timestamp: Date.now()
+            });
+            
+            // Add to price history for swing trading (SOL only)
+            if (currency === 'SOL') {
+              this.priceHistory.push(price);
+              if (this.priceHistory.length > 60) { // Keep 3 minutes of history at 3-second intervals
+                this.priceHistory.shift();
+              }
+            }
+            
+          } catch (priceError) {
+            if (!priceError.message.includes('429')) {
+              console.error(`❌ Price streaming error for ${currency}:`, priceError.message);
+            }
+          }
+        }
+        
+        this.lastPriceUpdate = Date.now();
+        console.log('🚀 LIVE PRICES UPDATED:', Array.from(this.realTimePrices.keys()));
+        
+      } catch (error) {
+        if (!error.message.includes('429')) {
+          console.error('❌ Price streaming error:', error.message);
+        }
+      }
+    }, 3000); // Every 3 seconds for price updates
+  }
+  
+  startSwingMonitoring() {
+    console.log('🌊 Starting swing trading monitoring (every 5 seconds)...');
+    
+    // Monitor for swing trading opportunities every 5 seconds
+    setInterval(async () => {
+      await this.checkAutoTradeConditionsRealTime();
+    }, 5000); // Every 5 seconds for swing monitoring
+  }
+  
+  async updatePortfolioMessageFromRealTimeData() {
+    try {
+      if (!this.dashboardMessageId || !this.dashboardChannelId) {
+        return;
+      }
+      
+      // Use cached real-time data instead of making API calls
+      const usdBalance = this.realTimeBalances.get('USD') || { amount: 0, available: 0 };
+      const displayUsdBalance = Math.floor(usdBalance.available * 100) / 100;
+      let totalValue = displayUsdBalance;
+      const holdings = [];
+      
+      console.log('🚀 UPDATING FROM REAL-TIME DATA:');
+      console.log(`   USD: $${displayUsdBalance.toFixed(2)}`);
+      
+      // Process crypto holdings using cached data
+      for (const [currency, balanceData] of this.realTimeBalances.entries()) {
+        if (currency !== 'USD' && balanceData.amount > 0) {
+          const priceData = this.realTimePrices.get(currency);
+          if (priceData) {
+            const value = balanceData.amount * priceData.price;
+            totalValue += value;
+            
+            holdings.push({
+              currency: currency,
+              amount: balanceData.amount,
+              price: priceData.price,
+              value: value,
+              change: 0 // Calculate change later if needed
+            });
+            
+            console.log(`   ${currency}: ${balanceData.amount.toFixed(8)} @ $${priceData.price.toFixed(2)} = $${value.toFixed(2)}`);
+          }
+        }
+      }
+      
+      console.log(`🎆 TOTAL PORTFOLIO: $${totalValue.toFixed(2)}`);
+      
+      // Update the Discord embed with fresh data
+      const channel = await this.client.channels.fetch(this.dashboardChannelId);
+      const message = await channel.messages.fetch(this.dashboardMessageId);
+      
+      const embed = this.createPortfolioEmbed({
+        totalValue: totalValue,
+        usdBalance: displayUsdBalance,
+        holdings: holdings
+      });
+      
+      await message.edit({ embeds: [embed] });
+      console.log('✨ REAL-TIME PORTFOLIO UPDATED SUCCESSFULLY!');
+      
+    } catch (error) {
+      console.error('❌ Real-time portfolio update failed:', error.message);
+    }
+  }
+
+  async checkAutoTradeConditionsRealTime() {
+    try {
+      const autoTradeSettings = await storage.getAutoTradeSettings();
+      if (!autoTradeSettings || !autoTradeSettings.enabled || !autoTradeSettings.selectedCrypto) {
+        return;
+      }
+
+      // Use real-time cached data instead of API calls
+      const balanceData = this.realTimeBalances.get(autoTradeSettings.selectedCrypto);
+      const priceData = this.realTimePrices.get(autoTradeSettings.selectedCrypto);
+      
+      if (!balanceData || !priceData) {
+        console.log(`⏳ Waiting for real-time data... Balance: ${!!balanceData}, Price: ${!!priceData}`);
+        return;
+      }
+      
+      const currentPrice = priceData.price;
+      const currentAmount = balanceData.amount;
+      
+      console.log(`📊 REAL-TIME SWING CHECK:`);
+      console.log(`   ${autoTradeSettings.selectedCrypto}: ${currentAmount.toFixed(8)}`);
+      console.log(`   Current Price: $${currentPrice.toFixed(2)}`);
+      
+      // Base protection check using real-time data
+      const tradeAmount = 1.0 / currentPrice; // $1 worth in crypto
+      const feeBuffer = 0.08 / currentPrice; // $0.08 fee buffer
+      const totalImpact = tradeAmount + feeBuffer;
+      const remainingAfterSale = currentAmount - totalImpact;
+      
+      console.log(`💰 Real-time $1 Trade Check:`);
+      console.log(`   Trade: $1 worth = ${tradeAmount.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      console.log(`   Fee Buffer: ${feeBuffer.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);  
+      console.log(`   Total Impact: ${totalImpact.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      console.log(`   After Sale: ${remainingAfterSale.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      
+      if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
+        // DYNAMIC SWING TRADING: Use cached price history
+        if (this.priceHistory.length < 3) {
+          console.log(`🔄 Building price history... (${this.priceHistory.length}/3 minimum)`);
+          return;
+        }
+        
+        // Find the lowest price in recent history
+        const recentLow = Math.min(...this.priceHistory);
+        const priceRiseFromLow = currentPrice - recentLow;
+        
+        console.log(`📈 REAL-TIME DYNAMIC SWING CHECK:`);
+        console.log(`   Recent Low (${this.priceHistory.length} samples): $${recentLow.toFixed(2)}`);
+        console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
+        console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
+        console.log(`   Swing Trigger: $1.00`);
+        console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
+        
+        if (priceRiseFromLow >= 1.00) {
+          console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED!`);
+          const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+          
+          // Execute the trade using existing trade logic
+          await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
+          
+        } else {
+          const neededRise = 1.00 - priceRiseFromLow;
+          console.log(`🔄 Real-time monitoring: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
+        }
+      } else {
+        console.log(`✅ ${autoTradeSettings.selectedCrypto} base protected: ${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss} (REAL-TIME)`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Real-time swing check error:', error.message);
+    }
+  }
+
   startAutoUpdating() {
-    console.log('🔄 Starting automatic portfolio updates every 1 second...');
+    console.log('🚀 Starting REAL-TIME portfolio monitoring with live data streams...');
+    
+    // Initialize real-time monitoring
+    this.initializeRealTimeMonitoring();
     
     // FORCE IMMEDIATE RECONNECTION
     console.log('🚨 FORCING IMMEDIATE DASHBOARD RECONNECTION...');
@@ -1228,14 +1467,15 @@ class DiscordTradingBot {
       });
     }, 2000);
     
+    // Reduced frequency polling for backup (every 30 seconds instead of 1 second)
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
-        console.log(`🔄 Attempting auto-update for message ${this.dashboardMessageId}`);
+        console.log(`🔄 Backup sync for message ${this.dashboardMessageId}`);
         try {
-          await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
+          await this.updatePortfolioMessageFromRealTimeData();
         } catch (error) {
-          console.error('❌ Dashboard update failed:', error.message);
+          console.error('❌ Dashboard backup sync failed:', error.message);
           // Reset dashboard tracking if message becomes invalid
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
@@ -1243,16 +1483,15 @@ class DiscordTradingBot {
           await this.findOrCreateDashboardEmbed();
         }
       } else {
-        console.log(`⚠️ No dashboard message tracked - FORCE RECONNECTING...`);
-        // Automatically reconnect to dashboard when tracking is lost
+        console.log(`⚠️ No dashboard message tracked - RECONNECTING...`);
         try {
           await this.findOrCreateDashboardEmbed();
-          console.log(`🔗 Dashboard reconnection attempt completed`);
+          console.log(`🔗 Dashboard reconnection completed`);
         } catch (error) {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 1000); // Update every 1 second for maximum accuracy
+    }, 30000); // Backup sync every 30 seconds (much less frequent)
   }
 
   startKeepAlive() {
