@@ -165,9 +165,11 @@ class GeminiAPI {
       console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
       
       const endpoint = '/v1/order/new';
+      
+      // Enhanced order payload for 403 error fix
       const payload = {
-        symbol: symbol,
-        amount: amount.toString(),
+        symbol: symbol.toLowerCase(), // Gemini expects lowercase symbols
+        amount: parseFloat(amount).toString(), // Ensure clean numeric string
         price: '1', // For immediate-or-cancel, price is ignored - executes at market price
         side: 'sell',
         type: 'exchange limit',
@@ -177,6 +179,14 @@ class GeminiAPI {
       console.log(`📤 API Payload:`, payload);
       
       const headers = this.generateHeaders(endpoint, payload);
+      
+      // Add detailed logging for debugging 403 errors
+      console.log(`🔐 Authentication Check:`, {
+        'API-KEY': this.apiKey ? this.apiKey.substring(0, 8) + '...' : 'MISSING',
+        'SECRET': this.apiSecret ? 'PRESENT' : 'MISSING',
+        'ENDPOINT': endpoint,
+        'SYMBOL': symbol
+      });
       
       const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
         headers,
@@ -188,11 +198,26 @@ class GeminiAPI {
       
       return response.data;
     } catch (error) {
+      // Enhanced error logging for 403 debugging
       console.error('❌ Sell order FAILED:', {
         status: error.response?.status,
+        statusText: error.response?.statusText,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
+        symbol: symbol,
+        amount: amount
       });
+      
+      // Specific 403 error handling
+      if (error.response?.status === 403) {
+        console.error('🚨 403 FORBIDDEN ERROR - POSSIBLE CAUSES:');
+        console.error('   1. API keys are READ-ONLY (need TRADING permissions)');
+        console.error('   2. Account not verified for trading on Gemini');
+        console.error('   3. Insufficient crypto balance to sell');
+        console.error('   4. Trading not enabled for this account type');
+        console.error('   💡 SOLUTION: Go to Gemini → Account Settings → API → Enable Trading');
+      }
+      
       throw new Error(`Failed to place sell order: ${error.message}`);
     }
   }
