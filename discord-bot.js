@@ -152,6 +152,8 @@ class DiscordTradingBot {
 
     this.gemini = new GeminiAPI();
     this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
+    this.dashboardMessageId = null; // Track main dashboard message
+    this.dashboardChannelId = null; // Track dashboard channel
     this.setupEventHandlers();
     this.registerCommands();
   }
@@ -668,12 +670,9 @@ class DiscordTradingBot {
         components: [buttons],
       });
 
-      // Store this message for auto-updating
-      this.activePortfolioMessages.set(message.id, {
-        channelId: dashboardChannel.id,
-        messageId: message.id,
-        lastUpdate: Date.now()
-      });
+      // Store dashboard message for auto-updating (only one main message)
+      this.dashboardMessageId = message.id;
+      this.dashboardChannelId = dashboardChannel.id;
 
       console.log(`✅ Portfolio dashboard sent to #${dashboardChannel.name}`);
 
@@ -686,21 +685,16 @@ class DiscordTradingBot {
     console.log('🔄 Starting automatic portfolio updates every 10 seconds...');
     
     setInterval(async () => {
-      const messagesToUpdate = Array.from(this.activePortfolioMessages.values());
-      
-      for (const msgData of messagesToUpdate) {
-        // Only update messages that are less than 1 hour old
-        const messageAge = Date.now() - msgData.lastUpdate;
-        if (messageAge < 3600000) { // 1 hour
-          try {
-            await this.updatePortfolioMessage(msgData.channelId, msgData.messageId);
-            msgData.lastUpdate = Date.now();
-          } catch (error) {
-            console.error('Error in auto-update:', error.message);
-          }
-        } else {
-          // Remove old messages from tracking
-          this.activePortfolioMessages.delete(msgData.messageId);
+      // Only update the main dashboard embed - don't create new ones
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        try {
+          await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
+          console.log('🔄 Dashboard embed updated every 10 seconds');
+        } catch (error) {
+          console.error('❌ Dashboard update failed:', error.message);
+          // Reset dashboard tracking if message becomes invalid
+          this.dashboardMessageId = null;
+          this.dashboardChannelId = null;
         }
       }
     }, 10000); // Update every 10 seconds
