@@ -231,14 +231,11 @@ class DiscordTradingBot {
           await this.showPrices(interaction);
           break;
         default:
-          await interaction.reply({ content: 'Unknown command', ephemeral: true });
+          await this.replyWithError(interaction, 'Unknown command');
       }
     } catch (error) {
       console.error(`Error handling command ${commandName}:`, error);
-      await interaction.reply({ 
-        content: `❌ Error executing command: ${error.message}`, 
-        ephemeral: true 
-      });
+      await this.replyWithError(interaction, `Command error: ${error.message}`);
     }
   }
 
@@ -263,14 +260,11 @@ class DiscordTradingBot {
           await this.emergencyStopMonitoring(interaction);
           break;
         default:
-          await interaction.reply({ content: 'Unknown action', ephemeral: true });
+          await this.replyWithError(interaction, 'Unknown button action');
       }
     } catch (error) {
       console.error(`Error handling button ${customId}:`, error);
-      await interaction.reply({ 
-        content: `❌ Error: ${error.message}`, 
-        ephemeral: true 
-      });
+      await this.replyWithError(interaction, `Button error: ${error.message}`);
     }
   }
 
@@ -278,46 +272,8 @@ class DiscordTradingBot {
     await interaction.deferReply();
 
     try {
-      const balances = await this.gemini.getBalances();
-      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
-      const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
-
-      let totalValue = parseFloat(usdBalance.amount);
-      const holdings = [];
-
-      // Get current prices and calculate portfolio value
-      for (const balance of cryptoBalances) {
-        try {
-          const symbol = `${balance.currency.toLowerCase()}usd`;
-          const ticker = await this.gemini.getTicker(symbol);
-          const currentPrice = parseFloat(ticker.last);
-          const amount = parseFloat(balance.amount);
-          const value = amount * currentPrice;
-          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
-          totalValue += value;
-
-          holdings.push({
-            currency: balance.currency,
-            amount: amount,
-            price: currentPrice,
-            value: value,
-            change: change
-          });
-        } catch (error) {
-          console.error(`Error getting price for ${balance.currency}:`, error.message);
-        }
-      }
-
-      // Update daily buy tracking
-      await this.updateDailyBuyTracking();
-
-      const embed = this.createPortfolioEmbed({
-        totalValue,
-        usdBalance: parseFloat(usdBalance.amount),
-        holdings,
-        dailyBuyData
-      });
-
+      const portfolioData = await this.getPortfolioData();
+      const embed = this.createPortfolioEmbed(portfolioData);
       const buttons = this.createPortfolioButtons();
 
       const message = await interaction.editReply({
@@ -333,7 +289,15 @@ class DiscordTradingBot {
       });
 
     } catch (error) {
-      await interaction.editReply(`❌ Failed to fetch portfolio: ${error.message}`);
+      console.error('Portfolio error:', error);
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌ Portfolio Error')
+        .setDescription('Unable to fetch portfolio data. Please check your API credentials.')
+        .setColor(0xF44336)
+        .addFields({ name: 'Error', value: error.message.substring(0, 1000), inline: false })
+        .setTimestamp();
+      
+      await interaction.editReply({ embeds: [errorEmbed] });
     }
   }
 
@@ -439,37 +403,43 @@ class DiscordTradingBot {
         console.log('📅 Daily buy tracking reset for new day');
       }
 
-      // Get today's trades to calculate daily purchases
-      const trades = await this.gemini.getTrades();
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      try {
+        // Get today's trades to calculate daily purchases
+        const trades = await this.gemini.getTrades();
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
 
-      let dailyTotal = 0;
-      const todayPurchases = [];
+        let dailyTotal = 0;
+        const todayPurchases = [];
 
-      trades.forEach(trade => {
-        const tradeDate = new Date(trade.timestampms);
-        
-        if (tradeDate >= todayStart && trade.side === 'buy') {
-          const tradeValue = parseFloat(trade.amount) * parseFloat(trade.price);
-          dailyTotal += tradeValue;
-          todayPurchases.push({
-            symbol: trade.symbol,
-            amount: trade.amount,
-            price: trade.price,
-            value: tradeValue,
-            time: tradeDate
-          });
+        trades.forEach(trade => {
+          const tradeDate = new Date(trade.timestampms);
+          
+          if (tradeDate >= todayStart && trade.side === 'buy') {
+            const tradeValue = parseFloat(trade.amount) * parseFloat(trade.price);
+            dailyTotal += tradeValue;
+            todayPurchases.push({
+              symbol: trade.symbol,
+              amount: trade.amount,
+              price: trade.price,
+              value: tradeValue,
+              time: tradeDate
+            });
+          }
+        });
+
+        dailyBuyData.totalBought = dailyTotal;
+        dailyBuyData.purchases = todayPurchases;
+        dailyBuyData.limitReached = dailyTotal >= tradingSettings.dailyBuyLimit;
+        dailyBuyData.lastUpdate = new Date();
+
+        if (dailyBuyData.limitReached) {
+          console.log(`⚠️ Daily buy limit reached: $${dailyTotal.toFixed(2)}/$${tradingSettings.dailyBuyLimit}`);
         }
-      });
-
-      dailyBuyData.totalBought = dailyTotal;
-      dailyBuyData.purchases = todayPurchases;
-      dailyBuyData.limitReached = dailyTotal >= tradingSettings.dailyBuyLimit;
-      dailyBuyData.lastUpdate = new Date();
-
-      if (dailyBuyData.limitReached) {
-        console.log(`⚠️ Daily buy limit reached: $${dailyTotal.toFixed(2)}/$${tradingSettings.dailyBuyLimit}`);
+      } catch (apiError) {
+        console.error('API error in daily tracking:', apiError.message);
+        // Keep existing data if API fails
+        dailyBuyData.lastUpdate = new Date();
       }
 
     } catch (error) {
@@ -521,7 +491,27 @@ class DiscordTradingBot {
 
   async refreshPortfolio(interaction) {
     await interaction.deferUpdate();
-    await this.showPortfolio(interaction);
+    
+    try {
+      const portfolioData = await this.getPortfolioData();
+      const embed = this.createPortfolioEmbed(portfolioData);
+      const buttons = this.createPortfolioButtons();
+
+      await interaction.editReply({
+        embeds: [embed],
+        components: [buttons],
+      });
+
+    } catch (error) {
+      console.error('Refresh error:', error);
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌ Refresh Error')
+        .setDescription('Unable to refresh portfolio data.')
+        .setColor(0xF44336)
+        .setTimestamp();
+      
+      await interaction.editReply({ embeds: [errorEmbed] });
+    }
   }
 
   async updatePortfolioMessage(channelId, messageId) {
@@ -944,6 +934,91 @@ class DiscordTradingBot {
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       await interaction.editReply(`❌ Failed to get price: ${error.message}`);
+    }
+  }
+
+  async getPortfolioData() {
+    let totalValue = 0;
+    let usdBalance = 0;
+    let holdings = [];
+
+    try {
+      // Get portfolio data
+      const balances = await this.gemini.getBalances();
+      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+      const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+
+      totalValue = parseFloat(usdBalanceData.amount);
+      usdBalance = parseFloat(usdBalanceData.amount);
+
+      // Get current prices and calculate portfolio value
+      for (const balance of cryptoBalances) {
+        try {
+          const symbol = `${balance.currency.toLowerCase()}usd`;
+          const ticker = await this.gemini.getTicker(symbol);
+          const currentPrice = parseFloat(ticker.last);
+          const amount = parseFloat(balance.amount);
+          const value = amount * currentPrice;
+          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
+          totalValue += value;
+
+          holdings.push({
+            currency: balance.currency,
+            amount: amount,
+            price: currentPrice,
+            value: value,
+            change: change
+          });
+        } catch (priceError) {
+          console.error(`Error getting price for ${balance.currency}:`, priceError.message);
+          // Add holding without price data
+          holdings.push({
+            currency: balance.currency,
+            amount: parseFloat(balance.amount),
+            price: 0,
+            value: 0,
+            change: 0
+          });
+        }
+      }
+
+      // Update daily buy tracking
+      await this.updateDailyBuyTracking();
+
+    } catch (error) {
+      console.error('Error fetching Gemini data:', error.message);
+      // Return default data if API fails
+      dailyBuyData = {
+        totalBought: 0,
+        purchases: [],
+        limitReached: false,
+        lastUpdate: new Date()
+      };
+    }
+
+    return {
+      totalValue,
+      usdBalance,
+      holdings,
+      dailyBuyData
+    };
+  }
+
+  async replyWithError(interaction, message) {
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Error')
+      .setDescription(message)
+      .setColor(0xF44336)
+      .setTimestamp();
+
+    try {
+      if (interaction.deferred) {
+        await interaction.editReply({ embeds: [errorEmbed] });
+      } else {
+        await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+      }
+    } catch (replyError) {
+      console.error('Error sending error message:', replyError);
     }
   }
 
