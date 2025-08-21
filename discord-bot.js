@@ -1484,7 +1484,13 @@ class DiscordTradingBot {
   }
 
   async checkAutoTradeConditions() {
-    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) return;
+    // Debug log to show monitoring is running
+    console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
+    
+    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) {
+      console.log(`⏸️ Auto Trade monitoring skipped - not enabled/active`);
+      return;
+    }
 
     try {
       // Get current portfolio data
