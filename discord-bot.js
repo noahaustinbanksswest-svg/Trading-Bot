@@ -165,27 +165,48 @@ class GeminiAPI {
       console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
       
       const endpoint = '/v1/order/new';
+      const nonce = Date.now().toString();
       
-      // Enhanced order payload for 403 error fix
+      // Proper Gemini API payload format with required fields
       const payload = {
+        request: endpoint,
+        nonce: nonce,
         symbol: symbol.toLowerCase(), // Gemini expects lowercase symbols
         amount: parseFloat(amount).toString(), // Ensure clean numeric string
         price: '1', // For immediate-or-cancel, price is ignored - executes at market price
         side: 'sell',
         type: 'exchange limit',
+        account: 'primary', // REQUIRED for Master API keys - default trading account
         options: ['immediate-or-cancel'] // This makes it an INSTANT market order
       };
       
       console.log(`📤 API Payload:`, payload);
       
-      const headers = this.generateHeaders(endpoint, payload);
+      // Proper Gemini authentication with Base64 encoding
+      const payloadBuffer = Buffer.from(JSON.stringify(payload));
+      const payloadBase64 = payloadBuffer.toString('base64');
       
-      // Add detailed logging for debugging 403 errors
+      const crypto = await import('crypto');
+      const signature = crypto.createHmac('sha384', this.apiSecret)
+        .update(payloadBase64)
+        .digest('hex');
+      
+      const headers = {
+        'Content-Type': 'text/plain',
+        'Content-Length': '0',
+        'X-GEMINI-APIKEY': this.apiKey,
+        'X-GEMINI-PAYLOAD': payloadBase64,
+        'X-GEMINI-SIGNATURE': signature,
+        'Cache-Control': 'no-cache'
+      };
+      
+      // Add detailed logging for debugging
       console.log(`🔐 Authentication Check:`, {
         'API-KEY': this.apiKey ? this.apiKey.substring(0, 8) + '...' : 'MISSING',
         'SECRET': this.apiSecret ? 'PRESENT' : 'MISSING',
         'ENDPOINT': endpoint,
-        'SYMBOL': symbol
+        'SYMBOL': symbol,
+        'ACCOUNT': 'primary'
       });
       
       const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
