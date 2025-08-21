@@ -949,13 +949,15 @@ class DiscordTradingBot {
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
           const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
-          totalValue += value;
+          // Truncate crypto value before adding to total (consistent with USD truncation)
+          const truncatedValue = Math.floor(value * 100) / 100;
+          totalValue += truncatedValue;
 
           holdings.push({
             currency: balance.currency,
             amount: amount,
             price: currentPrice,
-            value: value,
+            value: truncatedValue,
             change: change
           });
         } catch (error) {
@@ -1121,7 +1123,7 @@ class DiscordTradingBot {
               currency: balance.currency,
               amount: amount,
               price: currentPrice,
-              value: value,
+              value: truncatedValue,
               change: change
             });
           } catch (error) {
@@ -1537,13 +1539,15 @@ class DiscordTradingBot {
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
           const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
-          totalValue += value;
+          // Truncate crypto value before adding to total (consistent with USD truncation)
+          const truncatedValue = Math.floor(value * 100) / 100;
+          totalValue += truncatedValue;
 
           holdings.push({
             currency: balance.currency,
             amount: amount,
             price: currentPrice,
-            value: value,
+            value: truncatedValue,
             change: change
           });
         } catch (priceError) {
