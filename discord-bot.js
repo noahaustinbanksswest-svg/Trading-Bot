@@ -335,6 +335,7 @@ class DiscordTradingBot {
 
   async handleButtonInteraction(interaction) {
     const { customId } = interaction;
+    console.log(`🔘 Button clicked: ${customId} by user ${interaction.user.tag}`);
 
     try {
       switch (customId) {
@@ -354,6 +355,7 @@ class DiscordTradingBot {
           await this.emergencyStopMonitoring(interaction);
           break;
         case 'auto_trade_setup':
+          console.log('🤖 Auto Trade Setup button clicked - showing modal');
           await this.showAutoTradeSetup(interaction);
           break;
         case 'auto_trade_status':
@@ -372,8 +374,11 @@ class DiscordTradingBot {
   }
 
   async handleModalSubmit(interaction) {
+    console.log(`📋 Modal submitted: ${interaction.customId} by user ${interaction.user.tag}`);
+    
     try {
       if (interaction.customId === 'auto_trade_modal') {
+        console.log('🤖 Auto Trade Modal submitted - processing configuration');
         await this.handleAutoTradeModal(interaction);
       } else {
         await interaction.reply({ content: 'Unknown modal submission.', ephemeral: true });
@@ -1471,6 +1476,8 @@ class DiscordTradingBot {
   }
 
   async handleAutoTradeModal(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+    
     const amount = interaction.fields.getTextInputValue('trade_amount');
     const stopAtLoss = interaction.fields.getTextInputValue('stop_at_loss');
     const cryptoSelection = interaction.fields.getTextInputValue('crypto_selection');
@@ -1532,7 +1539,7 @@ class DiscordTradingBot {
         .addFields({ name: '💡 Tip', value: 'Set at least one stop condition to enable Auto Trade.', inline: false });
     }
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
   }
 
   async checkAutoTradeConditions() {
