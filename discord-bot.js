@@ -1498,12 +1498,23 @@ class DiscordTradingBot {
       if (autoTradeSettings.stopAtLoss) {
         const solHolding = holdings.find(h => h.currency === 'SOL');
         if (solHolding) {
-          console.log(`🔍 Stop Selling Check: Current SOL ${solHolding.amount.toFixed(8)} vs Base Amount ${autoTradeSettings.stopAtLoss}`);
+          // Calculate Gemini trading fees (0.35% maker/taker) + 5% safety buffer
+          const tradingFeeRate = 0.0035; // 0.35% Gemini fee
+          const safetyBufferRate = 0.05; // 5% additional safety buffer
+          const totalFeeRate = tradingFeeRate + safetyBufferRate;
           
-          if (solHolding.amount <= autoTradeSettings.stopAtLoss) {
+          // Calculate the minimum amount needed to preserve base after fees
+          const feeAdjustedBase = autoTradeSettings.stopAtLoss * (1 + totalFeeRate);
+          
+          console.log(`🔍 Stop Selling Check:`);
+          console.log(`   Current SOL: ${solHolding.amount.toFixed(8)}`);
+          console.log(`   Base Amount: ${autoTradeSettings.stopAtLoss}`);
+          console.log(`   Fee-Adjusted Threshold: ${feeAdjustedBase.toFixed(8)} (includes ${(totalFeeRate * 100).toFixed(2)}% fees + buffer)`);
+          
+          if (solHolding.amount <= feeAdjustedBase) {
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `SOL holdings reached base amount: ${solHolding.amount.toFixed(8)} ≤ ${autoTradeSettings.stopAtLoss} SOL (STOP SELLING)`;
+            reason = `SOL holdings reached fee-adjusted base: ${solHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} SOL (STOP SELLING with ${(totalFeeRate * 100).toFixed(2)}% buffer)`;
           }
         }
       }
@@ -1573,6 +1584,15 @@ class DiscordTradingBot {
           continue;
         }
         
+        // Calculate estimated fee for this trade (Gemini: ~0.35%)
+        const estimatedFee = amount * 0.0035;
+        const amountAfterFees = amount - estimatedFee;
+        
+        console.log(`💰 Trade Details for ${balance.currency}:`);
+        console.log(`   Amount to sell: ${amount}`);
+        console.log(`   Estimated fee: ${estimatedFee.toFixed(8)} ${balance.currency}`);
+        console.log(`   Net after fees: ${amountAfterFees.toFixed(8)} ${balance.currency}`);
+        
         try {
           console.log(`💰 Placing sell order: ${amount} ${balance.currency} on ${symbol}`);
           
@@ -1586,7 +1606,9 @@ class DiscordTradingBot {
             status: 'submitted'
           });
           
-          console.log(`✅ SELL ORDER EXECUTED: ${amount} ${balance.currency} → USD (Order ID: ${order.order_id})`);
+          console.log(`✅ SELL ORDER EXECUTED: ${amount} ${balance.currency} → USD`);
+          console.log(`   Order ID: ${order.order_id}`);
+          console.log(`   Estimated net proceeds: ~${amountAfterFees.toFixed(8)} ${balance.currency} worth of USD after fees`);
           
         } catch (error) {
           console.error(`❌ Failed to sell ${balance.currency}:`, error.message);
