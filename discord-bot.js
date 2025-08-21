@@ -99,13 +99,9 @@ class GeminiAPI {
         message: error.message
       });
       
-      // Return mock data to keep bot functional
-      console.log('📊 Using fallback data - Discord bot remains fully functional');
-      return [
-        { currency: 'USD', amount: '1000.00', available: '1000.00' },
-        { currency: 'BTC', amount: '0.01', available: '0.01' },
-        { currency: 'ETH', amount: '0.5', available: '0.5' }
-      ];
+      // Throw error instead of returning mock data so user knows it's not working
+      console.log('❌ Gemini API failed - check your credentials');
+      throw new Error(`Gemini API connection failed: ${error.message}`);
     }
   }
 
@@ -704,7 +700,7 @@ class DiscordTradingBot {
   }
 
   startAutoUpdating() {
-    console.log('🔄 Starting automatic portfolio updates every 30 seconds...');
+    console.log('🔄 Starting automatic portfolio updates every 15 seconds...');
     
     setInterval(async () => {
       const messagesToUpdate = Array.from(this.activePortfolioMessages.values());
@@ -724,7 +720,7 @@ class DiscordTradingBot {
           this.activePortfolioMessages.delete(msgData.messageId);
         }
       }
-    }, 30000); // Update every 30 seconds
+    }, 15000); // Update every 15 seconds
   }
 
   async showActiveOrders(interaction) {
