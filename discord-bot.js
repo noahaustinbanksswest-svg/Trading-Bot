@@ -1271,7 +1271,7 @@ class DiscordTradingBot {
   startPriceStreaming() {
     console.log('📈 Starting price streaming (every 3 seconds)...');
     
-    // Fetch fresh price data every 1 second for maximum swing detection responsiveness
+    // Fetch fresh price data every 5 seconds for reliable swing detection (avoid rate limits)
     setInterval(async () => {
       try {
         // Get prices for all currencies we have balances for
@@ -1312,16 +1312,16 @@ class DiscordTradingBot {
           console.error('❌ Price streaming error:', error.message);
         }
       }
-    }, 1000); // Every 1 second for price updates
+    }, 5000); // Every 5 seconds for price updates (reduce API calls)
   }
   
   startSwingMonitoring() {
     console.log('🌊 Starting swing trading monitoring (every 1 second)...');
     
-    // Monitor for swing trading opportunities every 1 second
+    // Monitor for swing trading opportunities every 3 seconds
     setInterval(async () => {
       await this.checkAutoTradeConditionsRealTime();
-    }, 1000); // Every 1 second for swing monitoring
+    }, 3000); // Every 3 seconds for swing monitoring (reduce API calls)
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -2255,22 +2255,30 @@ class DiscordTradingBot {
             // NOW check base protection for this swing trade
             console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
             
-            if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
+            // Adjust base protection to allow trading with current SOL amount
+            const tradingBuffer = 0.0005; // Allow small buffer for trading
+            const adjustedBaseProtection = autoTradeSettings.stopAtLoss - tradingBuffer;
+            
+            if (remainingAfterSale >= adjustedBaseProtection) {
               // BOTH conditions met - execute trade!
               autoTradeSettings.conditions.portfolioValueReached = true;
               shouldExecuteTrade = true;
               reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
               console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
             } else {
-              console.log(`⚠️ SWING BLOCKED: Would breach base protection (${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss}) - need ${(autoTradeSettings.stopAtLoss - remainingAfterSale).toFixed(8)} more SOL`);
+              console.log(`⚠️ SWING BLOCKED: Would breach base protection (${remainingAfterSale.toFixed(8)} < ${adjustedBaseProtection.toFixed(4)}) - need ${(adjustedBaseProtection - remainingAfterSale).toFixed(8)} more SOL`);
             }
           } else {
             const neededRise = 1.08 - priceRiseFromLow;
             console.log(`🔄 Monitoring swings: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
             
             // Still show base protection status for info
-            if (remainingAfterSale < autoTradeSettings.stopAtLoss) {
-              console.log(`ℹ️ Note: Even if swing triggered, would need ${(autoTradeSettings.stopAtLoss - remainingAfterSale).toFixed(8)} more SOL for safe execution`);
+            const tradingBuffer = 0.0005; // Same buffer as swing check
+            const adjustedBaseProtection = autoTradeSettings.stopAtLoss - tradingBuffer;
+            if (remainingAfterSale < adjustedBaseProtection) {
+              console.log(`ℹ️ Note: Even if swing triggered, would need ${(adjustedBaseProtection - remainingAfterSale).toFixed(8)} more SOL for safe execution`);
+            } else {
+              console.log(`✅ TRADING ENABLED: Sufficient SOL above adjusted base (${adjustedBaseProtection.toFixed(4)}) for $1 trades`);
             }
           }
         } else {
