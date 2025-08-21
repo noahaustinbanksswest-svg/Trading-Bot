@@ -90,6 +90,24 @@ class GeminiAPI {
     }
   }
 
+  async getSymbolDetails(symbol) {
+    try {
+      const endpoint = `/v1/symbols/details/${symbol.toLowerCase()}`;
+      const headers = this.generateHeaders(endpoint);
+      
+      const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+        headers,
+        timeout: 10000
+      });
+      
+      console.log(`📊 ${symbol.toUpperCase()} Symbol Details:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Symbol details error:', error.message);
+      return null;
+    }
+  }
+
   async getBalances() {
     try {
       console.log('🔗 Testing Gemini API connection...');
@@ -163,6 +181,30 @@ class GeminiAPI {
     try {
       console.log(`🔄 Calling Gemini API sellOrder(${symbol}, ${amount})...`);
       console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
+      
+      // DIAGNOSTICS: Check symbol details for minimum requirements
+      console.log(`🔍 DIAGNOSTIC: Checking ${symbol.toUpperCase()} minimum requirements...`);
+      const symbolDetails = await this.getSymbolDetails(symbol);
+      
+      if (symbolDetails) {
+        console.log(`📊 DIAGNOSTIC: Symbol Details:`, {
+          symbol: symbol.toUpperCase(),
+          min_order_size: symbolDetails.min_order_size,
+          tick_size: symbolDetails.tick_size,
+          quote_increment: symbolDetails.quote_increment
+        });
+        
+        // Check if our amount meets the minimum
+        if (parseFloat(amount) < parseFloat(symbolDetails.min_order_size)) {
+          const adjustedAmount = symbolDetails.min_order_size;
+          console.log(`🔧 DIAGNOSTIC: Adjusting order size:`, {
+            requested: amount,
+            minimum_required: symbolDetails.min_order_size,
+            adjusted_to: adjustedAmount
+          });
+          amount = adjustedAmount;
+        }
+      }
       
       const endpoint = '/v1/order/new';
       const nonce = Math.floor(Date.now() / 1000).toString();
