@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 
 const app = express();
 app.use(express.json());
@@ -69,27 +69,65 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     
-    // Start Discord bot alongside web server
-    log('🤖 Starting Discord bot...');
-    const botProcess = spawn('node', ['start-bot.js'], {
-      stdio: 'inherit',
-      cwd: process.cwd()
-    });
+    // Bot management with proper process tracking
+    let botProcess: ChildProcess | null = null;
+    let restartCount = 0;
+    const MAX_RESTARTS = 10;
     
-    botProcess.on('error', (error) => {
-      console.error('Discord bot error:', error);
-    });
+    function startBot() {
+      if (botProcess) {
+        botProcess.kill('SIGTERM');
+        botProcess = null;
+      }
+      
+      log('🤖 Starting Discord bot...');
+      botProcess = spawn('node', ['discord-bot.js'], {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      
+      botProcess.on('error', (error) => {
+        console.error('Discord bot error:', error);
+        scheduleRestart();
+      });
+      
+      botProcess.on('exit', (code, signal) => {
+        console.log(`Discord bot exited with code ${code}, signal ${signal}`);
+        botProcess = null;
+        scheduleRestart();
+      });
+    }
     
-    botProcess.on('exit', (code) => {
-      console.log(`Discord bot exited with code ${code}`);
-      // Restart bot if it crashes
+    function scheduleRestart() {
+      if (restartCount >= MAX_RESTARTS) {
+        console.error(`🛑 Max restarts (${MAX_RESTARTS}) reached. Stopping bot auto-restart.`);
+        return;
+      }
+      
+      restartCount++;
+      const delay = Math.min(5000 * restartCount, 60000); // Exponential backoff, max 1 minute
+      
       setTimeout(() => {
-        log('🔄 Restarting Discord bot...');
-        spawn('node', ['start-bot.js'], {
-          stdio: 'inherit',
-          cwd: process.cwd()
-        });
-      }, 5000);
+        log(`🔄 Restarting Discord bot (attempt ${restartCount}/${MAX_RESTARTS})...`);
+        startBot();
+      }, delay);
+    }
+    
+    // Start the bot
+    startBot();
+    
+    // Reset restart counter every hour
+    setInterval(() => {
+      restartCount = 0;
+    }, 3600000);
+    
+    // Graceful shutdown
+    process.on('SIGINT', () => {
+      log('🛑 Shutting down gracefully...');
+      if (botProcess) {
+        botProcess.kill('SIGTERM');
+      }
+      process.exit(0);
     });
   });
 })();

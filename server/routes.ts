@@ -5,8 +5,10 @@ import { storage } from "./storage";
 import { GeminiService } from "./services/gemini";
 import { DiscordBotService } from "./services/discord-bot";
 import { TradingEngine } from "./services/trading-engine";
-import { insertTradingSettingsSchema, insertTradeOrderSchema } from "@shared/schema";
+import { insertTradingSettingsSchema, insertTradeOrderSchema, botSettings, botStatus } from "@shared/schema";
 import { z } from "zod";
+import { db } from "./db";
+import { eq, sql } from "drizzle-orm";
 
 // Store active services per user
 const userServices = new Map<string, {
@@ -330,6 +332,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ticker);
     } catch (error) {
       res.status(500).json({ error: "Failed to get ticker data" });
+    }
+  });
+
+  // Keep-alive endpoints for infrastructure stability
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version
+    });
+  });
+
+  app.get("/api/ping", (req, res) => {
+    res.json({ pong: Date.now() });
+  });
+
+  // Bot status and management endpoints
+  app.get("/api/bot/status", async (req, res) => {
+    try {
+      const [status] = await db.select().from(botStatus).orderBy(sql`updated_at DESC`).limit(1);
+      res.json(status || { status: "unknown", lastPing: null });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get bot status" });
+    }
+  });
+
+  app.post("/api/bot/ping", async (req, res) => {
+    try {
+      const { status, errorMessage } = req.body;
+      
+      const [existingStatus] = await db.select().from(botStatus).limit(1);
+      
+      if (existingStatus) {
+        await db.update(botStatus)
+          .set({ 
+            status: status || "running",
+            lastPing: new Date(),
+            errorMessage: errorMessage || null,
+            updatedAt: new Date()
+          })
+          .where(eq(botStatus.id, existingStatus.id));
+      } else {
+        await db.insert(botStatus).values({
+          status: status || "running",
+          lastPing: new Date(),
+          errorMessage: errorMessage || null,
+          restartCount: 0
+        });
+      }
+      
+      res.json({ message: "Ping recorded" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to record ping" });
+    }
+  });
+
+  // Bot settings endpoints
+  app.get("/api/bot/settings/:key", async (req, res) => {
+    try {
+      const [setting] = await db.select()
+        .from(botSettings)
+        .where(eq(botSettings.key, req.params.key));
+      
+      res.json(setting ? setting.value : null);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get bot setting" });
+    }
+  });
+
+  app.post("/api/bot/settings/:key", async (req, res) => {
+    try {
+      const { value } = req.body;
+      
+      const [existing] = await db.select()
+        .from(botSettings)
+        .where(eq(botSettings.key, req.params.key));
+      
+      if (existing) {
+        await db.update(botSettings)
+          .set({ value, updatedAt: new Date() })
+          .where(eq(botSettings.key, req.params.key));
+      } else {
+        await db.insert(botSettings).values({
+          key: req.params.key,
+          value
+        });
+      }
+      
+      res.json({ message: "Setting saved" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save bot setting" });
+    }
+  });
+
+  app.get("/api/bot/settings", async (req, res) => {
+    try {
+      const settings = await db.select().from(botSettings);
+      const settingsMap = settings.reduce((acc: Record<string, any>, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      }, {} as Record<string, any>);
+      
+      res.json(settingsMap);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get bot settings" });
     }
   });
 

@@ -72,6 +72,24 @@ export const tradingHistory = pgTable("trading_history", {
   executedAt: timestamp("executed_at").defaultNow(),
 });
 
+// Bot Settings for persistent configuration
+export const botSettings = pgTable("bot_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Bot Status tracking
+export const botStatus = pgTable("bot_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  status: text("status").notNull(), // running/stopped/error
+  lastPing: timestamp("last_ping").defaultNow(),
+  errorMessage: text("error_message"),
+  restartCount: integer("restart_count").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tradingSettings: many(tradingSettings),
@@ -140,6 +158,16 @@ export const insertTradingHistorySchema = createInsertSchema(tradingHistory).omi
   executedAt: true,
 });
 
+export const insertBotSettingsSchema = createInsertSchema(botSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertBotStatusSchema = createInsertSchema(botStatus).omit({
+  id: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -151,3 +179,7 @@ export type TradeOrder = typeof tradeOrders.$inferSelect;
 export type InsertTradeOrder = z.infer<typeof insertTradeOrderSchema>;
 export type TradingHistory = typeof tradingHistory.$inferSelect;
 export type InsertTradingHistory = z.infer<typeof insertTradingHistorySchema>;
+export type BotSettings = typeof botSettings.$inferSelect;
+export type InsertBotSettings = z.infer<typeof insertBotSettingsSchema>;
+export type BotStatus = typeof botStatus.$inferSelect;
+export type InsertBotStatus = z.infer<typeof insertBotStatusSchema>;

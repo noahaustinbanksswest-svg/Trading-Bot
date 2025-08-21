@@ -1,6 +1,22 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import crypto from 'crypto';
 import axios from 'axios';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import ws from "ws";
+// Note: Using direct database tables since we can't easily import TS schema from JS
+import { eq } from "drizzle-orm";
+
+neonConfig.webSocketConstructor = ws;
+
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = drizzle({ client: pool });
 
 // Discord Bot Configuration
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -12,41 +28,145 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_SECRET = process.env.GEMINI_API_SECRET;
 const GEMINI_BASE_URL = 'https://api.gemini.com';
 
-// Trading Settings (monitoring only - no trade initiation)
-const tradingSettings = {
-  dailyBuyLimit: 1000,
-  stopLossPercent: 5,
-  takeProfitPercent: 10,
-  enableStopLoss: true,
-  enableProfitTaking: true,
-  enabledPairs: ['btcusd', 'ethusd'],
-  lastDailyReset: new Date().toDateString()
-};
+// Database-backed settings - loaded at startup
+let tradingSettings = {};
+let dailyBuyData = {};
+let autoTradeSettings = {};
 
-// Daily tracking data
-let dailyBuyData = {
-  totalBought: 0,
-  purchases: [],
-  limitReached: false,
-  lastUpdate: new Date()
-};
-
-// Auto Trade Settings
-let autoTradeSettings = {
-  enabled: true, // Enable auto trade
-  amount: 1.00, // $1 USD trade amount
-  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell
-  stopAtLoss: 1.5, // Stop selling when SOL reaches 1.5 base amount
-  stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
-  stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
-  isActive: true, // Enable active monitoring - STAYS ON
-  startTime: null,
-  conditions: {
-    portfolioValueReached: false,
-    cryptoValueReached: false,
-    dailyBuyLimitReached: false
+// Function to load settings from database
+async function loadSettings() {
+  try {
+    console.log('📥 Loading bot settings from database...');
+    
+    // Load trading settings
+    const tradingResults = await pool.query('SELECT * FROM bot_settings WHERE key = $1', ['tradingSettings']);
+    const tradingSetting = tradingResults.rows[0];
+    tradingSettings = tradingSetting ? tradingSetting.value : {
+      dailyBuyLimit: 1000,
+      stopLossPercent: 5,
+      takeProfitPercent: 10,
+      enableStopLoss: true,
+      enableProfitTaking: true,
+      enabledPairs: ['btcusd', 'ethusd'],
+      lastDailyReset: new Date().toDateString()
+    };
+    
+    // Load daily buy data  
+    const dailyResults = await pool.query('SELECT * FROM bot_settings WHERE key = $1', ['dailyBuyData']);
+    const dailyBuySetting = dailyResults.rows[0];
+    dailyBuyData = dailyBuySetting ? dailyBuySetting.value : {
+      totalBought: 0,
+      purchases: [],
+      limitReached: false,
+      lastUpdate: new Date()
+    };
+    
+    // Load auto trade settings
+    const autoResults = await pool.query('SELECT * FROM bot_settings WHERE key = $1', ['autoTradeSettings']);
+    const autoTradeSetting = autoResults.rows[0];
+    autoTradeSettings = autoTradeSetting ? autoTradeSetting.value : {
+      enabled: true,
+      amount: 1.00,
+      selectedCrypto: 'SOL',
+      stopAtLoss: 1.5,
+      stopAtValue: null,
+      stopOnDailyBuys: null,
+      isActive: true,
+      startTime: null,
+      conditions: {
+        portfolioValueReached: false,
+        cryptoValueReached: false,
+        dailyBuyLimitReached: false
+      }
+    };
+    
+    console.log('✅ Bot settings loaded successfully');
+    console.log('📊 Auto Trade Settings:', autoTradeSettings);
+    
+  } catch (error) {
+    console.error('❌ Error loading settings from database:', error);
+    // Use defaults if database fails
+    tradingSettings = {
+      dailyBuyLimit: 1000,
+      stopLossPercent: 5,
+      takeProfitPercent: 10,
+      enableStopLoss: true,
+      enableProfitTaking: true,
+      enabledPairs: ['btcusd', 'ethusd'],
+      lastDailyReset: new Date().toDateString()
+    };
+    dailyBuyData = {
+      totalBought: 0,
+      purchases: [],
+      limitReached: false,
+      lastUpdate: new Date()
+    };
+    autoTradeSettings = {
+      enabled: true,
+      amount: 1.00,
+      selectedCrypto: 'SOL',
+      stopAtLoss: 1.5,
+      stopAtValue: null,
+      stopOnDailyBuys: null,
+      isActive: true,
+      startTime: null,
+      conditions: {
+        portfolioValueReached: false,
+        cryptoValueReached: false,
+        dailyBuyLimitReached: false
+      }
+    };
   }
-};
+}
+
+// Function to save settings to database
+async function saveSettings() {
+  try {
+    console.log('💾 Saving bot settings to database...');
+    
+    // Save trading settings
+    await pool.query(`
+      INSERT INTO bot_settings (key, value, updated_at) 
+      VALUES ($1, $2, NOW()) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = $2, updated_at = NOW()
+    `, ['tradingSettings', JSON.stringify(tradingSettings)]);
+    
+    // Save daily buy data
+    await pool.query(`
+      INSERT INTO bot_settings (key, value, updated_at) 
+      VALUES ($1, $2, NOW()) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = $2, updated_at = NOW()
+    `, ['dailyBuyData', JSON.stringify(dailyBuyData)]);
+    
+    // Save auto trade settings
+    await pool.query(`
+      INSERT INTO bot_settings (key, value, updated_at) 
+      VALUES ($1, $2, NOW()) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = $2, updated_at = NOW()
+    `, ['autoTradeSettings', JSON.stringify(autoTradeSettings)]);
+    
+    console.log('✅ Bot settings saved successfully');
+    
+  } catch (error) {
+    console.error('❌ Error saving settings to database:', error);
+  }
+}
+
+// Function to send keep-alive ping to web server
+async function sendKeepAlivePing(status = 'running', errorMessage = null) {
+  try {
+    await axios.post('http://localhost:5000/api/bot/ping', {
+      status,
+      errorMessage
+    });
+  } catch (error) {
+    // Ignore keep-alive errors to prevent cascading failures
+    console.log('Keep-alive ping failed (non-critical):', error.message);
+  }
+}
 
 class GeminiAPI {
   constructor() {
@@ -345,9 +465,16 @@ class DiscordTradingBot {
   setupEventHandlers() {
     this.client.once('ready', async () => {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
+      
+      // Load settings from database
+      await loadSettings();
+      
       this.startDailyTracking();
       this.startAutoUpdating();
       await this.findOrCreateDashboardEmbed();
+      
+      // Start keep-alive ping system
+      this.startKeepAlive();
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -1066,6 +1193,18 @@ class DiscordTradingBot {
         console.log(`⚠️ No dashboard message tracked for auto-update`);
       }
     }, 10000); // Update every 10 seconds
+  }
+
+  startKeepAlive() {
+    console.log('💗 Starting keep-alive ping system...');
+    
+    // Send keep-alive ping every 30 seconds
+    setInterval(async () => {
+      await sendKeepAlivePing('running');
+    }, 30000);
+    
+    // Initial ping
+    sendKeepAlivePing('running');
   }
 
   async showActiveOrders(interaction) {
