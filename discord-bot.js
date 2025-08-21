@@ -723,7 +723,12 @@ class DiscordTradingBot {
             change: change
           });
         } catch (error) {
-          console.error(`Error getting price for ${balance.currency}:`, error.message);
+          console.error(`❌ TICKER API ERROR for ${balance.currency}:`, error.message);
+          console.error(`🔍 Error details:`, error);
+          if (error.message.includes('400')) {
+            console.error(`🚨 STATUS 400: Bad Request for symbol: ${symbol}`);
+            console.error(`🔍 Possible issues: Invalid symbol format, unsupported crypto, or API parameters`);
+          }
         }
       }
 
