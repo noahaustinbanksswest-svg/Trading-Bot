@@ -1893,22 +1893,29 @@ class DiscordTradingBot {
           // Get current price for the crypto (fix property name)
           const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
           
-          // Calculate $1 USD trade + 4 cent fee = $1.04 total cost in SOL terms
+          // Calculate $1 USD trade impact INCLUDING post-execution fee deduction
           const tradeAmountUSD = 1.00; // $1 USD trade
-          const feeAmountUSD = 0.04;   // 4 cent fee for $1 trades
-          const totalCostUSD = tradeAmountUSD + feeAmountUSD; // $1.04 total
-          const totalCostInSOL = totalCostUSD / currentPrice; // Convert to SOL equivalent
+          const feeAmountUSD = 0.04;   // 4 cent fee deducted AFTER trade execution
           
-          // Check if we can sell $1.04 worth of SOL and still have >= base amount
-          const remainingAfterSale = cryptoHolding.amount - totalCostInSOL;
+          // The actual SOL sold for $1 USD
+          const solAmountToSell = tradeAmountUSD / currentPrice; 
+          
+          // CRITICAL FIX: Add fee buffer for post-execution fee deduction
+          // Gemini deducts fee separately, so we need extra SOL buffer 
+          const feeBufferInSOL = feeAmountUSD / currentPrice; // Convert 4 cents to SOL
+          const totalSOLImpact = solAmountToSell + feeBufferInSOL; // True total impact
+          
+          // Check if we can handle the REAL total impact and still have >= base amount
+          const remainingAfterSale = cryptoHolding.amount - totalSOLImpact;
           
           console.log(`💰 $1 USD Trade Check for ${autoTradeSettings.selectedCrypto}:`);
           console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)}`);
           console.log(`   Current Price: $${currentPrice.toFixed(2)} per ${autoTradeSettings.selectedCrypto}`);
           console.log(`   Base Amount to Protect: ${autoTradeSettings.stopAtLoss}`);
-          console.log(`   Trade: $${tradeAmountUSD} + $${feeAmountUSD} fee = $${totalCostUSD} total`);
-          console.log(`   SOL Equivalent of $${totalCostUSD}: ${totalCostInSOL.toFixed(8)} SOL`);
-          console.log(`   After Sale: ${cryptoHolding.amount.toFixed(8)} - ${totalCostInSOL.toFixed(8)} = ${remainingAfterSale.toFixed(8)} SOL`);
+          console.log(`   Trade: $${tradeAmountUSD} worth = ${solAmountToSell.toFixed(8)} SOL`);
+          console.log(`   Fee Buffer: $${feeAmountUSD} = ${feeBufferInSOL.toFixed(8)} SOL (post-execution deduction)`);
+          console.log(`   Total SOL Impact: ${solAmountToSell.toFixed(8)} + ${feeBufferInSOL.toFixed(8)} = ${totalSOLImpact.toFixed(8)} SOL`);
+          console.log(`   After Sale: ${cryptoHolding.amount.toFixed(8)} - ${totalSOLImpact.toFixed(8)} = ${remainingAfterSale.toFixed(8)} SOL`);
           
           // Should sell when we can maintain base amount after $1.04 USD sale
           console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
