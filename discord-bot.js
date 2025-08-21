@@ -1790,22 +1790,17 @@ class DiscordTradingBot {
         
       } catch (error) {
         console.error(`❌ Failed to execute $1 USD sell order:`, error.message);
-        sellOrders.push({
-          currency: autoTradeSettings.selectedCrypto,
-          amount: solAmountFor1USD,
-          valueUSD: 1.00,
-          orderId: null,
-          status: 'failed',
-          error: error.message
-        });
+        console.log(`🛑 Gemini API failed - stopping auto trade execution to prevent fake trades`);
+        console.log(`🔄 Auto trade will retry on next cycle when API is working`);
+        
+        // CRITICAL: Return immediately - do NOT send notifications or continue when API fails
+        return;
       }
 
-      // Keep auto trade enabled for continuous monitoring
-      // autoTradeSettings.enabled = false; // REMOVED: Keep monitoring active
-      // autoTradeSettings.isActive = false; // REMOVED: Allow continuous trades
+      // Only reach here if Gemini API call was SUCCESSFUL
       console.log(`🔄 Auto trade staying enabled for continuous monitoring`);
 
-      // Send notification to Discord
+      // Send notification to Discord ONLY after successful API call
       await this.sendAutoTradeNotification(reason, sellOrders);
 
     } catch (error) {
