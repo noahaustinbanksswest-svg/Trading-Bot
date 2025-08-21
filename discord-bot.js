@@ -1430,10 +1430,10 @@ class DiscordTradingBot {
         console.log(`   Recent Low (${this.priceHistory.length} samples): $${recentLow.toFixed(2)}`);
         console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
         console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
-        console.log(`   Swing Trigger: $1.00`);
+        console.log(`   Swing Trigger: $1.08`);
         console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
         
-        if (priceRiseFromLow >= 1.00) {
+        if (priceRiseFromLow >= 1.08) {
           console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED!`);
           const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
           
@@ -2249,10 +2249,10 @@ class DiscordTradingBot {
             console.log(`   Recent Low (30s): $${recentLow.toFixed(2)}`);
             console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
             console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
-            console.log(`   Swing Trigger: $1.00`);
+            console.log(`   Swing Trigger: $1.08`);
             console.log(`   Price History: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
             
-            if (priceRiseFromLow >= 1.00) {
+            if (priceRiseFromLow >= 1.08) {
               autoTradeSettings.conditions.portfolioValueReached = true;
               shouldExecuteTrade = true;
               reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
