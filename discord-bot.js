@@ -1280,7 +1280,9 @@ class DiscordTradingBot {
             change: change
           });
         } catch (priceError) {
-          console.error(`Error getting price for ${balance.currency}:`, priceError.message);
+          console.error(`❌ TICKER API FAILED for ${balance.currency}:`, priceError.message);
+          console.error(`🔍 Failed symbol: ${symbol}`);
+          console.error(`🔍 Balance data:`, balance);
           // Add holding without price data
           holdings.push({
             currency: balance.currency,
@@ -1289,6 +1291,7 @@ class DiscordTradingBot {
             value: 0,
             change: 0
           });
+          console.log(`⚠️ Added ${balance.currency} with ZERO price - this will break auto trade!`);
         }
       }
 
@@ -1600,8 +1603,17 @@ class DiscordTradingBot {
       if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
         const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
         if (cryptoHolding) {
-          // Get current price for the crypto
-          const currentPrice = cryptoHolding.usdValue / cryptoHolding.amount;
+          // Debug portfolio data structure
+          console.log(`🔍 DEBUG - SOL Portfolio Data:`, {
+            currency: cryptoHolding.currency,
+            amount: cryptoHolding.amount,
+            price: cryptoHolding.price,
+            value: cryptoHolding.value,
+            change: cryptoHolding.change
+          });
+          
+          // Get current price for the crypto (fix property name)
+          const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
           
           // Calculate $1 USD trade + 4 cent fee = $1.04 total cost in SOL terms
           const tradeAmountUSD = 1.00; // $1 USD trade
@@ -1693,8 +1705,17 @@ class DiscordTradingBot {
         throw new Error(`${autoTradeSettings.selectedCrypto} not found in portfolio`);
       }
       
-      // Calculate current price and SOL amount for exactly $1 USD
-      const currentPrice = cryptoHolding.usdValue / cryptoHolding.amount;
+      // Debug portfolio data structure
+      console.log(`🔍 DEBUG - Execute Trade SOL Data:`, {
+        currency: cryptoHolding.currency,
+        amount: cryptoHolding.amount,
+        price: cryptoHolding.price,
+        value: cryptoHolding.value,
+        change: cryptoHolding.change
+      });
+      
+      // Calculate current price and SOL amount for exactly $1 USD (fix property name)
+      const currentPrice = cryptoHolding.price; // Use price directly
       const solAmountFor1USD = 1.00 / currentPrice;
       
       console.log(`📊 $1 USD Trade Calculation:`);
