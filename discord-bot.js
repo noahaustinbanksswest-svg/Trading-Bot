@@ -1271,7 +1271,7 @@ class DiscordTradingBot {
   startPriceStreaming() {
     console.log('📈 Starting price streaming (every 3 seconds)...');
     
-    // Fetch fresh price data every 3 seconds for rapid swing detection
+    // Fetch fresh price data every 1 second for maximum swing detection responsiveness
     setInterval(async () => {
       try {
         // Get prices for all currencies we have balances for
@@ -1312,16 +1312,16 @@ class DiscordTradingBot {
           console.error('❌ Price streaming error:', error.message);
         }
       }
-    }, 3000); // Every 3 seconds for price updates
+    }, 1000); // Every 1 second for price updates
   }
   
   startSwingMonitoring() {
-    console.log('🌊 Starting swing trading monitoring (every 5 seconds)...');
+    console.log('🌊 Starting swing trading monitoring (every 1 second)...');
     
-    // Monitor for swing trading opportunities every 5 seconds
+    // Monitor for swing trading opportunities every 1 second
     setInterval(async () => {
       await this.checkAutoTradeConditionsRealTime();
-    }, 5000); // Every 5 seconds for swing monitoring
+    }, 1000); // Every 1 second for swing monitoring
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -2231,7 +2231,7 @@ class DiscordTradingBot {
           // DYNAMIC SWING TRADING: ALWAYS check swing conditions first
           if (!this.priceHistory) this.priceHistory = [];
           
-          // Keep last 30 price points (30 seconds of history)
+          // Keep last 30 price points (30 seconds of 1-second interval history)
           this.priceHistory.push(currentPrice);
           if (this.priceHistory.length > 30) {
             this.priceHistory.shift();
