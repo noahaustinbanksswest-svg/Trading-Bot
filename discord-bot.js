@@ -39,7 +39,7 @@ let autoTradeSettings = {
   stopAtLoss: 1.5, // Stop selling when SOL reaches 1.5 base amount
   stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
   stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
-  isActive: false,
+  isActive: true, // FIXED: Enable active monitoring
   startTime: null,
   conditions: {
     portfolioValueReached: false,
@@ -707,7 +707,9 @@ class DiscordTradingBot {
       console.log(`🚀 ENTERING TICKER LOOP for ${cryptoBalances.length} cryptocurrencies`);
       for (const balance of cryptoBalances) {
         try {
-          const symbol = `${balance.currency.toLowerCase()}usd`;
+          // Fix symbol format for Gemini API  
+          const symbol = `${balance.currency.toUpperCase()}USD`;
+          console.log(`🔍 Trying uppercase symbol: ${symbol}`);
           const ticker = await this.gemini.getTicker(symbol);
           const currentPrice = parseFloat(ticker.last);
           const amount = parseFloat(balance.amount);
@@ -872,7 +874,9 @@ class DiscordTradingBot {
         // Get current prices and calculate portfolio value
         for (const balance of cryptoBalances) {
           try {
-            const symbol = `${balance.currency.toLowerCase()}usd`;
+            // Fix symbol format for Gemini API  
+          const symbol = `${balance.currency.toUpperCase()}USD`;
+          console.log(`🔍 Trying uppercase symbol: ${symbol}`);
             const ticker = await this.gemini.getTicker(symbol);
             const currentPrice = parseFloat(ticker.last);
             const amount = parseFloat(balance.amount);
@@ -1273,7 +1277,9 @@ class DiscordTradingBot {
       // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
         try {
-          const symbol = `${balance.currency.toLowerCase()}usd`;
+          // Fix symbol format for Gemini API  
+          const symbol = `${balance.currency.toUpperCase()}USD`;
+          console.log(`🔍 Trying uppercase symbol: ${symbol}`);
           const ticker = await this.gemini.getTicker(symbol);
           const currentPrice = parseFloat(ticker.last);
           const amount = parseFloat(balance.amount);
@@ -1530,8 +1536,10 @@ class DiscordTradingBot {
       console.log(`💰 Trade amount: ${amount} → ${autoTradeSettings.amount}`);
     }
     if (cryptoSelection) {
-      autoTradeSettings.selectedCrypto = cryptoSelection.toUpperCase();
-      console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto}`);
+      // Strip USD suffix to match portfolio currency format (SOL not SOLUSD)
+      const cleanCrypto = cryptoSelection.toUpperCase().replace(/USD$/, '');
+      autoTradeSettings.selectedCrypto = cleanCrypto;
+      console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto} (cleaned from ${cryptoSelection})`);
     }
     if (stopAtLoss) {
       // Handle fraction notation like "1/2" = 1.5 SOL (1 and 1/2)
