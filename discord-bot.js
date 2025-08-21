@@ -532,6 +532,9 @@ class DiscordTradingBot {
       const balances = await this.gemini.getBalances();
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+      
+      console.log(`📊 Found ${cryptoBalances.length} crypto balances to process:`);
+      cryptoBalances.forEach(b => console.log(`   ${b.currency}: ${b.amount}`));
 
       // Use available USD balance instead of total amount (which can be negative due to margin)
       const totalUsdAmount = parseFloat(usdBalance.amount);
@@ -570,6 +573,11 @@ class DiscordTradingBot {
 
       // Update daily buy tracking
       await this.updateDailyBuyTracking();
+      
+      console.log(`🎯 Auto-Update Portfolio Summary:`);
+      console.log(`   USD Balance: $${displayUsdBalance.toFixed(2)}`);
+      console.log(`   Crypto Holdings: ${holdings.length} assets`);
+      console.log(`   Total Portfolio Value: $${totalValue.toFixed(2)}`);
 
       const embed = this.createPortfolioEmbed({
         totalValue,
@@ -678,6 +686,9 @@ class DiscordTradingBot {
         const balances = await this.gemini.getBalances();
         const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
         const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+        
+        console.log(`📊 Found ${cryptoBalances.length} crypto balances to process:`);
+        cryptoBalances.forEach(b => console.log(`   ${b.currency}: ${b.amount}`));
 
         // Use available USD balance instead of total amount (which can be negative due to margin)
         const totalUsdAmount = parseFloat(usdBalanceData.amount);
@@ -717,6 +728,11 @@ class DiscordTradingBot {
 
         // Update daily buy tracking
         await this.updateDailyBuyTracking();
+        
+        console.log(`🎯 Final Portfolio Summary:`);
+        console.log(`   USD Balance: $${usdBalance.toFixed(2)}`);
+        console.log(`   Crypto Holdings: ${holdings.length} assets`);
+        console.log(`   Total Portfolio Value: $${totalValue.toFixed(2)}`);
 
       } catch (error) {
         console.error('Error fetching Gemini data:', error.message);
