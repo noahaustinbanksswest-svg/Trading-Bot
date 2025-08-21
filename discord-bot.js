@@ -1340,9 +1340,9 @@ class DiscordTradingBot {
 
     const stopLossInput = new TextInputBuilder()
       .setCustomId('stop_at_loss')
-      .setLabel('2. Stop at Portfolio Value (USD)')
+      .setLabel('2. Stop at Loss (SOL Multiples)')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('e.g., 180 (stop when portfolio reaches $180)')
+      .setPlaceholder('e.g., 0.5, 1, or 1/2 (SOL amount × current price)')
       .setRequired(false);
 
     const stopValueInput = new TextInputBuilder()
@@ -1388,7 +1388,7 @@ class DiscordTradingBot {
       embed.setDescription(`✅ Auto Trade is **ENABLED**\n${statusText}`)
         .addFields(
           { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
-          { name: '📉 Stop at Portfolio Value', value: autoTradeSettings.stopAtLoss ? `$${autoTradeSettings.stopAtLoss}` : 'Not set', inline: true },
+          { name: '📉 Stop at Loss (SOL Multiple)', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
           { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} ${autoTradeSettings.stopAtValueCurrency}` : 'Not set', inline: true },
           { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true },
           { name: '⏰ Started', value: autoTradeSettings.startTime ? autoTradeSettings.startTime.toLocaleString() : 'Not started', inline: true },
@@ -1439,7 +1439,15 @@ class DiscordTradingBot {
 
     // Validate and set values
     if (amount) autoTradeSettings.amount = parseFloat(amount);
-    if (stopAtLoss) autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
+    if (stopAtLoss) {
+      // Handle fraction notation like "1/2" = 1.5 SOL
+      if (stopAtLoss.includes('/')) {
+        const [numerator, denominator] = stopAtLoss.split('/');
+        autoTradeSettings.stopAtLoss = parseFloat(numerator) + (parseFloat(numerator) / parseFloat(denominator));
+      } else {
+        autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
+      }
+    }
     if (stopAtValue) autoTradeSettings.stopAtValue = parseFloat(stopAtValue);
     if (stopDailyBuys) autoTradeSettings.stopOnDailyBuys = parseFloat(stopDailyBuys);
 
@@ -1463,7 +1471,7 @@ class DiscordTradingBot {
       embed.setDescription('✅ Auto Trade has been **CONFIGURED** and **STARTED**!')
         .addFields(
           { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
-          { name: '📉 Stop at Portfolio Value', value: autoTradeSettings.stopAtLoss ? `$${autoTradeSettings.stopAtLoss}` : 'Not set', inline: true },
+          { name: '📉 Stop at Loss (SOL Multiple)', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
           { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} SOL` : 'Not set', inline: true },
           { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true }
         );
@@ -1486,11 +1494,19 @@ class DiscordTradingBot {
       let shouldExecuteTrade = false;
       let reason = '';
 
-      // Check portfolio value condition
-      if (autoTradeSettings.stopAtLoss && totalValue <= autoTradeSettings.stopAtLoss) {
-        autoTradeSettings.conditions.portfolioValueReached = true;
-        shouldExecuteTrade = true;
-        reason = `Portfolio value reached $${totalValue.toFixed(2)} (trigger: $${autoTradeSettings.stopAtLoss})`;
+      // Check dynamic stop loss condition (SOL multiple × current SOL price)
+      if (autoTradeSettings.stopAtLoss) {
+        const solHolding = holdings.find(h => h.currency === 'SOL');
+        if (solHolding && solHolding.price) {
+          const dynamicStopLoss = autoTradeSettings.stopAtLoss * solHolding.price;
+          console.log(`🔍 Dynamic Stop Loss Check: ${autoTradeSettings.stopAtLoss} SOL × $${solHolding.price} = $${dynamicStopLoss.toFixed(2)} vs Portfolio $${totalValue.toFixed(2)}`);
+          
+          if (totalValue <= dynamicStopLoss) {
+            autoTradeSettings.conditions.portfolioValueReached = true;
+            shouldExecuteTrade = true;
+            reason = `Portfolio dropped to $${totalValue.toFixed(2)} ≤ Stop Loss Threshold $${dynamicStopLoss.toFixed(2)} (${autoTradeSettings.stopAtLoss} SOL × $${solHolding.price})`;
+          }
+        }
       }
 
       // Check crypto amount condition (SOL)
