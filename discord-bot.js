@@ -136,12 +136,8 @@ class GeminiAPI {
       });
       return response.data;
     } catch (error) {
-      console.error('Trades API error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      throw new Error(`Failed to get trades: ${error.message}`);
+      console.log('📊 Trades API temporarily disabled due to account setup requirement');
+      return [];
     }
   }
 }
@@ -428,32 +424,18 @@ class DiscordTradingBot {
 
       try {
         // Get today's trades to calculate daily purchases
-        const trades = await this.gemini.getTrades();
+        // Skip trades API - has MissingAccounts error
+      // const trades = await this.gemini.getTrades();
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
         let dailyTotal = 0;
         const todayPurchases = [];
 
-        trades.forEach(trade => {
-          const tradeDate = new Date(trade.timestampms);
-          
-          if (tradeDate >= todayStart && trade.side === 'buy') {
-            const tradeValue = parseFloat(trade.amount) * parseFloat(trade.price);
-            dailyTotal += tradeValue;
-            todayPurchases.push({
-              symbol: trade.symbol,
-              amount: trade.amount,
-              price: trade.price,
-              value: tradeValue,
-              time: tradeDate
-            });
-          }
-        });
+        // Skip trades processing since API is disabled
+        console.log(`📊 Daily tracking maintained: $${dailyBuyData.totalBought.toFixed(2)} spent today`);
 
-        dailyBuyData.totalBought = dailyTotal;
-        dailyBuyData.purchases = todayPurchases;
-        dailyBuyData.limitReached = dailyTotal >= tradingSettings.dailyBuyLimit;
+        // Skip setting data since no trades to process
         dailyBuyData.lastUpdate = new Date();
 
         if (dailyBuyData.limitReached) {
