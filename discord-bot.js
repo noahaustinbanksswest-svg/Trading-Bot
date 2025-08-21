@@ -39,10 +39,10 @@ class GeminiAPI {
   }
 
   generateHeaders(endpoint, payload = {}) {
-    const nonce = Date.now() * 1000;
+    const nonce = Date.now().toString();
     const payloadWithDefaults = {
       request: endpoint,
-      nonce: nonce.toString(),
+      nonce: nonce,
       ...payload
     };
 
@@ -56,7 +56,8 @@ class GeminiAPI {
       'X-GEMINI-APIKEY': this.apiKey,
       'X-GEMINI-PAYLOAD': encodedPayload,
       'X-GEMINI-SIGNATURE': signature,
-      'Content-Type': 'text/plain'
+      'Content-Type': 'text/plain',
+      'Content-Length': '0'
     };
   }
 
@@ -74,9 +75,25 @@ class GeminiAPI {
       const endpoint = '/v1/balances';
       const headers = this.generateHeaders(endpoint);
       
+      console.log('🔗 Testing Gemini API connection...');
       const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
+      console.log('✅ Gemini API connected successfully');
       return response.data;
     } catch (error) {
+      console.error('❌ Gemini API Error Details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      if (error.response?.status === 400) {
+        console.log('💡 Gemini API Key Help:');
+        console.log('   - Ensure API key has "Account" permissions enabled');
+        console.log('   - Check if API key is active and not revoked');
+        console.log('   - Verify API secret is correct');
+      }
+      
       throw new Error(`Failed to get balances: ${error.message}`);
     }
   }
