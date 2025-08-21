@@ -1596,33 +1596,40 @@ class DiscordTradingBot {
       let shouldExecuteTrade = false;
       let reason = '';
 
-      // Check if selected crypto holdings reached base amount (stop selling at this level)
+      // Check if selected crypto holdings allow $1 USD sale while protecting base amount
       if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
         const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
         if (cryptoHolding) {
-          // Calculate Gemini trading fees (0.35% maker/taker) + 5% safety buffer
-          const tradingFeeRate = 0.0035; // 0.35% Gemini fee
-          const safetyBufferRate = 0.05; // 5% additional safety buffer
-          const totalFeeRate = tradingFeeRate + safetyBufferRate;
+          // Get current price for the crypto
+          const currentPrice = cryptoHolding.usdValue / cryptoHolding.amount;
           
-          // Calculate the minimum amount needed to preserve base after fees
-          const feeAdjustedBase = autoTradeSettings.stopAtLoss * (1 + totalFeeRate);
+          // Calculate $1 USD trade + 4 cent fee = $1.04 total cost in SOL terms
+          const tradeAmountUSD = 1.00; // $1 USD trade
+          const feeAmountUSD = 0.04;   // 4 cent fee for $1 trades
+          const totalCostUSD = tradeAmountUSD + feeAmountUSD; // $1.04 total
+          const totalCostInSOL = totalCostUSD / currentPrice; // Convert to SOL equivalent
           
-          console.log(`🔍 Stop Selling Check for ${autoTradeSettings.selectedCrypto}:`);
+          // Check if we can sell $1.04 worth of SOL and still have >= base amount
+          const remainingAfterSale = cryptoHolding.amount - totalCostInSOL;
+          
+          console.log(`💰 $1 USD Trade Check for ${autoTradeSettings.selectedCrypto}:`);
           console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)}`);
-          console.log(`   Base Amount: ${autoTradeSettings.stopAtLoss}`);
-          console.log(`   Fee-Adjusted Threshold: ${feeAdjustedBase.toFixed(8)} (includes ${(totalFeeRate * 100).toFixed(2)}% fees + buffer)`);
+          console.log(`   Current Price: $${currentPrice.toFixed(2)} per ${autoTradeSettings.selectedCrypto}`);
+          console.log(`   Base Amount to Protect: ${autoTradeSettings.stopAtLoss}`);
+          console.log(`   Trade: $${tradeAmountUSD} + $${feeAmountUSD} fee = $${totalCostUSD} total`);
+          console.log(`   SOL Equivalent of $${totalCostUSD}: ${totalCostInSOL.toFixed(8)} SOL`);
+          console.log(`   After Sale: ${cryptoHolding.amount.toFixed(8)} - ${totalCostInSOL.toFixed(8)} = ${remainingAfterSale.toFixed(8)} SOL`);
           
-          // Should sell when ABOVE the threshold, stop when reaching the base
-          console.log(`🔍 Condition Check: ${cryptoHolding.amount.toFixed(8)} > ${feeAdjustedBase.toFixed(8)} = ${cryptoHolding.amount > feeAdjustedBase}`);
+          // Should sell when we can maintain base amount after $1.04 USD sale
+          console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
           
-          if (cryptoHolding.amount > feeAdjustedBase) {
+          if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `${autoTradeSettings.selectedCrypto} above base threshold: ${cryptoHolding.amount.toFixed(8)} > ${feeAdjustedBase.toFixed(8)} ${autoTradeSettings.selectedCrypto} - SELLING to reach base amount`;
+            reason = `${autoTradeSettings.selectedCrypto} allows $1 USD sale: ${remainingAfterSale.toFixed(8)} SOL remaining >= ${autoTradeSettings.stopAtLoss} base - EXECUTING $1 TRADE`;
             console.log(`🚨 CONDITION MET! shouldExecuteTrade = true, reason: ${reason}`);
           } else {
-            console.log(`✅ ${autoTradeSettings.selectedCrypto} at safe level: ${cryptoHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} (STOP SELLING - reached base)`);
+            console.log(`✅ ${autoTradeSettings.selectedCrypto} protected: ${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss} base (STOP SELLING - would breach base)`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
@@ -1660,76 +1667,91 @@ class DiscordTradingBot {
     try {
       console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
       
-      // If this is a "stop selling" condition, disable auto trade instead of selling
-      if (reason.includes('STOP SELLING')) {
+      // If this would breach base protection, disable auto trade instead of selling
+      if (reason.includes('STOP SELLING') || reason.includes('would breach base')) {
         autoTradeSettings.enabled = false;
         autoTradeSettings.isActive = false;
-        console.log(`🛑 Auto Trade disabled - reached base SOL amount of ${autoTradeSettings.stopAtLoss}`);
+        console.log(`🛑 Auto Trade disabled - would breach base ${autoTradeSettings.selectedCrypto} amount of ${autoTradeSettings.stopAtLoss}`);
         
         // Log current portfolio status
         const portfolioData = await this.getPortfolioData();
-        console.log(`📊 Portfolio protected: SOL holdings at base level, total value: $${portfolioData.totalValue.toFixed(2)}`);
+        console.log(`📊 Portfolio protected: ${autoTradeSettings.selectedCrypto} holdings at base level, total value: $${portfolioData.totalValue.toFixed(2)}`);
         
         // Send notification about stopping
         await this.sendAutoTradeNotification(reason, 'STOPPED');
         return;
       }
       
-      // Get all crypto holdings to sell to USD
-      console.log(`🔄 Executing Auto Trade: Selling all crypto to USD`);
-      const balances = await this.gemini.getBalances();
-      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.available) > 0);
+      // Execute $1 USD trade instead of selling all crypto
+      console.log(`💰 Executing $1 USD Auto Trade: Selling $1.00 worth of ${autoTradeSettings.selectedCrypto}`);
       
-      console.log(`📊 Found ${cryptoBalances.length} crypto assets to sell:`, cryptoBalances.map(b => `${b.currency}: ${b.available}`));
+      // Get current portfolio to calculate exact SOL amount for $1 USD
+      const portfolioData = await this.getPortfolioData();
+      const cryptoHolding = portfolioData.holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
       
+      if (!cryptoHolding) {
+        throw new Error(`${autoTradeSettings.selectedCrypto} not found in portfolio`);
+      }
+      
+      // Calculate current price and SOL amount for exactly $1 USD
+      const currentPrice = cryptoHolding.usdValue / cryptoHolding.amount;
+      const solAmountFor1USD = 1.00 / currentPrice;
+      
+      console.log(`📊 $1 USD Trade Calculation:`);
+      console.log(`   Current ${autoTradeSettings.selectedCrypto} Price: $${currentPrice.toFixed(2)}`);
+      console.log(`   SOL Amount for $1 USD: ${solAmountFor1USD.toFixed(8)}`);
+      console.log(`   Current Holdings: ${cryptoHolding.amount.toFixed(8)} SOL`);
+      console.log(`   After Sale: ${(cryptoHolding.amount - solAmountFor1USD).toFixed(8)} SOL (protecting ${autoTradeSettings.stopAtLoss} base)`);
+      
+      const symbol = `${autoTradeSettings.selectedCrypto.toLowerCase()}usd`;
       const sellOrders = [];
       
-      for (const balance of cryptoBalances) {
-        const amount = parseFloat(balance.available);
-        const symbol = `${balance.currency.toLowerCase()}usd`;
+      // Skip very small amounts that might cause API errors
+      if (solAmountFor1USD < 0.000001) {
+        console.log(`⏭️ Skipping: $1 USD amount too small (${solAmountFor1USD.toFixed(8)} SOL)`);
+        await this.sendAutoTradeNotification(reason, 'SKIPPED');
+        return;
+      }
+      
+      // Calculate estimated fee for this $1 USD trade (4 cents)
+      const estimatedFeeUSD = 0.04; // 4 cent fee for $1 trades
+      const netProceedsUSD = 1.00 - estimatedFeeUSD; // $0.96 net proceeds
+      
+      console.log(`💰 $1 USD Trade Details:`);
+      console.log(`   SOL Amount to sell: ${solAmountFor1USD.toFixed(8)}`);
+      console.log(`   Trade value: $1.00 USD`);
+      console.log(`   Estimated fee: $${estimatedFeeUSD.toFixed(2)} USD`);
+      console.log(`   Net proceeds: $${netProceedsUSD.toFixed(2)} USD`);
+      
+      try {
+        console.log(`💰 Placing $1 USD sell order: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} on ${symbol}`);
         
-        // Skip very small amounts that might cause API errors
-        if (amount < 0.000001) {
-          console.log(`⏭️ Skipping ${balance.currency}: amount too small (${amount})`);
-          continue;
-        }
+        // Execute actual sell order via Gemini API for exactly $1 USD worth
+        const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
         
-        // Calculate estimated fee for this trade (Gemini: ~0.35%)
-        const estimatedFee = amount * 0.0035;
-        const amountAfterFees = amount - estimatedFee;
+        sellOrders.push({
+          currency: autoTradeSettings.selectedCrypto,
+          amount: solAmountFor1USD,
+          valueUSD: 1.00,
+          orderId: order.order_id,
+          status: 'submitted'
+        });
         
-        console.log(`💰 Trade Details for ${balance.currency}:`);
-        console.log(`   Amount to sell: ${amount}`);
-        console.log(`   Estimated fee: ${estimatedFee.toFixed(8)} ${balance.currency}`);
-        console.log(`   Net after fees: ${amountAfterFees.toFixed(8)} ${balance.currency}`);
+        console.log(`✅ $1 USD SELL ORDER EXECUTED: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} → $1.00 USD`);
+        console.log(`   Order ID: ${order.order_id}`);
+        console.log(`   Net proceeds: ~$${netProceedsUSD.toFixed(2)} USD after $${estimatedFeeUSD.toFixed(2)} fee`);
+        console.log(`   Remaining ${autoTradeSettings.selectedCrypto}: ${(cryptoHolding.amount - solAmountFor1USD).toFixed(8)} (protected base: ${autoTradeSettings.stopAtLoss})`);
         
-        try {
-          console.log(`💰 Placing sell order: ${amount} ${balance.currency} on ${symbol}`);
-          
-          // Execute actual sell order via Gemini API
-          const order = await this.gemini.sellOrder(symbol, amount);
-          
-          sellOrders.push({
-            currency: balance.currency,
-            amount: amount,
-            orderId: order.order_id,
-            status: 'submitted'
-          });
-          
-          console.log(`✅ SELL ORDER EXECUTED: ${amount} ${balance.currency} → USD`);
-          console.log(`   Order ID: ${order.order_id}`);
-          console.log(`   Estimated net proceeds: ~${amountAfterFees.toFixed(8)} ${balance.currency} worth of USD after fees`);
-          
-        } catch (error) {
-          console.error(`❌ Failed to sell ${balance.currency}:`, error.message);
-          sellOrders.push({
-            currency: balance.currency,
-            amount: amount,
-            orderId: null,
-            status: 'failed',
-            error: error.message
-          });
-        }
+      } catch (error) {
+        console.error(`❌ Failed to execute $1 USD sell order:`, error.message);
+        sellOrders.push({
+          currency: autoTradeSettings.selectedCrypto,
+          amount: solAmountFor1USD,
+          valueUSD: 1.00,
+          orderId: null,
+          status: 'failed',
+          error: error.message
+        });
       }
 
       // Disable auto trade after execution
