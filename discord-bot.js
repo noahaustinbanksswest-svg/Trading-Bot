@@ -539,13 +539,19 @@ class DiscordTradingBot {
       // Use available USD balance instead of total amount (which can be negative due to margin)
       const totalUsdAmount = parseFloat(usdBalance.amount);
       const availableUsdAmount = parseFloat(usdBalance.available || '0.00');
-      const displayUsdBalance = availableUsdAmount; // Use available balance, not total amount
-      let totalValue = displayUsdBalance; // Start total with available USD balance
+      // Round up to next cent for USD balance (user preference)
+      // If there's any fraction beyond 2 decimal places, round up to next cent
+      const truncated = Math.floor(availableUsdAmount * 100) / 100;
+      const displayUsdBalance = (availableUsdAmount > truncated) ? truncated + 0.01 : truncated;
+      let totalValue = displayUsdBalance; // Start total with corrected USD balance
       const holdings = [];
       
       console.log(`💵 USD Balance Analysis:`);
       console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
-      console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
+      console.log(`   Raw Available USD: ${availableUsdAmount} (exact value)`);
+      console.log(`   Truncated USD: $${(Math.floor(availableUsdAmount * 100) / 100).toFixed(2)}`);
+      console.log(`   Has fractional cents: ${availableUsdAmount > Math.floor(availableUsdAmount * 100) / 100}`);
+      console.log(`   Aggressive Round Up: $${displayUsdBalance.toFixed(2)} (rounds up if any fraction beyond 2 decimals)`);
       console.log(`   Displayed USD: $${displayUsdBalance.toFixed(2)}`);
 
       // Get current prices and calculate portfolio value
@@ -693,12 +699,17 @@ class DiscordTradingBot {
         // Use available USD balance instead of total amount (which can be negative due to margin)
         const totalUsdAmount = parseFloat(usdBalanceData.amount);
         const availableUsdAmount = parseFloat(usdBalanceData.available || '0.00');
-        usdBalance = availableUsdAmount; // Use available balance, not total amount
-        totalValue = usdBalance; // Start total with available USD balance
+        // Round up to next cent for USD balance (user preference)
+        // If there's any fraction beyond 2 decimal places, round up to next cent
+        const truncated = Math.floor(availableUsdAmount * 100) / 100;
+        usdBalance = (availableUsdAmount > truncated) ? truncated + 0.01 : truncated;
+        totalValue = usdBalance; // Start total with corrected USD balance
         
         console.log(`💵 USD Balance Analysis:`);
         console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
+        console.log(`   Raw Available USD: ${availableUsdAmount} (exact value)`);
         console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
+        console.log(`   Math.round(${availableUsdAmount} * 100) / 100 = $${(Math.round(availableUsdAmount * 100) / 100).toFixed(2)}`);
         console.log(`   Displayed USD: $${usdBalance.toFixed(2)}`);
         console.log(`   Starting Total Value: $${totalValue.toFixed(2)}`);
 
@@ -1092,8 +1103,11 @@ class DiscordTradingBot {
       // Use available USD balance instead of total amount (which can be negative due to margin)
       const totalUsdAmount = parseFloat(usdBalanceData.amount);
       const availableUsdAmount = parseFloat(usdBalanceData.available || '0.00');
-      usdBalance = availableUsdAmount; // Use available balance, not total amount
-      totalValue = usdBalance; // Start total with available USD balance
+      // Round up to next cent for USD balance (user preference)
+      // If there's any fraction beyond 2 decimal places, round up to next cent
+      const truncated = Math.floor(availableUsdAmount * 100) / 100;
+      usdBalance = (availableUsdAmount > truncated) ? truncated + 0.01 : truncated;
+      totalValue = usdBalance; // Start total with corrected USD balance
       
       console.log(`💵 USD Balance Analysis:`);
       console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
