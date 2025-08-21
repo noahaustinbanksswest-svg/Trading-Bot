@@ -588,43 +588,62 @@ class DiscordTradingBot {
 
       console.log(`📊 Sending portfolio embed to #${dashboardChannel.name}`);
       
-      // Get portfolio data
-      const balances = await this.gemini.getBalances();
-      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
-      const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+      // Try to get portfolio data, fallback to demo data if API fails
+      let totalValue = 0;
+      let usdBalance = 0;
+      let holdings = [];
 
-      let totalValue = parseFloat(usdBalance.amount);
-      const holdings = [];
+      try {
+        // Get portfolio data
+        const balances = await this.gemini.getBalances();
+        const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+        const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Get current prices and calculate portfolio value
-      for (const balance of cryptoBalances) {
-        try {
-          const symbol = `${balance.currency.toLowerCase()}usd`;
-          const ticker = await this.gemini.getTicker(symbol);
-          const currentPrice = parseFloat(ticker.last);
-          const amount = parseFloat(balance.amount);
-          const value = amount * currentPrice;
-          const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
-          totalValue += value;
+        totalValue = parseFloat(usdBalanceData.amount);
+        usdBalance = parseFloat(usdBalanceData.amount);
 
-          holdings.push({
-            currency: balance.currency,
-            amount: amount,
-            price: currentPrice,
-            value: value,
-            change: change
-          });
-        } catch (error) {
-          console.error(`Error getting price for ${balance.currency}:`, error.message);
+        // Get current prices and calculate portfolio value
+        for (const balance of cryptoBalances) {
+          try {
+            const symbol = `${balance.currency.toLowerCase()}usd`;
+            const ticker = await this.gemini.getTicker(symbol);
+            const currentPrice = parseFloat(ticker.last);
+            const amount = parseFloat(balance.amount);
+            const value = amount * currentPrice;
+            const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
+            totalValue += value;
+
+            holdings.push({
+              currency: balance.currency,
+              amount: amount,
+              price: currentPrice,
+              value: value,
+              change: change
+            });
+          } catch (error) {
+            console.error(`Error getting price for ${balance.currency}:`, error.message);
+          }
         }
-      }
 
-      // Update daily buy tracking
-      await this.updateDailyBuyTracking();
+        // Update daily buy tracking
+        await this.updateDailyBuyTracking();
+
+      } catch (error) {
+        console.error('Error fetching Gemini data:', error.message);
+        console.log('📊 Deploying dashboard with connection status...');
+        
+        // Reset daily data for initial display
+        dailyBuyData = {
+          totalBought: 0,
+          purchases: [],
+          limitReached: false,
+          lastUpdate: new Date()
+        };
+      }
 
       const embed = this.createPortfolioEmbed({
         totalValue,
-        usdBalance: parseFloat(usdBalance.amount),
+        usdBalance,
         holdings,
         dailyBuyData
       });
