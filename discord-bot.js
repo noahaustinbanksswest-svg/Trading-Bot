@@ -161,15 +161,20 @@ class GeminiAPI {
 
   async sellOrder(symbol, amount) {
     try {
+      console.log(`🔄 Calling Gemini API sellOrder(${symbol}, ${amount})...`);
+      console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
+      
       const endpoint = '/v1/order/new';
       const payload = {
         symbol: symbol,
         amount: amount.toString(),
-        price: '1', // Market order - will be ignored
+        price: '1', // For immediate-or-cancel, price is ignored - executes at market price
         side: 'sell',
         type: 'exchange limit',
-        options: ['immediate-or-cancel'] // Execute immediately at market price
+        options: ['immediate-or-cancel'] // This makes it an INSTANT market order
       };
+      
+      console.log(`📤 API Payload:`, payload);
       
       const headers = this.generateHeaders(endpoint, payload);
       
@@ -178,9 +183,12 @@ class GeminiAPI {
         timeout: 10000
       });
       
+      console.log(`✅ SELL ORDER EXECUTED SUCCESSFULLY!`);
+      console.log(`📊 Response:`, response.data);
+      
       return response.data;
     } catch (error) {
-      console.error('Sell order error:', {
+      console.error('❌ Sell order FAILED:', {
         status: error.response?.status,
         data: error.response?.data,
         message: error.message
@@ -267,6 +275,18 @@ class DiscordTradingBot {
         .addStringOption(option =>
           option.setName('symbol')
             .setDescription('Crypto symbol (e.g., btcusd)')
+            .setRequired(false)),
+
+      new SlashCommandBuilder()
+        .setName('testautotrade')
+        .setDescription('🧪 Test auto trade with SOL at 1/2 (0.5) base amount')
+        .addStringOption(option =>
+          option.setName('crypto')
+            .setDescription('Crypto to test (default: SOL)')
+            .setRequired(false))
+        .addStringOption(option =>
+          option.setName('base')
+            .setDescription('Base amount to keep (default: 1/2 = 0.5)')
             .setRequired(false))
     ];
 
@@ -300,6 +320,9 @@ class DiscordTradingBot {
           break;
         case 'prices':
           await this.showPrices(interaction);
+          break;
+        case 'testautotrade':
+          await this.testAutoTrade(interaction);
           break;
         default:
           await this.replyWithError(interaction, 'Unknown command');
@@ -1463,10 +1486,11 @@ class DiscordTradingBot {
       console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto}`);
     }
     if (stopAtLoss) {
-      // Handle fraction notation like "1/2" = 1.5 SOL
+      // Handle fraction notation like "1/2" = 0.5 SOL
       if (stopAtLoss.includes('/')) {
         const [numerator, denominator] = stopAtLoss.split('/');
-        autoTradeSettings.stopAtLoss = parseFloat(numerator) + (parseFloat(numerator) / parseFloat(denominator));
+        autoTradeSettings.stopAtLoss = parseFloat(numerator) / parseFloat(denominator);
+        console.log(`🧮 Fraction calculation: ${numerator}/${denominator} = ${autoTradeSettings.stopAtLoss} SOL`);
       } else {
         autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
       }
@@ -1715,6 +1739,53 @@ class DiscordTradingBot {
     } catch (error) {
       console.error('Error sending auto trade notification:', error.message);
     }
+  }
+
+  async testAutoTrade(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const crypto = interaction.options.getString('crypto') || 'SOL';
+    const base = interaction.options.getString('base') || '1/2';
+    
+    console.log(`🧪 TESTING AUTO TRADE: ${crypto} with base ${base}`);
+    
+    // Parse the base amount using the fixed fraction logic
+    let baseAmount;
+    if (base.includes('/')) {
+      const [numerator, denominator] = base.split('/');
+      baseAmount = parseFloat(numerator) / parseFloat(denominator);
+      console.log(`🧮 Test Fraction calculation: ${numerator}/${denominator} = ${baseAmount} ${crypto}`);
+    } else {
+      baseAmount = parseFloat(base);
+    }
+    
+    // Set up temporary auto trade settings for testing
+    const originalSettings = { ...autoTradeSettings };
+    
+    autoTradeSettings.enabled = true;
+    autoTradeSettings.isActive = true;
+    autoTradeSettings.selectedCrypto = crypto.toUpperCase();
+    autoTradeSettings.stopAtLoss = baseAmount;
+    autoTradeSettings.startTime = new Date();
+    
+    console.log(`⚡ Test Auto Trade Settings:`, autoTradeSettings);
+    
+    // Run the condition check manually
+    await this.checkAutoTradeConditions();
+    
+    // Restore original settings
+    autoTradeSettings.enabled = originalSettings.enabled;
+    autoTradeSettings.isActive = originalSettings.isActive;
+    autoTradeSettings.selectedCrypto = originalSettings.selectedCrypto;
+    autoTradeSettings.stopAtLoss = originalSettings.stopAtLoss;
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🧪 Auto Trade Test Results')
+      .setDescription(`**Test Parameters:**\n✅ Crypto: ${crypto.toUpperCase()}\n✅ Base Amount: ${base} = ${baseAmount} ${crypto.toUpperCase()}\n\n**Check the console logs above for detailed condition checking results.**`)
+      .setColor(0x2196F3)
+      .setTimestamp();
+    
+    await interaction.editReply({ embeds: [embed] });
   }
 
   async start() {
