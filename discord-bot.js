@@ -458,6 +458,8 @@ class DiscordTradingBot {
     this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
     this.dashboardMessageId = null; // Track main dashboard message
     this.dashboardChannelId = null; // Track dashboard channel
+    this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
+    this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     this.setupEventHandlers();
     this.registerCommands();
   }
@@ -1982,6 +1984,20 @@ class DiscordTradingBot {
 
   async executeAutoTrade(reason) {
     try {
+      // CRITICAL: Trading lock to prevent multiple simultaneous executions
+      if (this.tradingLock) {
+        console.log(`🔒 Trading locked - Another trade in progress, skipping this cycle`);
+        return;
+      }
+      
+      // CRITICAL: Cooldown check - minimum 30 seconds between trades
+      const now = Date.now();
+      const timeSinceLastTrade = now - this.lastTradeTime;
+      if (timeSinceLastTrade < 30000) {
+        console.log(`⏰ Trade cooldown active - ${30 - Math.floor(timeSinceLastTrade/1000)}s remaining`);
+        return;
+      }
+      
       console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
       
       // If this would breach base protection, pause briefly but keep monitoring
@@ -1997,6 +2013,10 @@ class DiscordTradingBot {
         await this.sendAutoTradeNotification(reason, 'STOPPED');
         return;
       }
+      
+      // CRITICAL: Set trading lock
+      this.tradingLock = true;
+      console.log(`🔒 Trading lock ENGAGED`);
       
       // Execute $1 USD trade instead of selling all crypto
       console.log(`💰 Executing $1 USD Auto Trade: Selling $1.00 worth of ${autoTradeSettings.selectedCrypto}`);
@@ -2048,11 +2068,36 @@ class DiscordTradingBot {
       console.log(`   Estimated fee: $${estimatedFeeUSD.toFixed(2)} USD`);
       console.log(`   Net proceeds: $${netProceedsUSD.toFixed(2)} USD`);
       
+      // CRITICAL: FINAL BASE PROTECTION CHECK with live data
+      console.log(`🛡️ FINAL BASE PROTECTION CHECK before placing order...`);
+      const feeBufferInSOL = 0.04 / currentPrice; // Fee buffer in SOL
+      const totalSOLImpact = solAmountFor1USD + feeBufferInSOL;
+      const finalRemainingSOL = cryptoHolding.amount - totalSOLImpact;
+      
+      console.log(`🔍 FINAL SAFETY CHECK:`);
+      console.log(`   Current SOL: ${cryptoHolding.amount.toFixed(8)}`);
+      console.log(`   Trade + Fee Impact: ${totalSOLImpact.toFixed(8)} SOL`);
+      console.log(`   Final Remaining: ${finalRemainingSOL.toFixed(8)} SOL`);
+      console.log(`   Base Protection: ${autoTradeSettings.stopAtLoss} SOL`);
+      console.log(`   Safe to trade: ${finalRemainingSOL >= autoTradeSettings.stopAtLoss}`);
+      
+      if (finalRemainingSOL < autoTradeSettings.stopAtLoss) {
+        console.log(`🚨 FINAL CHECK FAILED! Would breach base protection!`);
+        console.log(`🛡️ ABORTING TRADE - Base protection activated`);
+        this.tradingLock = false; // Release lock
+        return;
+      }
+      
+      console.log(`✅ FINAL CHECK PASSED - Safe to execute trade`);
+      
       try {
         console.log(`💰 Placing $1 USD sell order: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} on ${symbol}`);
         
         // Execute actual sell order via Gemini API for exactly $1 USD worth
         const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
+        
+        // CRITICAL: Record trade time for cooldown
+        this.lastTradeTime = Date.now();
         
         sellOrders.push({
           currency: autoTradeSettings.selectedCrypto,
@@ -2072,7 +2117,9 @@ class DiscordTradingBot {
         console.log(`🛑 Gemini API failed - stopping auto trade execution to prevent fake trades`);
         console.log(`🔄 Auto trade will retry on next cycle when API is working`);
         
-        // CRITICAL: Return immediately - do NOT send notifications or continue when API fails
+        // CRITICAL: Release trading lock on error
+        this.tradingLock = false;
+        console.log(`🔓 Trading lock RELEASED due to error`);
         return;
       }
 
@@ -2081,9 +2128,16 @@ class DiscordTradingBot {
 
       // Send notification to Discord ONLY after successful API call
       await this.sendAutoTradeNotification(reason, sellOrders);
+      
+      // CRITICAL: Release trading lock after successful trade
+      this.tradingLock = false;
+      console.log(`🔓 Trading lock RELEASED after successful trade`);
 
     } catch (error) {
       console.error('Error executing auto trade:', error.message);
+      // CRITICAL: Always release lock on any error
+      this.tradingLock = false;
+      console.log(`🔓 Trading lock RELEASED due to error`);
     }
   }
 
