@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { spawn } from "child_process";
 
 const app = express();
 app.use(express.json());
@@ -67,5 +68,28 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start Discord bot alongside web server
+    log('🤖 Starting Discord bot...');
+    const botProcess = spawn('node', ['start-bot.js'], {
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    
+    botProcess.on('error', (error) => {
+      console.error('Discord bot error:', error);
+    });
+    
+    botProcess.on('exit', (code) => {
+      console.log(`Discord bot exited with code ${code}`);
+      // Restart bot if it crashes
+      setTimeout(() => {
+        log('🔄 Restarting Discord bot...');
+        spawn('node', ['start-bot.js'], {
+          stdio: 'inherit',
+          cwd: process.cwd()
+        });
+      }, 5000);
+    });
   });
 })();
