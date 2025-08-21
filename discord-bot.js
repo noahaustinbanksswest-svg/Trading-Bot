@@ -1623,16 +1623,16 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Auto trade monitoring every 5 seconds
+    // Auto trade monitoring every 1 second
     setInterval(async () => {
       try {
-        // Check auto trade conditions every 5 seconds
+        // Check auto trade conditions every 1 second for maximum price accuracy
         await this.checkAutoTradeConditions();
         
       } catch (error) {
         console.error('Error in auto trade monitoring:', error.message);
       }
-    }, 5000);
+    }, 1000);
     
     // Daily tracking every 60 seconds
     setInterval(async () => {
@@ -1837,7 +1837,7 @@ class DiscordTradingBot {
       
       console.log('🤖 AUTO TRADE STARTED!');
       console.log('   Settings:', autoTradeSettings);
-      console.log('   Monitoring will begin every 5 seconds...');
+      console.log('   Monitoring will begin every 1 second...');
     }
 
     const embed = new EmbedBuilder()
