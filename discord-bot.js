@@ -46,7 +46,10 @@ class GeminiAPI {
       ...payload
     };
 
-    const encodedPayload = Buffer.from(JSON.stringify(payloadWithDefaults)).toString('base64');
+    const payloadString = JSON.stringify(payloadWithDefaults);
+    const encodedPayload = Buffer.from(payloadString).toString('base64');
+    
+    // Try direct secret first (most common)
     const signature = crypto
       .createHmac('sha384', this.apiSecret)
       .update(encodedPayload)
@@ -73,26 +76,99 @@ class GeminiAPI {
   async getBalances() {
     try {
       const endpoint = '/v1/balances';
-      const headers = this.generateHeaders(endpoint);
-      
       console.log('🔗 Testing Gemini API connection...');
-      const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
-      console.log('✅ Gemini API connected successfully');
-      return response.data;
+      
+      // Try method 1: Direct secret
+      let headers = this.generateHeaders(endpoint);
+      
+      try {
+        const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+          headers,
+          timeout: 10000
+        });
+        console.log('✅ Gemini API connected successfully');
+        return response.data;
+      } catch (firstError) {
+        
+        if (firstError.response?.data?.reason === 'InvalidSignature') {
+          console.log('🔄 Trying base64 decoded secret method...');
+          
+          // Method 2: Base64 decoded secret
+          const nonce = Date.now().toString();
+          const payloadWithDefaults = { request: endpoint, nonce: nonce };
+          const payloadString = JSON.stringify(payloadWithDefaults);
+          const encodedPayload = Buffer.from(payloadString).toString('base64');
+          
+          try {
+            const decodedSecret = Buffer.from(this.apiSecret, 'base64');
+            const signature = crypto
+              .createHmac('sha384', decodedSecret)
+              .update(encodedPayload)
+              .digest('hex');
+
+            const altHeaders = {
+              'X-GEMINI-APIKEY': this.apiKey,
+              'X-GEMINI-PAYLOAD': encodedPayload,
+              'X-GEMINI-SIGNATURE': signature,
+              'Content-Type': 'text/plain',
+              'Content-Length': '0'
+            };
+            
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+              headers: altHeaders,
+              timeout: 10000
+            });
+            console.log('✅ Gemini API connected with base64 method');
+            return response.data;
+          } catch (secondError) {
+            console.log('🔄 Trying hex decoded secret method...');
+            
+            // Method 3: Hex decoded secret
+            try {
+              const hexSecret = Buffer.from(this.apiSecret, 'hex');
+              const signature = crypto
+                .createHmac('sha384', hexSecret)
+                .update(encodedPayload)
+                .digest('hex');
+
+              const hexHeaders = {
+                'X-GEMINI-APIKEY': this.apiKey,
+                'X-GEMINI-PAYLOAD': encodedPayload,
+                'X-GEMINI-SIGNATURE': signature,
+                'Content-Type': 'text/plain',
+                'Content-Length': '0'
+              };
+              
+              const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+                headers: hexHeaders,
+                timeout: 10000
+              });
+              console.log('✅ Gemini API connected with hex method');
+              return response.data;
+            } catch (thirdError) {
+              throw firstError; // Return original error
+            }
+          }
+        } else {
+          throw firstError;
+        }
+      }
+      
     } catch (error) {
-      console.error('❌ Gemini API Error Details:', {
+      console.error('❌ All Gemini API authentication methods failed');
+      console.error('❌ Error Details:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
         message: error.message
       });
       
-      if (error.response?.status === 400) {
-        console.log('💡 Gemini API Key Help:');
-        console.log('   - Ensure API key has "Account" permissions enabled');
-        console.log('   - Check if API key is active and not revoked');
-        console.log('   - Verify API secret is correct');
-      }
+      console.log('🔧 To fix Gemini API authentication:');
+      console.log('   1. Log into your Gemini account');
+      console.log('   2. Go to Settings -> API');
+      console.log('   3. Create a new API key with "Account" permissions');
+      console.log('   4. Update your GEMINI_API_KEY and GEMINI_API_SECRET');
+      console.log('   5. Make sure the secret is copied exactly as shown');
       
       throw new Error(`Failed to get balances: ${error.message}`);
     }
@@ -103,9 +179,17 @@ class GeminiAPI {
       const endpoint = '/v1/orders';
       const headers = this.generateHeaders(endpoint);
       
-      const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
+      const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+        headers,
+        timeout: 10000
+      });
       return response.data;
     } catch (error) {
+      console.error('Orders API error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw new Error(`Failed to get active orders: ${error.message}`);
     }
   }
@@ -115,9 +199,17 @@ class GeminiAPI {
       const endpoint = '/v1/mytrades';
       const headers = this.generateHeaders(endpoint);
       
-      const response = await axios.post(`${this.baseUrl}${endpoint}`, {}, { headers });
+      const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+        headers,
+        timeout: 10000
+      });
       return response.data;
     } catch (error) {
+      console.error('Trades API error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw new Error(`Failed to get trades: ${error.message}`);
     }
   }
@@ -784,91 +876,111 @@ class DiscordTradingBot {
       // Stop all monitoring temporarily
       console.log('🛑 Emergency monitoring stop triggered by user');
       
+      // Clear active portfolio messages to stop auto-updating
+      this.activePortfolioMessages.clear();
+      
       const embed = new EmbedBuilder()
         .setTitle('🛑 Monitoring Paused')
         .setColor(0xF44336)
         .addFields(
           { name: 'Status', value: '🔴 Monitoring temporarily paused', inline: true },
-          { name: 'Action', value: 'Use /portfolio to resume monitoring', inline: true }
+          { name: 'Action', value: 'Use /portfolio to resume monitoring', inline: true },
+          { name: 'Effect', value: 'Auto-updates stopped for all portfolio embeds', inline: false }
         )
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      await interaction.editReply(`❌ Error pausing monitoring: ${error.message}`);
+      console.error('Emergency stop error:', error);
+      await this.replyWithError(interaction, `Error pausing monitoring: ${error.message}`);
     }
   }
 
   async handleTracker(interaction) {
     const type = interaction.options.getString('type') || 'daily_buys';
     
-    switch (type) {
-      case 'daily_buys':
-        await this.showDailyBuyTracker(interaction);
-        break;
-      case 'status':
-        await this.showTradingStatus(interaction);
-        break;
-      case 'limits':
-        await this.showLimits(interaction);
-        break;
-      default:
-        await interaction.reply({ content: '❌ Unknown tracker type', ephemeral: true });
+    try {
+      switch (type) {
+        case 'daily_buys':
+          await this.showDailyBuyTracker(interaction);
+          break;
+        case 'status':
+          await this.showTradingStatus(interaction);
+          break;
+        case 'limits':
+          await this.showLimits(interaction);
+          break;
+        default:
+          await this.replyWithError(interaction, 'Unknown tracker type');
+      }
+    } catch (error) {
+      console.error('Tracker command error:', error);
+      await this.replyWithError(interaction, `Tracker error: ${error.message}`);
     }
   }
 
   async showTradingStatus(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    await this.updateDailyBuyTracking();
+    try {
+      await this.updateDailyBuyTracking();
 
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Trading Status Overview')
-      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
-      .addFields(
-        { name: '📅 Daily Buy Status', value: dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Active', inline: true },
-        { name: '💰 Today\'s Spending', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
-        { name: '🔄 Trades Today', value: dailyBuyData.purchases.length.toString(), inline: true }
-      )
-      .addFields({
-        name: '⚙️ Current Settings',
-        value: `**Daily Limit**: $${tradingSettings.dailyBuyLimit}
+      const embed = new EmbedBuilder()
+        .setTitle('📊 Trading Status Overview')
+        .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x4CAF50)
+        .addFields(
+          { name: '📅 Daily Buy Status', value: dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Active', inline: true },
+          { name: '💰 Today\'s Spending', value: `$${dailyBuyData.totalBought.toFixed(2)}`, inline: true },
+          { name: '🔄 Trades Today', value: dailyBuyData.purchases.length.toString(), inline: true }
+        )
+        .addFields({
+          name: '⚙️ Current Settings',
+          value: `**Daily Limit**: $${tradingSettings.dailyBuyLimit}
 **Stop Loss**: ${tradingSettings.stopLossPercent}%
 **Take Profit**: ${tradingSettings.takeProfitPercent}%
 **Monitored Pairs**: ${tradingSettings.enabledPairs.join(', ').toUpperCase()}`,
-        inline: false
-      })
-      .setTimestamp();
+          inline: false
+        })
+        .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('Trading status error:', error);
+      await this.replyWithError(interaction, `Failed to get trading status: ${error.message}`);
+    }
   }
 
   async showLimits(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    const embed = new EmbedBuilder()
-      .setTitle('💳 Trading Limits & Controls')
-      .setColor(0x2196F3)
-      .addFields(
-        { name: '💰 Daily Buy Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
-        { name: '📉 Stop Loss %', value: `${tradingSettings.stopLossPercent}%`, inline: true },
-        { name: '📈 Take Profit %', value: `${tradingSettings.takeProfitPercent}%`, inline: true }
-      )
-      .addFields({
-        name: '🎯 Monitored Trading Pairs',
-        value: tradingSettings.enabledPairs.map(pair => `• ${pair.toUpperCase()}`).join('\n'),
-        inline: false
-      })
-      .addFields({
-        name: '⚠️ Automatic Actions',
-        value: `• **Stop Loss**: ${tradingSettings.enableStopLoss ? '✅ Enabled' : '❌ Disabled'}
+    try {
+      const embed = new EmbedBuilder()
+        .setTitle('💳 Trading Limits & Controls')
+        .setColor(0x2196F3)
+        .addFields(
+          { name: '💰 Daily Buy Limit', value: `$${tradingSettings.dailyBuyLimit}`, inline: true },
+          { name: '📉 Stop Loss %', value: `${tradingSettings.stopLossPercent}%`, inline: true },
+          { name: '📈 Take Profit %', value: `${tradingSettings.takeProfitPercent}%`, inline: true }
+        )
+        .addFields({
+          name: '🎯 Monitored Trading Pairs',
+          value: tradingSettings.enabledPairs.map(pair => `• ${pair.toUpperCase()}`).join('\n'),
+          inline: false
+        })
+        .addFields({
+          name: '⚠️ Automatic Actions',
+          value: `• **Stop Loss**: ${tradingSettings.enableStopLoss ? '✅ Enabled' : '❌ Disabled'}
 • **Take Profit**: ${tradingSettings.enableProfitTaking ? '✅ Enabled' : '❌ Disabled'}
 • **Daily Limit**: Always active`,
-        inline: false
-      })
-      .setTimestamp();
+          inline: false
+        })
+        .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('Limits display error:', error);
+      await this.replyWithError(interaction, `Failed to display limits: ${error.message}`);
+    }
   }
 
   async handleSettings(interaction) {
@@ -877,36 +989,56 @@ class DiscordTradingBot {
 
     await interaction.deferReply({ ephemeral: true });
 
-    switch (setting) {
-      case 'daily_limit':
-        if (value) {
-          tradingSettings.dailyBuyLimit = parseFloat(value);
-          await interaction.editReply(`✅ Daily buy limit updated to $${value}`);
-        } else {
-          await interaction.editReply(`📊 Current daily buy limit: $${tradingSettings.dailyBuyLimit}`);
-        }
-        break;
+    try {
+      switch (setting) {
+        case 'daily_limit':
+          if (value) {
+            const numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue <= 0) {
+              await interaction.editReply('❌ Invalid daily limit value. Must be a positive number.');
+            } else {
+              tradingSettings.dailyBuyLimit = numValue;
+              await interaction.editReply(`✅ Daily buy limit updated to $${value}`);
+            }
+          } else {
+            await interaction.editReply(`📊 Current daily buy limit: $${tradingSettings.dailyBuyLimit}`);
+          }
+          break;
 
-      case 'stop_loss':
-        if (value) {
-          tradingSettings.stopLossPercent = parseFloat(value);
-          await interaction.editReply(`✅ Stop loss updated to ${value}%`);
-        } else {
-          await interaction.editReply(`📊 Current stop loss: ${tradingSettings.stopLossPercent}%`);
-        }
-        break;
+        case 'stop_loss':
+          if (value) {
+            const numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue <= 0 || numValue >= 100) {
+              await interaction.editReply('❌ Invalid stop loss value. Must be between 0-100%.');
+            } else {
+              tradingSettings.stopLossPercent = numValue;
+              await interaction.editReply(`✅ Stop loss updated to ${value}%`);
+            }
+          } else {
+            await interaction.editReply(`📊 Current stop loss: ${tradingSettings.stopLossPercent}%`);
+          }
+          break;
 
-      case 'take_profit':
-        if (value) {
-          tradingSettings.takeProfitPercent = parseFloat(value);
-          await interaction.editReply(`✅ Take profit updated to ${value}%`);
-        } else {
-          await interaction.editReply(`📊 Current take profit: ${tradingSettings.takeProfitPercent}%`);
-        }
-        break;
+        case 'take_profit':
+          if (value) {
+            const numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue <= 0) {
+              await interaction.editReply('❌ Invalid take profit value. Must be a positive number.');
+            } else {
+              tradingSettings.takeProfitPercent = numValue;
+              await interaction.editReply(`✅ Take profit updated to ${value}%`);
+            }
+          } else {
+            await interaction.editReply(`📊 Current take profit: ${tradingSettings.takeProfitPercent}%`);
+          }
+          break;
 
-      default:
-        await interaction.editReply('❌ Unknown setting');
+        default:
+          await interaction.editReply('❌ Unknown setting');
+      }
+    } catch (error) {
+      console.error('Settings error:', error);
+      await this.replyWithError(interaction, `Settings error: ${error.message}`);
     }
   }
 
