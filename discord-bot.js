@@ -1917,7 +1917,7 @@ class DiscordTradingBot {
           
           // Calculate $1 USD trade impact INCLUDING post-execution fee deduction
           const tradeAmountUSD = 1.00; // $1 USD trade
-          const feeAmountUSD = 0.04;   // 4 cent fee deducted AFTER trade execution
+          const feeAmountUSD = 0.08;   // 8 cent fee deducted AFTER trade execution
           
           // The actual SOL sold for $1 USD
           const solAmountToSell = tradeAmountUSD / currentPrice; 
@@ -2059,7 +2059,7 @@ class DiscordTradingBot {
       }
       
       // Calculate estimated fee for this $1 USD trade (4 cents)
-      const estimatedFeeUSD = 0.04; // 4 cent fee for $1 trades
+      const estimatedFeeUSD = 0.08; // 8 cent fee for $1 trades
       const netProceedsUSD = 1.00 - estimatedFeeUSD; // $0.96 net proceeds
       
       console.log(`💰 $1 USD Trade Details:`);
@@ -2070,7 +2070,7 @@ class DiscordTradingBot {
       
       // CRITICAL: FINAL BASE PROTECTION CHECK with live data
       console.log(`🛡️ FINAL BASE PROTECTION CHECK before placing order...`);
-      const feeBufferInSOL = 0.04 / currentPrice; // Fee buffer in SOL
+      const feeBufferInSOL = 0.08 / currentPrice; // Fee buffer in SOL
       const totalSOLImpact = solAmountFor1USD + feeBufferInSOL;
       const finalRemainingSOL = cryptoHolding.amount - totalSOLImpact;
       
