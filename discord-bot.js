@@ -165,7 +165,7 @@ class GeminiAPI {
       console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
       
       const endpoint = '/v1/order/new';
-      const nonce = Date.now().toString();
+      const nonce = Date.now();
       
       // Proper Gemini API payload format with required fields
       const payload = {
