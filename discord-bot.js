@@ -682,6 +682,7 @@ class DiscordTradingBot {
       
       console.log(`📊 Found ${cryptoBalances.length} crypto balances to process:`);
       cryptoBalances.forEach(b => console.log(`   ${b.currency}: ${b.amount}`));
+      console.log(`🎯 Starting price fetching for ${cryptoBalances.length} cryptocurrencies...`);
 
       // Use available USD balance instead of total amount (which can be negative due to margin)
       const totalUsdAmount = parseFloat(usdBalance.amount);
@@ -700,8 +701,10 @@ class DiscordTradingBot {
       console.log(`   Has fractional cents: ${availableUsdAmount > Math.floor(availableUsdAmount * 100) / 100}`);
       console.log(`   Aggressive Round Up: $${displayUsdBalance.toFixed(2)} (rounds up if any fraction beyond 2 decimals)`);
       console.log(`   Displayed USD: $${displayUsdBalance.toFixed(2)}`);
+      console.log(`✅ USD Analysis Complete - Continuing to ticker processing...`);
 
       // Get current prices and calculate portfolio value
+      console.log(`🚀 ENTERING TICKER LOOP for ${cryptoBalances.length} cryptocurrencies`);
       for (const balance of cryptoBalances) {
         try {
           const symbol = `${balance.currency.toLowerCase()}usd`;
@@ -842,6 +845,7 @@ class DiscordTradingBot {
         
         console.log(`📊 Found ${cryptoBalances.length} crypto balances to process:`);
         cryptoBalances.forEach(b => console.log(`   ${b.currency}: ${b.amount}`));
+        console.log(`🎯 AUTO-UPDATE: Starting price fetching for ${cryptoBalances.length} cryptocurrencies...`);
 
         // Use available USD balance instead of total amount (which can be negative due to margin)
         const totalUsdAmount = parseFloat(usdBalanceData.amount);
