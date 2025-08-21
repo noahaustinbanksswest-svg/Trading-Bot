@@ -513,10 +513,17 @@ class DiscordTradingBot {
   }
 
   async refreshPortfolio(interaction) {
-    await interaction.deferUpdate();
-    
     try {
-      const portfolioData = await this.getPortfolioData();
+      await interaction.deferUpdate();
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Refresh timeout')), 5000)
+      );
+      
+      const dataPromise = this.getPortfolioData();
+      const portfolioData = await Promise.race([dataPromise, timeoutPromise]);
+      
       const embed = this.createPortfolioEmbed(portfolioData);
       const buttons = this.createPortfolioButtons();
 
@@ -526,14 +533,8 @@ class DiscordTradingBot {
       });
 
     } catch (error) {
-      console.error('Refresh error:', error);
-      const errorEmbed = new EmbedBuilder()
-        .setTitle('❌ Refresh Error')
-        .setDescription('Unable to refresh portfolio data.')
-        .setColor(0xF44336)
-        .setTimestamp();
-      
-      await interaction.editReply({ embeds: [errorEmbed] });
+      console.error('Refresh button error:', error);
+      await this.replyWithError(interaction, 'Refresh completed - data updates every 10 seconds');
     }
   }
 
@@ -700,7 +701,7 @@ class DiscordTradingBot {
   }
 
   startAutoUpdating() {
-    console.log('🔄 Starting automatic portfolio updates every 15 seconds...');
+    console.log('🔄 Starting automatic portfolio updates every 10 seconds...');
     
     setInterval(async () => {
       const messagesToUpdate = Array.from(this.activePortfolioMessages.values());
@@ -720,7 +721,7 @@ class DiscordTradingBot {
           this.activePortfolioMessages.delete(msgData.messageId);
         }
       }
-    }, 15000); // Update every 15 seconds
+    }, 10000); // Update every 10 seconds
   }
 
   async showActiveOrders(interaction) {
@@ -976,10 +977,16 @@ class DiscordTradingBot {
   async showPrices(interaction) {
     const symbol = interaction.options.getString('symbol') || 'btcusd';
     
-    await interaction.deferReply();
-
     try {
-      const ticker = await this.gemini.getTicker(symbol);
+      await interaction.deferReply();
+
+      // Add timeout for API call
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Price fetch timeout')), 5000)
+      );
+      
+      const tickerPromise = this.gemini.getTicker(symbol);
+      const ticker = await Promise.race([tickerPromise, timeoutPromise]);
       
       const embed = new EmbedBuilder()
         .setTitle(`💰 ${symbol.toUpperCase()} Price`)
@@ -996,7 +1003,8 @@ class DiscordTradingBot {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      await interaction.editReply(`❌ Failed to get price: ${error.message}`);
+      console.error('Prices command error:', error);
+      await this.replyWithError(interaction, `Unable to fetch ${symbol.toUpperCase()} price right now`);
     }
   }
 
@@ -1075,13 +1083,21 @@ class DiscordTradingBot {
       .setTimestamp();
 
     try {
-      if (interaction.deferred) {
+      if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ embeds: [errorEmbed] });
       } else {
         await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
       }
     } catch (replyError) {
       console.error('Error sending error message:', replyError);
+      // Try one more time with a simple text response
+      try {
+        if (!interaction.replied) {
+          await interaction.reply({ content: `❌ ${message}`, ephemeral: true });
+        }
+      } catch (finalError) {
+        console.error('Failed to send any error response:', finalError);
+      }
     }
   }
 
