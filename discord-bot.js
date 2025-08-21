@@ -35,9 +35,9 @@ let dailyBuyData = {
 let autoTradeSettings = {
   enabled: false,
   amount: null, // Trade amount
-  stopAtLoss: null, // Stop when portfolio value reaches this USD amount
+  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell
+  stopAtLoss: null, // Stop selling when crypto amount reaches this base amount
   stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
-  stopAtValueCurrency: 'SOL', // Which currency for stopAtValue
   stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
   isActive: false,
   startTime: null,
@@ -1290,13 +1290,21 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Update tracking every 5 seconds for auto trade monitoring
+    // Auto trade monitoring every 5 seconds
+    setInterval(async () => {
+      try {
+        // Check auto trade conditions every 5 seconds
+        await this.checkAutoTradeConditions();
+        
+      } catch (error) {
+        console.error('Error in auto trade monitoring:', error.message);
+      }
+    }, 5000);
+    
+    // Daily tracking every 60 seconds
     setInterval(async () => {
       try {
         await this.updateDailyBuyTracking();
-        
-        // Check auto trade conditions every 5 seconds
-        await this.checkAutoTradeConditions();
         
         // Check if limit was just reached
         if (dailyBuyData.limitReached) {
@@ -1306,7 +1314,7 @@ class DiscordTradingBot {
       } catch (error) {
         console.error('Error in daily tracking update:', error.message);
       }
-    }, 5000);
+    }, 60000);
 
     // Reset daily data at midnight
     setInterval(() => {
@@ -1345,16 +1353,23 @@ class DiscordTradingBot {
       .setPlaceholder('e.g., 0.5, 1, or 1/2 (keep this much SOL as base)')
       .setRequired(false);
 
+    const cryptoSelectInput = new TextInputBuilder()
+      .setCustomId('crypto_selection')
+      .setLabel('3. Select Crypto Currency')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., SOL, BTC, ETH (which crypto to monitor/sell)')
+      .setRequired(false);
+
     const stopValueInput = new TextInputBuilder()
       .setCustomId('stop_at_value')
-      .setLabel('3. Stop at Crypto Amount')
+      .setLabel('4. Stop at Crypto Amount')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('e.g., 1 or 0.5 (amount of SOL to sell)')
+      .setPlaceholder('e.g., 1 or 0.5 (amount of selected crypto to sell)')
       .setRequired(false);
 
     const stopDailyBuysInput = new TextInputBuilder()
       .setCustomId('stop_daily_buys')
-      .setLabel('4. Stop on Daily Buys (USD)')
+      .setLabel('5. Stop on Daily Buys (USD)')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('e.g., 50 (stop when $50 worth bought today)')
       .setRequired(false);
@@ -1362,6 +1377,7 @@ class DiscordTradingBot {
     modal.addComponents(
       new ActionRowBuilder().addComponents(amountInput),
       new ActionRowBuilder().addComponents(stopLossInput),
+      new ActionRowBuilder().addComponents(cryptoSelectInput),
       new ActionRowBuilder().addComponents(stopValueInput),
       new ActionRowBuilder().addComponents(stopDailyBuysInput)
     );
@@ -1434,11 +1450,18 @@ class DiscordTradingBot {
   async handleAutoTradeModal(interaction) {
     const amount = interaction.fields.getTextInputValue('trade_amount');
     const stopAtLoss = interaction.fields.getTextInputValue('stop_at_loss');
+    const cryptoSelection = interaction.fields.getTextInputValue('crypto_selection');
     const stopAtValue = interaction.fields.getTextInputValue('stop_at_value');
     const stopDailyBuys = interaction.fields.getTextInputValue('stop_daily_buys');
 
+    console.log('🔧 Processing Auto Trade Modal:', { amount, stopAtLoss, cryptoSelection, stopAtValue, stopDailyBuys });
+
     // Validate and set values
     if (amount) autoTradeSettings.amount = parseFloat(amount);
+    if (cryptoSelection) {
+      autoTradeSettings.selectedCrypto = cryptoSelection.toUpperCase();
+      console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto}`);
+    }
     if (stopAtLoss) {
       // Handle fraction notation like "1/2" = 1.5 SOL
       if (stopAtLoss.includes('/')) {
@@ -1447,6 +1470,7 @@ class DiscordTradingBot {
       } else {
         autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
       }
+      console.log(`🛑 Stop selling at base: ${autoTradeSettings.stopAtLoss} ${autoTradeSettings.selectedCrypto || 'SOL'}`);
     }
     if (stopAtValue) autoTradeSettings.stopAtValue = parseFloat(stopAtValue);
     if (stopDailyBuys) autoTradeSettings.stopOnDailyBuys = parseFloat(stopDailyBuys);
@@ -1459,7 +1483,9 @@ class DiscordTradingBot {
       autoTradeSettings.isActive = true;
       autoTradeSettings.startTime = new Date();
       
-      console.log('🤖 Auto Trade configured and started:', autoTradeSettings);
+      console.log('🤖 AUTO TRADE STARTED!');
+      console.log('   Settings:', autoTradeSettings);
+      console.log('   Monitoring will begin every 5 seconds...');
     }
 
     const embed = new EmbedBuilder()
@@ -1500,10 +1526,10 @@ class DiscordTradingBot {
       let shouldExecuteTrade = false;
       let reason = '';
 
-      // Check if SOL holdings reached base amount (stop selling at this level)
-      if (autoTradeSettings.stopAtLoss) {
-        const solHolding = holdings.find(h => h.currency === 'SOL');
-        if (solHolding) {
+      // Check if selected crypto holdings reached base amount (stop selling at this level)
+      if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
+        const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
+        if (cryptoHolding) {
           // Calculate Gemini trading fees (0.35% maker/taker) + 5% safety buffer
           const tradingFeeRate = 0.0035; // 0.35% Gemini fee
           const safetyBufferRate = 0.05; // 5% additional safety buffer
@@ -1512,16 +1538,18 @@ class DiscordTradingBot {
           // Calculate the minimum amount needed to preserve base after fees
           const feeAdjustedBase = autoTradeSettings.stopAtLoss * (1 + totalFeeRate);
           
-          console.log(`🔍 Stop Selling Check:`);
-          console.log(`   Current SOL: ${solHolding.amount.toFixed(8)}`);
+          console.log(`🔍 Stop Selling Check for ${autoTradeSettings.selectedCrypto}:`);
+          console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)}`);
           console.log(`   Base Amount: ${autoTradeSettings.stopAtLoss}`);
           console.log(`   Fee-Adjusted Threshold: ${feeAdjustedBase.toFixed(8)} (includes ${(totalFeeRate * 100).toFixed(2)}% fees + buffer)`);
           
-          if (solHolding.amount <= feeAdjustedBase) {
+          if (cryptoHolding.amount <= feeAdjustedBase) {
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `SOL holdings reached fee-adjusted base: ${solHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} SOL (STOP SELLING with ${(totalFeeRate * 100).toFixed(2)}% buffer)`;
+            reason = `${autoTradeSettings.selectedCrypto} holdings reached fee-adjusted base: ${cryptoHolding.amount.toFixed(8)} ≤ ${feeAdjustedBase.toFixed(8)} ${autoTradeSettings.selectedCrypto} (STOP SELLING with ${(totalFeeRate * 100).toFixed(2)}% buffer)`;
           }
+        } else {
+          console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
         }
       }
 
