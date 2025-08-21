@@ -906,7 +906,7 @@ class DiscordTradingBot {
 
     } catch (error) {
       console.error('Refresh button error:', error);
-      await this.replyWithError(interaction, 'Refresh completed - data updates every 10 seconds');
+      await this.replyWithError(interaction, 'Refresh completed - data updates every 1 second');
     }
   }
 
@@ -1183,7 +1183,7 @@ class DiscordTradingBot {
   }
 
   startAutoUpdating() {
-    console.log('🔄 Starting automatic portfolio updates every 10 seconds...');
+    console.log('🔄 Starting automatic portfolio updates every 1 second...');
     
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
@@ -1200,7 +1200,7 @@ class DiscordTradingBot {
       } else {
         console.log(`⚠️ No dashboard message tracked for auto-update`);
       }
-    }, 10000); // Update every 10 seconds
+    }, 1000); // Update every 1 second for maximum accuracy
   }
 
   startKeepAlive() {
