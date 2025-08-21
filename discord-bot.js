@@ -1340,9 +1340,9 @@ class DiscordTradingBot {
 
     const stopLossInput = new TextInputBuilder()
       .setCustomId('stop_at_loss')
-      .setLabel('2. Stop at Loss (SOL Multiples)')
+      .setLabel('2. Stop Selling at Base Amount')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('e.g., 0.5, 1, or 1/2 (SOL amount × current price)')
+      .setPlaceholder('e.g., 0.5, 1, or 1/2 (keep this much SOL as base)')
       .setRequired(false);
 
     const stopValueInput = new TextInputBuilder()
@@ -1388,7 +1388,7 @@ class DiscordTradingBot {
       embed.setDescription(`✅ Auto Trade is **ENABLED**\n${statusText}`)
         .addFields(
           { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
-          { name: '📉 Stop at Loss (SOL Multiple)', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
+          { name: '📉 Stop Selling at Base', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
           { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} ${autoTradeSettings.stopAtValueCurrency}` : 'Not set', inline: true },
           { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true },
           { name: '⏰ Started', value: autoTradeSettings.startTime ? autoTradeSettings.startTime.toLocaleString() : 'Not started', inline: true },
@@ -1471,7 +1471,7 @@ class DiscordTradingBot {
       embed.setDescription('✅ Auto Trade has been **CONFIGURED** and **STARTED**!')
         .addFields(
           { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
-          { name: '📉 Stop at Loss (SOL Multiple)', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
+          { name: '📉 Stop Selling at Base', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : 'Not set', inline: true },
           { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} SOL` : 'Not set', inline: true },
           { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true }
         );
@@ -1494,17 +1494,16 @@ class DiscordTradingBot {
       let shouldExecuteTrade = false;
       let reason = '';
 
-      // Check dynamic stop loss condition (SOL multiple × current SOL price)
+      // Check if SOL holdings reached base amount (stop selling at this level)
       if (autoTradeSettings.stopAtLoss) {
         const solHolding = holdings.find(h => h.currency === 'SOL');
-        if (solHolding && solHolding.price) {
-          const dynamicStopLoss = autoTradeSettings.stopAtLoss * solHolding.price;
-          console.log(`🔍 Dynamic Stop Loss Check: ${autoTradeSettings.stopAtLoss} SOL × $${solHolding.price} = $${dynamicStopLoss.toFixed(2)} vs Portfolio $${totalValue.toFixed(2)}`);
+        if (solHolding) {
+          console.log(`🔍 Stop Selling Check: Current SOL ${solHolding.amount.toFixed(8)} vs Base Amount ${autoTradeSettings.stopAtLoss}`);
           
-          if (totalValue <= dynamicStopLoss) {
+          if (solHolding.amount <= autoTradeSettings.stopAtLoss) {
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `Portfolio dropped to $${totalValue.toFixed(2)} ≤ Stop Loss Threshold $${dynamicStopLoss.toFixed(2)} (${autoTradeSettings.stopAtLoss} SOL × $${solHolding.price})`;
+            reason = `SOL holdings reached base amount: ${solHolding.amount.toFixed(8)} ≤ ${autoTradeSettings.stopAtLoss} SOL (STOP SELLING)`;
           }
         }
       }
@@ -1539,6 +1538,17 @@ class DiscordTradingBot {
   async executeAutoTrade(reason) {
     try {
       console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
+      
+      // If this is a "stop selling" condition, disable auto trade instead of selling
+      if (reason.includes('STOP SELLING')) {
+        autoTradeSettings.enabled = false;
+        autoTradeSettings.isActive = false;
+        console.log(`🛑 Auto Trade disabled - reached base SOL amount`);
+        
+        // Send notification about stopping
+        await this.sendAutoTradeNotification(reason, 'STOPPED');
+        return;
+      }
       
       // Get all crypto holdings to sell
       const balances = await this.gemini.getBalances();
@@ -1595,22 +1605,32 @@ class DiscordTradingBot {
 
       if (!dashboardChannel) return;
 
+      const isStoppedCase = sellOrders === 'STOPPED';
+      
       const embed = new EmbedBuilder()
-        .setTitle('🤖 Auto Trade Executed')
+        .setTitle(isStoppedCase ? '🛑 Auto Trade Stopped' : '🤖 Auto Trade Executed')
         .setDescription(`**Trigger:** ${reason}`)
-        .setColor(0x4CAF50)
+        .setColor(isStoppedCase ? 0xFF9800 : 0x4CAF50)
         .setTimestamp();
 
-      const orderText = sellOrders.map(order => {
-        const status = order.status === 'submitted' ? '✅' : '❌';
-        return `${status} **${order.currency}**: ${order.amount.toFixed(8)} ${order.status === 'submitted' ? `(Order: ${order.orderId})` : `(Error: ${order.error})`}`;
-      }).join('\n');
+      if (isStoppedCase) {
+        embed.addFields(
+          { name: '🛡️ Base Protection', value: 'SOL holdings reached base amount - Auto Trade stopped to preserve base.', inline: false },
+          { name: '⏰ Stopped At', value: new Date().toLocaleString(), inline: true },
+          { name: '🔄 Status', value: 'Auto Trade **DISABLED**', inline: true }
+        );
+      } else {
+        const orderText = sellOrders.map(order => {
+          const status = order.status === 'submitted' ? '✅' : '❌';
+          return `${status} **${order.currency}**: ${order.amount.toFixed(8)} ${order.status === 'submitted' ? `(Order: ${order.orderId})` : `(Error: ${order.error})`}`;
+        }).join('\n');
 
-      embed.addFields(
-        { name: '📊 Sell Orders', value: orderText || 'No orders placed', inline: false },
-        { name: '⏰ Executed At', value: new Date().toLocaleString(), inline: true },
-        { name: '🔄 Status', value: 'Auto Trade **DISABLED**', inline: true }
-      );
+        embed.addFields(
+          { name: '📊 Sell Orders', value: orderText || 'No orders placed', inline: false },
+          { name: '⏰ Executed At', value: new Date().toLocaleString(), inline: true },
+          { name: '🔄 Status', value: 'Auto Trade **DISABLED**', inline: true }
+        );
+      }
 
       await dashboardChannel.send({ embeds: [embed] });
       
