@@ -917,6 +917,15 @@ class DiscordTradingBot {
       const channel = await this.client.channels.fetch(channelId);
       const message = await channel.messages.fetch(messageId);
       
+      // STEP 1: Extract current embed data for validation
+      let currentEmbedData = null;
+      let validationResults = [];
+      
+      if (message.embeds && message.embeds.length > 0) {
+        const currentEmbed = message.embeds[0];
+        currentEmbedData = this.parseEmbedData(currentEmbed);
+      }
+      
       // Get fresh portfolio data
       const balances = await this.gemini.getBalances();
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
@@ -979,6 +988,26 @@ class DiscordTradingBot {
       // Update daily buy tracking
       await this.updateDailyBuyTracking();
       
+      // STEP 2: Validate current embed against fresh API data
+      if (currentEmbedData) {
+        validationResults = this.validateEmbedData(currentEmbedData, {
+          totalValue,
+          usdBalance: displayUsdBalance,
+          holdings,
+          dailyBuyData
+        });
+        
+        if (validationResults.length > 0) {
+          console.log(`🔧 AUTO-CORRECTION DETECTED - ${validationResults.length} discrepancies found:`);
+          validationResults.forEach(result => {
+            console.log(`   ❌ ${result.field}: Expected ${result.expected}, Found ${result.actual} (diff: ${result.difference})`);
+          });
+          console.log(`🛠️ Self-correcting embed with accurate live data...`);
+        } else {
+          console.log(`✅ EMBED VALIDATION PASSED - All data accurate`);
+        }
+      }
+      
       console.log(`🎯 Auto-Update Portfolio Summary:`);
       console.log(`   USD Balance: $${displayUsdBalance.toFixed(2)}`);
       console.log(`   Crypto Holdings: ${holdings.length} assets`);
@@ -998,7 +1027,11 @@ class DiscordTradingBot {
         components: buttons,
       });
 
-      console.log(`🔄 Portfolio embed auto-updated at ${new Date().toLocaleTimeString()}`);
+      if (validationResults.length > 0) {
+        console.log(`✅ EMBED AUTO-CORRECTED - Fixed ${validationResults.length} errors at ${new Date().toLocaleTimeString()}`);
+      } else {
+        console.log(`🔄 Portfolio embed auto-updated at ${new Date().toLocaleTimeString()}`);
+      }
     } catch (error) {
       console.error(`❌ Failed to auto-update portfolio embed:`, error.message);
       // Reset dashboard tracking if this was the main dashboard
@@ -2231,6 +2264,125 @@ class DiscordTradingBot {
       .setTimestamp();
     
     await interaction.editReply({ embeds: [embed] });
+  }
+
+  // Parse current embed data for validation
+  parseEmbedData(embed) {
+    try {
+      const data = {};
+      
+      // Extract total value from description
+      const description = embed.description || '';
+      const totalMatch = description.match(/\$(\d+\.?\d*)/);
+      if (totalMatch) {
+        data.totalValue = parseFloat(totalMatch[1]);
+      }
+      
+      // Extract USD balance and crypto holdings from fields
+      data.holdings = [];
+      if (embed.fields) {
+        embed.fields.forEach(field => {
+          if (field.name === '💵 USD Balance') {
+            const usdMatch = field.value.match(/\$(\d+\.?\d*)/);
+            if (usdMatch) {
+              data.usdBalance = parseFloat(usdMatch[1]);
+            }
+          } else if (field.name.includes('💰')) {
+            // Parse crypto holdings
+            const nameMatch = field.name.match(/💰 (.+)/);
+            if (nameMatch) {
+              const currency = nameMatch[1];
+              const valueMatch = field.value.match(/\$(\d+\.?\d*)/);
+              const amountMatch = field.value.match(/(\d+\.?\d+) \w+/);
+              const priceMatch = field.value.match(/@ \$(\d+\.?\d*)/);
+              
+              if (valueMatch && amountMatch && priceMatch) {
+                data.holdings.push({
+                  currency,
+                  value: parseFloat(valueMatch[1]),
+                  amount: parseFloat(amountMatch[1]),
+                  price: parseFloat(priceMatch[1])
+                });
+              }
+            }
+          }
+        });
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Error parsing embed data:', error.message);
+      return null;
+    }
+  }
+  
+  // Validate embed data against fresh API data
+  validateEmbedData(currentData, freshData) {
+    const discrepancies = [];
+    const tolerance = 0.01; // $0.01 tolerance for minor price differences
+    
+    try {
+      // Validate total portfolio value
+      if (currentData.totalValue !== undefined && freshData.totalValue !== undefined) {
+        const diff = Math.abs(currentData.totalValue - freshData.totalValue);
+        if (diff > tolerance) {
+          discrepancies.push({
+            field: 'Total Portfolio Value',
+            expected: `$${freshData.totalValue.toFixed(2)}`,
+            actual: `$${currentData.totalValue.toFixed(2)}`,
+            difference: `$${diff.toFixed(2)}`
+          });
+        }
+      }
+      
+      // Validate USD balance
+      if (currentData.usdBalance !== undefined && freshData.usdBalance !== undefined) {
+        const diff = Math.abs(currentData.usdBalance - freshData.usdBalance);
+        if (diff > tolerance) {
+          discrepancies.push({
+            field: 'USD Balance',
+            expected: `$${freshData.usdBalance.toFixed(2)}`,
+            actual: `$${currentData.usdBalance.toFixed(2)}`,
+            difference: `$${diff.toFixed(2)}`
+          });
+        }
+      }
+      
+      // Validate crypto holdings
+      if (currentData.holdings && freshData.holdings) {
+        freshData.holdings.forEach(fresh => {
+          const current = currentData.holdings.find(h => h.currency === fresh.currency);
+          if (current) {
+            // Check value
+            const valueDiff = Math.abs(current.value - fresh.value);
+            if (valueDiff > tolerance) {
+              discrepancies.push({
+                field: `${fresh.currency} Value`,
+                expected: `$${fresh.value.toFixed(2)}`,
+                actual: `$${current.value.toFixed(2)}`,
+                difference: `$${valueDiff.toFixed(2)}`
+              });
+            }
+            
+            // Check price
+            const priceDiff = Math.abs(current.price - fresh.price);
+            if (priceDiff > tolerance) {
+              discrepancies.push({
+                field: `${fresh.currency} Price`,
+                expected: `$${fresh.price.toFixed(2)}`,
+                actual: `$${current.price.toFixed(2)}`,
+                difference: `$${priceDiff.toFixed(2)}`
+              });
+            }
+          }
+        });
+      }
+      
+      return discrepancies;
+    } catch (error) {
+      console.error('❌ Error validating embed data:', error.message);
+      return [];
+    }
   }
 
   async start() {
