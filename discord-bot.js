@@ -1486,8 +1486,12 @@ class DiscordTradingBot {
 
     console.log('🔧 Processing Auto Trade Modal:', { amount, stopAtLoss, cryptoSelection, stopAtValue, stopDailyBuys });
 
-    // Validate and set values
-    if (amount) autoTradeSettings.amount = parseFloat(amount);
+    // Validate and set values - STRIP CURRENCY SYMBOLS BEFORE PARSING
+    if (amount) {
+      const cleanAmount = amount.replace(/[$,]/g, ''); // Remove $ and commas
+      autoTradeSettings.amount = parseFloat(cleanAmount);
+      console.log(`💰 Trade amount: ${amount} → ${autoTradeSettings.amount}`);
+    }
     if (cryptoSelection) {
       autoTradeSettings.selectedCrypto = cryptoSelection.toUpperCase();
       console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto}`);
@@ -1505,8 +1509,16 @@ class DiscordTradingBot {
       }
       console.log(`🛑 Stop selling at base: ${autoTradeSettings.stopAtLoss} ${autoTradeSettings.selectedCrypto || 'SOL'}`);
     }
-    if (stopAtValue) autoTradeSettings.stopAtValue = parseFloat(stopAtValue);
-    if (stopDailyBuys) autoTradeSettings.stopOnDailyBuys = parseFloat(stopDailyBuys);
+    if (stopAtValue) {
+      const cleanValue = stopAtValue.replace(/[$,]/g, ''); // Remove $ and commas
+      autoTradeSettings.stopAtValue = parseFloat(cleanValue);
+      console.log(`🪙 Stop at crypto amount: ${stopAtValue} → ${autoTradeSettings.stopAtValue}`);
+    }
+    if (stopDailyBuys) {
+      const cleanDaily = stopDailyBuys.replace(/[$,]/g, ''); // Remove $ and commas
+      autoTradeSettings.stopOnDailyBuys = parseFloat(cleanDaily);
+      console.log(`🛒 Stop on daily buys: ${stopDailyBuys} → ${autoTradeSettings.stopOnDailyBuys}`);
+    }
 
     // Enable auto trade if any condition is set
     const hasConditions = autoTradeSettings.stopAtLoss || autoTradeSettings.stopAtValue || autoTradeSettings.stopOnDailyBuys;
