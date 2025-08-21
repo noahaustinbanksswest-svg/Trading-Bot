@@ -1231,9 +1231,13 @@ class DiscordTradingBot {
           // Reset dashboard tracking if message becomes invalid
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
+          console.log('🔄 Attempting to reconnect to dashboard...');
+          await this.findOrCreateDashboardEmbed();
         }
       } else {
-        console.log(`⚠️ No dashboard message tracked for auto-update`);
+        console.log(`⚠️ No dashboard message tracked - reconnecting...`);
+        // Automatically reconnect to dashboard when tracking is lost
+        await this.findOrCreateDashboardEmbed();
       }
     }, 1000); // Update every 1 second for maximum accuracy
   }
