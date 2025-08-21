@@ -89,6 +89,7 @@ class GeminiAPI {
       
       console.log('✅ Gemini API connected successfully!');
       console.log('💰 Live portfolio data retrieved');
+      console.log('📊 Raw Gemini balances:', JSON.stringify(response.data, null, 2));
       return response.data;
       
     } catch (error) {
@@ -532,10 +533,10 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Fix negative USD balance display - show 0 if negative
+      // Fix negative USD balance calculation - treat negative as 0 for all calculations
       const rawUsdBalance = parseFloat(usdBalance.amount);
-      let totalValue = rawUsdBalance;
-      const displayUsdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
+      const displayUsdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
+      let totalValue = displayUsdBalance; // Start total with corrected USD balance (not negative)
       const holdings = [];
 
       // Get current prices and calculate portfolio value
@@ -672,10 +673,15 @@ class DiscordTradingBot {
         const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
         const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-        // Fix negative USD balance display - show 0 if negative
+        // Fix negative USD balance calculation - treat negative as 0 for all calculations
         const rawUsdBalance = parseFloat(usdBalanceData.amount);
-        totalValue = rawUsdBalance;
-        usdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
+        usdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
+        totalValue = usdBalance; // Start total with the corrected USD balance (not negative)
+        
+        console.log(`💵 USD Balance Analysis:`);
+        console.log(`   Raw USD from API: $${rawUsdBalance.toFixed(2)}`);
+        console.log(`   Displayed USD: $${usdBalance.toFixed(2)}`);
+        console.log(`   Starting Total Value: $${totalValue.toFixed(2)}`);
 
         // Get current prices and calculate portfolio value
         for (const balance of cryptoBalances) {
@@ -687,6 +693,7 @@ class DiscordTradingBot {
             const value = amount * currentPrice;
             const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
             totalValue += value;
+            console.log(`   ${balance.currency}: ${amount.toFixed(8)} @ $${currentPrice.toFixed(2)} = $${value.toFixed(2)} (Total: $${totalValue.toFixed(2)})`);
 
             holdings.push({
               currency: balance.currency,
@@ -1058,10 +1065,10 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Fix negative USD balance display - show 0 if negative
+      // Fix negative USD balance calculation - treat negative as 0 for all calculations
       const rawUsdBalance = parseFloat(usdBalanceData.amount);
-      totalValue = rawUsdBalance;
-      usdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
+      usdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
+      totalValue = usdBalance; // Start total with the corrected USD balance (not negative)
 
       // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
