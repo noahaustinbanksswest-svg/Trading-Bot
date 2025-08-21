@@ -1290,12 +1290,12 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Update tracking every 60 seconds
+    // Update tracking every 5 seconds for auto trade monitoring
     setInterval(async () => {
       try {
         await this.updateDailyBuyTracking();
         
-        // Check auto trade conditions
+        // Check auto trade conditions every 5 seconds
         await this.checkAutoTradeConditions();
         
         // Check if limit was just reached
@@ -1306,7 +1306,7 @@ class DiscordTradingBot {
       } catch (error) {
         console.error('Error in daily tracking update:', error.message);
       }
-    }, 60000);
+    }, 5000);
 
     // Reset daily data at midnight
     setInterval(() => {
@@ -1543,26 +1543,42 @@ class DiscordTradingBot {
       if (reason.includes('STOP SELLING')) {
         autoTradeSettings.enabled = false;
         autoTradeSettings.isActive = false;
-        console.log(`🛑 Auto Trade disabled - reached base SOL amount`);
+        console.log(`🛑 Auto Trade disabled - reached base SOL amount of ${autoTradeSettings.stopAtLoss}`);
+        
+        // Log current portfolio status
+        const portfolioData = await this.getPortfolioData();
+        console.log(`📊 Portfolio protected: SOL holdings at base level, total value: $${portfolioData.totalValue.toFixed(2)}`);
         
         // Send notification about stopping
         await this.sendAutoTradeNotification(reason, 'STOPPED');
         return;
       }
       
-      // Get all crypto holdings to sell
+      // Get all crypto holdings to sell to USD
+      console.log(`🔄 Executing Auto Trade: Selling all crypto to USD`);
       const balances = await this.gemini.getBalances();
-      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.available) > 0);
+      
+      console.log(`📊 Found ${cryptoBalances.length} crypto assets to sell:`, cryptoBalances.map(b => `${b.currency}: ${b.available}`));
       
       const sellOrders = [];
       
       for (const balance of cryptoBalances) {
-        const amount = parseFloat(balance.amount);
+        const amount = parseFloat(balance.available);
         const symbol = `${balance.currency.toLowerCase()}usd`;
         
+        // Skip very small amounts that might cause API errors
+        if (amount < 0.000001) {
+          console.log(`⏭️ Skipping ${balance.currency}: amount too small (${amount})`);
+          continue;
+        }
+        
         try {
-          // Execute sell order
+          console.log(`💰 Placing sell order: ${amount} ${balance.currency} on ${symbol}`);
+          
+          // Execute actual sell order via Gemini API
           const order = await this.gemini.sellOrder(symbol, amount);
+          
           sellOrders.push({
             currency: balance.currency,
             amount: amount,
@@ -1570,7 +1586,7 @@ class DiscordTradingBot {
             status: 'submitted'
           });
           
-          console.log(`✅ Sell order placed: ${amount} ${balance.currency} (Order: ${order.order_id})`);
+          console.log(`✅ SELL ORDER EXECUTED: ${amount} ${balance.currency} → USD (Order ID: ${order.order_id})`);
           
         } catch (error) {
           console.error(`❌ Failed to sell ${balance.currency}:`, error.message);
