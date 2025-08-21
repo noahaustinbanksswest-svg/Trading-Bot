@@ -1893,6 +1893,18 @@ class DiscordTradingBot {
           // Get current price for the crypto (fix property name)
           const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
           
+          // CRITICAL PRIMARY CHECK: Are we already below base protection?
+          if (cryptoHolding.amount < autoTradeSettings.stopAtLoss) {
+            console.log(`🚨 BELOW BASE PROTECTION!`);
+            console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)} SOL`);
+            console.log(`   Base Protection Level: ${autoTradeSettings.stopAtLoss} SOL`);
+            console.log(`   Deficit: ${(autoTradeSettings.stopAtLoss - cryptoHolding.amount).toFixed(8)} SOL`);
+            console.log(`   🛑 ALL TRADING STOPPED - Must buy more ${autoTradeSettings.selectedCrypto} to restore base`);
+            return; // Exit immediately - no trades allowed when below base
+          }
+          
+          console.log(`✅ Base Protection Status: ${cryptoHolding.amount.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} SOL - Safe to evaluate trades`);
+          
           // Calculate $1 USD trade impact INCLUDING post-execution fee deduction
           const tradeAmountUSD = 1.00; // $1 USD trade
           const feeAmountUSD = 0.04;   // 4 cent fee deducted AFTER trade execution
