@@ -1373,7 +1373,7 @@ class DiscordTradingBot {
       .setCustomId('stop_at_loss')
       .setLabel('2. Stop Selling at Base Amount')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('e.g., 0.5, 1, or 1/2 (keep this much SOL as base)')
+      .setPlaceholder('e.g., 0.5, 1, or 1/2 = 1.5 SOL (keep this much SOL as base)')
       .setRequired(false);
 
     const cryptoSelectInput = new TextInputBuilder()
@@ -1486,11 +1486,13 @@ class DiscordTradingBot {
       console.log(`💰 Selected crypto currency: ${autoTradeSettings.selectedCrypto}`);
     }
     if (stopAtLoss) {
-      // Handle fraction notation like "1/2" = 0.5 SOL
+      // Handle fraction notation like "1/2" = 1.5 SOL (1 and 1/2)
       if (stopAtLoss.includes('/')) {
-        const [numerator, denominator] = stopAtLoss.split('/');
-        autoTradeSettings.stopAtLoss = parseFloat(numerator) / parseFloat(denominator);
-        console.log(`🧮 Fraction calculation: ${numerator}/${denominator} = ${autoTradeSettings.stopAtLoss} SOL`);
+        const [wholePart, fractionPart] = stopAtLoss.split('/');
+        const wholeNumber = parseFloat(wholePart);
+        const fraction = wholeNumber / parseFloat(fractionPart);
+        autoTradeSettings.stopAtLoss = wholeNumber + fraction;
+        console.log(`🧮 Fraction calculation: ${wholePart}/${fractionPart} = ${wholeNumber} + ${fraction} = ${autoTradeSettings.stopAtLoss} SOL`);
       } else {
         autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
       }
@@ -1752,9 +1754,11 @@ class DiscordTradingBot {
     // Parse the base amount using the fixed fraction logic
     let baseAmount;
     if (base.includes('/')) {
-      const [numerator, denominator] = base.split('/');
-      baseAmount = parseFloat(numerator) / parseFloat(denominator);
-      console.log(`🧮 Test Fraction calculation: ${numerator}/${denominator} = ${baseAmount} ${crypto}`);
+      const [wholePart, fractionPart] = base.split('/');
+      const wholeNumber = parseFloat(wholePart);
+      const fraction = wholeNumber / parseFloat(fractionPart);
+      baseAmount = wholeNumber + fraction;
+      console.log(`🧮 Test Fraction calculation: ${wholePart}/${fractionPart} = ${wholeNumber} + ${fraction} = ${baseAmount} ${crypto}`);
     } else {
       baseAmount = parseFloat(base);
     }
