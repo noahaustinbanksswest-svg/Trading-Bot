@@ -33,10 +33,10 @@ let dailyBuyData = {
 
 // Auto Trade Settings
 let autoTradeSettings = {
-  enabled: false,
-  amount: null, // Trade amount
-  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell
-  stopAtLoss: null, // Stop selling when crypto amount reaches this base amount
+  enabled: true, // Enable auto trade
+  amount: 1.00, // $1 USD trade amount
+  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell (FIXED: was SOLUSD)
+  stopAtLoss: 1.5, // Stop selling when SOL reaches 1.5 base amount
   stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
   stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
   isActive: false,
@@ -1608,6 +1608,15 @@ class DiscordTradingBot {
       let shouldExecuteTrade = false;
       let reason = '';
 
+      // DEBUG: Show current auto trade settings
+      console.log(`🔧 AUTO TRADE SETTINGS:`, {
+        enabled: autoTradeSettings.enabled,
+        selectedCrypto: autoTradeSettings.selectedCrypto,
+        stopAtLoss: autoTradeSettings.stopAtLoss,
+        stopAtValue: autoTradeSettings.stopAtValue
+      });
+      console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => h.currency));
+      
       // Check if selected crypto holdings allow $1 USD sale while protecting base amount
       if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
         const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
