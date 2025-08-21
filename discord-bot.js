@@ -31,6 +31,23 @@ let dailyBuyData = {
   lastUpdate: new Date()
 };
 
+// Auto Trade Settings
+let autoTradeSettings = {
+  enabled: false,
+  amount: null, // Trade amount
+  stopAtLoss: null, // Stop when portfolio value reaches this USD amount
+  stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
+  stopAtValueCurrency: 'SOL', // Which currency for stopAtValue
+  stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
+  isActive: false,
+  startTime: null,
+  conditions: {
+    portfolioValueReached: false,
+    cryptoValueReached: false,
+    dailyBuyLimitReached: false
+  }
+};
+
 class GeminiAPI {
   constructor() {
     this.apiKey = GEMINI_API_KEY;
@@ -141,6 +158,36 @@ class GeminiAPI {
       return [];
     }
   }
+
+  async sellOrder(symbol, amount) {
+    try {
+      const endpoint = '/v1/order/new';
+      const payload = {
+        symbol: symbol,
+        amount: amount.toString(),
+        price: '1', // Market order - will be ignored
+        side: 'sell',
+        type: 'exchange limit',
+        options: ['immediate-or-cancel'] // Execute immediately at market price
+      };
+      
+      const headers = this.generateHeaders(endpoint, payload);
+      
+      const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
+        headers,
+        timeout: 10000
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Sell order error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      throw new Error(`Failed to place sell order: ${error.message}`);
+    }
+  }
 }
 
 class DiscordTradingBot {
@@ -172,6 +219,8 @@ class DiscordTradingBot {
         await this.handleSlashCommand(interaction);
       } else if (interaction.isButton()) {
         await this.handleButtonInteraction(interaction);
+      } else if (interaction.isModalSubmit()) {
+        await this.handleModalSubmit(interaction);
       }
     });
   }
@@ -281,12 +330,37 @@ class DiscordTradingBot {
         case 'emergency_stop':
           await this.emergencyStopMonitoring(interaction);
           break;
+        case 'auto_trade_setup':
+          await this.showAutoTradeSetup(interaction);
+          break;
+        case 'auto_trade_status':
+          await this.showAutoTradeStatus(interaction);
+          break;
+        case 'stop_auto_trade':
+          await this.stopAutoTrade(interaction);
+          break;
         default:
           await this.replyWithError(interaction, 'Unknown button action');
       }
     } catch (error) {
       console.error(`Error handling button ${customId}:`, error);
       await this.replyWithError(interaction, `Button error: ${error.message}`);
+    }
+  }
+
+  async handleModalSubmit(interaction) {
+    try {
+      if (interaction.customId === 'auto_trade_modal') {
+        await this.handleAutoTradeModal(interaction);
+      } else {
+        await interaction.reply({ content: 'Unknown modal submission.', ephemeral: true });
+      }
+    } catch (error) {
+      console.error('Error handling modal submit:', error);
+      await interaction.reply({ 
+        content: `Modal error: ${error.message}`, 
+        ephemeral: true 
+      }).catch(() => {});
     }
   }
 
@@ -300,7 +374,7 @@ class DiscordTradingBot {
 
       const message = await interaction.editReply({
         embeds: [embed],
-        components: [buttons],
+        components: buttons,
       });
 
       // Store this message for auto-updating
@@ -379,34 +453,54 @@ class DiscordTradingBot {
   }
 
   createPortfolioButtons() {
-    return new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId('refresh_portfolio')
-          .setLabel('Refresh')
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🔄'),
-        new ButtonBuilder()
-          .setCustomId('view_daily_buys')
-          .setLabel('Daily Buy Tracker')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📊'),
-        new ButtonBuilder()
-          .setCustomId('view_orders')
-          .setLabel('Active Orders')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📋'),
-        new ButtonBuilder()
-          .setCustomId('price_alerts')
-          .setLabel('Price Alerts')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('🔔'),
-        new ButtonBuilder()
-          .setCustomId('emergency_stop')
-          .setLabel('Stop Monitoring')
-          .setStyle(ButtonStyle.Danger)
-          .setEmoji('🛑')
-      );
+    return [
+      new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('refresh_portfolio')
+            .setLabel('Refresh')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('🔄'),
+          new ButtonBuilder()
+            .setCustomId('view_daily_buys')
+            .setLabel('Daily Buy Tracker')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('📊'),
+          new ButtonBuilder()
+            .setCustomId('view_orders')
+            .setLabel('Active Orders')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('📋'),
+          new ButtonBuilder()
+            .setCustomId('price_alerts')
+            .setLabel('Price Alerts')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🔔'),
+          new ButtonBuilder()
+            .setCustomId('emergency_stop')
+            .setLabel('Stop Monitoring')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('🛑')
+        ),
+      new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('auto_trade_setup')
+            .setLabel('Auto Trade')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('🤖'),
+          new ButtonBuilder()
+            .setCustomId('auto_trade_status')
+            .setLabel('Auto Trade Status')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('📋'),
+          new ButtonBuilder()
+            .setCustomId('stop_auto_trade')
+            .setLabel('Stop Auto Trade')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('⏹️')
+        )
+    ];
   }
 
   async updateDailyBuyTracking() {
@@ -514,7 +608,7 @@ class DiscordTradingBot {
 
       await interaction.editReply({
         embeds: [embed],
-        components: [buttons],
+        components: buttons,
       });
 
     } catch (error) {
@@ -596,7 +690,7 @@ class DiscordTradingBot {
 
       await message.edit({
         embeds: [embed],
-        components: [buttons],
+        components: buttons,
       });
 
       console.log(`🔄 Portfolio embed auto-updated at ${new Date().toLocaleTimeString()}`);
@@ -769,7 +863,7 @@ class DiscordTradingBot {
 
       const message = await dashboardChannel.send({
         embeds: [embed],
-        components: [buttons],
+        components: buttons,
       });
 
       // Store dashboard message for auto-updating (only one main message)
@@ -1201,6 +1295,9 @@ class DiscordTradingBot {
       try {
         await this.updateDailyBuyTracking();
         
+        // Check auto trade conditions
+        await this.checkAutoTradeConditions();
+        
         // Check if limit was just reached
         if (dailyBuyData.limitReached) {
           console.log(`🚨 Daily buy limit reached: $${dailyBuyData.totalBought.toFixed(2)}`);
@@ -1225,6 +1322,285 @@ class DiscordTradingBot {
         console.log('🌅 Daily tracking reset for new day');
       }
     }, 60000 * 60); // Check every hour
+  }
+
+  async showAutoTradeSetup(interaction) {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+    
+    const modal = new ModalBuilder()
+      .setCustomId('auto_trade_modal')
+      .setTitle('🤖 Auto Trade Configuration');
+
+    const amountInput = new TextInputBuilder()
+      .setCustomId('trade_amount')
+      .setLabel('1. Trade Amount (USD)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter trade amount in USD (e.g., 100)')
+      .setRequired(false);
+
+    const stopLossInput = new TextInputBuilder()
+      .setCustomId('stop_at_loss')
+      .setLabel('2. Stop at Portfolio Value (USD)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., 180 (stop when portfolio reaches $180)')
+      .setRequired(false);
+
+    const stopValueInput = new TextInputBuilder()
+      .setCustomId('stop_at_value')
+      .setLabel('3. Stop at Crypto Amount')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., 1 or 0.5 (amount of SOL to sell)')
+      .setRequired(false);
+
+    const stopDailyBuysInput = new TextInputBuilder()
+      .setCustomId('stop_daily_buys')
+      .setLabel('4. Stop on Daily Buys (USD)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., 50 (stop when $50 worth bought today)')
+      .setRequired(false);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(amountInput),
+      new ActionRowBuilder().addComponents(stopLossInput),
+      new ActionRowBuilder().addComponents(stopValueInput),
+      new ActionRowBuilder().addComponents(stopDailyBuysInput)
+    );
+
+    await interaction.showModal(modal);
+  }
+
+  async showAutoTradeStatus(interaction) {
+    const embed = new EmbedBuilder()
+      .setTitle('🤖 Auto Trade Status')
+      .setColor(autoTradeSettings.enabled ? 0x4CAF50 : 0xF44336)
+      .setTimestamp();
+
+    if (!autoTradeSettings.enabled) {
+      embed.setDescription('❌ Auto Trade is currently **DISABLED**')
+        .addFields(
+          { name: '📊 Status', value: 'Inactive', inline: true },
+          { name: '⏰ Last Run', value: 'Never', inline: true }
+        );
+    } else {
+      const statusText = autoTradeSettings.isActive ? '🟢 **ACTIVE**' : '🟡 **CONFIGURED**';
+      const conditions = autoTradeSettings.conditions;
+      
+      embed.setDescription(`✅ Auto Trade is **ENABLED**\n${statusText}`)
+        .addFields(
+          { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
+          { name: '📉 Stop at Portfolio Value', value: autoTradeSettings.stopAtLoss ? `$${autoTradeSettings.stopAtLoss}` : 'Not set', inline: true },
+          { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} ${autoTradeSettings.stopAtValueCurrency}` : 'Not set', inline: true },
+          { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true },
+          { name: '⏰ Started', value: autoTradeSettings.startTime ? autoTradeSettings.startTime.toLocaleString() : 'Not started', inline: true },
+          { name: '📊 Conditions Met', value: 
+            `Portfolio: ${conditions.portfolioValueReached ? '✅' : '❌'}\n` +
+            `Crypto: ${conditions.cryptoValueReached ? '✅' : '❌'}\n` +
+            `Daily Buys: ${conditions.dailyBuyLimitReached ? '✅' : '❌'}`, inline: true }
+        );
+    }
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  async stopAutoTrade(interaction) {
+    if (!autoTradeSettings.enabled) {
+      await interaction.reply({ 
+        content: '❌ Auto Trade is not currently running.', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    autoTradeSettings.enabled = false;
+    autoTradeSettings.isActive = false;
+    autoTradeSettings.startTime = null;
+    autoTradeSettings.conditions = {
+      portfolioValueReached: false,
+      cryptoValueReached: false,
+      dailyBuyLimitReached: false
+    };
+
+    console.log('🛑 Auto Trade stopped by user');
+
+    const embed = new EmbedBuilder()
+      .setTitle('🛑 Auto Trade Stopped')
+      .setDescription('Auto Trade has been successfully stopped.')
+      .setColor(0xF44336)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  async handleAutoTradeModal(interaction) {
+    const amount = interaction.fields.getTextInputValue('trade_amount');
+    const stopAtLoss = interaction.fields.getTextInputValue('stop_at_loss');
+    const stopAtValue = interaction.fields.getTextInputValue('stop_at_value');
+    const stopDailyBuys = interaction.fields.getTextInputValue('stop_daily_buys');
+
+    // Validate and set values
+    if (amount) autoTradeSettings.amount = parseFloat(amount);
+    if (stopAtLoss) autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
+    if (stopAtValue) autoTradeSettings.stopAtValue = parseFloat(stopAtValue);
+    if (stopDailyBuys) autoTradeSettings.stopOnDailyBuys = parseFloat(stopDailyBuys);
+
+    // Enable auto trade if any condition is set
+    const hasConditions = autoTradeSettings.stopAtLoss || autoTradeSettings.stopAtValue || autoTradeSettings.stopOnDailyBuys;
+    
+    if (hasConditions) {
+      autoTradeSettings.enabled = true;
+      autoTradeSettings.isActive = true;
+      autoTradeSettings.startTime = new Date();
+      
+      console.log('🤖 Auto Trade configured and started:', autoTradeSettings);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🤖 Auto Trade Configuration')
+      .setColor(hasConditions ? 0x4CAF50 : 0xFF9800)
+      .setTimestamp();
+
+    if (hasConditions) {
+      embed.setDescription('✅ Auto Trade has been **CONFIGURED** and **STARTED**!')
+        .addFields(
+          { name: '💰 Trade Amount', value: autoTradeSettings.amount ? `$${autoTradeSettings.amount}` : 'Not set', inline: true },
+          { name: '📉 Stop at Portfolio Value', value: autoTradeSettings.stopAtLoss ? `$${autoTradeSettings.stopAtLoss}` : 'Not set', inline: true },
+          { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} SOL` : 'Not set', inline: true },
+          { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : 'Not set', inline: true }
+        );
+    } else {
+      embed.setDescription('⚠️ No conditions were set. Auto Trade remains **DISABLED**.')
+        .addFields({ name: '💡 Tip', value: 'Set at least one stop condition to enable Auto Trade.', inline: false });
+    }
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  async checkAutoTradeConditions() {
+    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) return;
+
+    try {
+      // Get current portfolio data
+      const portfolioData = await this.getPortfolioData();
+      const { totalValue, holdings } = portfolioData;
+
+      let shouldExecuteTrade = false;
+      let reason = '';
+
+      // Check portfolio value condition
+      if (autoTradeSettings.stopAtLoss && totalValue <= autoTradeSettings.stopAtLoss) {
+        autoTradeSettings.conditions.portfolioValueReached = true;
+        shouldExecuteTrade = true;
+        reason = `Portfolio value reached $${totalValue.toFixed(2)} (trigger: $${autoTradeSettings.stopAtLoss})`;
+      }
+
+      // Check crypto amount condition (SOL)
+      if (autoTradeSettings.stopAtValue) {
+        const solHolding = holdings.find(h => h.currency === 'SOL');
+        if (solHolding && solHolding.amount <= autoTradeSettings.stopAtValue) {
+          autoTradeSettings.conditions.cryptoValueReached = true;
+          shouldExecuteTrade = true;
+          reason = `SOL amount reached ${solHolding.amount.toFixed(8)} (trigger: ${autoTradeSettings.stopAtValue})`;
+        }
+      }
+
+      // Check daily buys condition
+      if (autoTradeSettings.stopOnDailyBuys && dailyBuyData.totalBought >= autoTradeSettings.stopOnDailyBuys) {
+        autoTradeSettings.conditions.dailyBuyLimitReached = true;
+        shouldExecuteTrade = true;
+        reason = `Daily buys reached $${dailyBuyData.totalBought.toFixed(2)} (trigger: $${autoTradeSettings.stopOnDailyBuys})`;
+      }
+
+      if (shouldExecuteTrade) {
+        console.log(`🤖 Auto Trade condition met: ${reason}`);
+        await this.executeAutoTrade(reason);
+      }
+
+    } catch (error) {
+      console.error('Error checking auto trade conditions:', error.message);
+    }
+  }
+
+  async executeAutoTrade(reason) {
+    try {
+      console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
+      
+      // Get all crypto holdings to sell
+      const balances = await this.gemini.getBalances();
+      const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+      
+      const sellOrders = [];
+      
+      for (const balance of cryptoBalances) {
+        const amount = parseFloat(balance.amount);
+        const symbol = `${balance.currency.toLowerCase()}usd`;
+        
+        try {
+          // Execute sell order
+          const order = await this.gemini.sellOrder(symbol, amount);
+          sellOrders.push({
+            currency: balance.currency,
+            amount: amount,
+            orderId: order.order_id,
+            status: 'submitted'
+          });
+          
+          console.log(`✅ Sell order placed: ${amount} ${balance.currency} (Order: ${order.order_id})`);
+          
+        } catch (error) {
+          console.error(`❌ Failed to sell ${balance.currency}:`, error.message);
+          sellOrders.push({
+            currency: balance.currency,
+            amount: amount,
+            orderId: null,
+            status: 'failed',
+            error: error.message
+          });
+        }
+      }
+
+      // Disable auto trade after execution
+      autoTradeSettings.enabled = false;
+      autoTradeSettings.isActive = false;
+
+      // Send notification to Discord
+      await this.sendAutoTradeNotification(reason, sellOrders);
+
+    } catch (error) {
+      console.error('Error executing auto trade:', error.message);
+    }
+  }
+
+  async sendAutoTradeNotification(reason, sellOrders) {
+    try {
+      const guild = this.client.guilds.cache.first();
+      const dashboardChannel = guild.channels.cache.find(channel => 
+        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+      );
+
+      if (!dashboardChannel) return;
+
+      const embed = new EmbedBuilder()
+        .setTitle('🤖 Auto Trade Executed')
+        .setDescription(`**Trigger:** ${reason}`)
+        .setColor(0x4CAF50)
+        .setTimestamp();
+
+      const orderText = sellOrders.map(order => {
+        const status = order.status === 'submitted' ? '✅' : '❌';
+        return `${status} **${order.currency}**: ${order.amount.toFixed(8)} ${order.status === 'submitted' ? `(Order: ${order.orderId})` : `(Error: ${order.error})`}`;
+      }).join('\n');
+
+      embed.addFields(
+        { name: '📊 Sell Orders', value: orderText || 'No orders placed', inline: false },
+        { name: '⏰ Executed At', value: new Date().toLocaleString(), inline: true },
+        { name: '🔄 Status', value: 'Auto Trade **DISABLED**', inline: true }
+      );
+
+      await dashboardChannel.send({ embeds: [embed] });
+      
+    } catch (error) {
+      console.error('Error sending auto trade notification:', error.message);
+    }
   }
 
   async start() {
