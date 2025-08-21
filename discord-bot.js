@@ -727,7 +727,11 @@ class DiscordTradingBot {
     }
 
     // Add USD/Stablecoin information separately
+    const solHolding = data.holdings.find(h => h.currency === 'SOL');
+    const solBalanceText = solHolding ? `🪙 **SOL Balance**: ${solHolding.amount.toFixed(8)} SOL\n` : '';
+    
     const stablecoinInfo = `💵 **USD Balance**: $${this.truncateToFixed(data.usdBalance, 2)}\n` +
+                          solBalanceText +
                           `📊 **Daily Buys**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
                           `💳 **Daily Limit**: $${tradingSettings.dailyBuyLimit}\n` +
                           `🕐 **Last Updated**: ${new Date().toLocaleTimeString()}`;
