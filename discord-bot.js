@@ -680,6 +680,12 @@ class DiscordTradingBot {
     }
   }
 
+  // Helper function for consistent truncation (no rounding up)
+  truncateToFixed(value, decimals) {
+    const multiplier = Math.pow(10, decimals);
+    return (Math.floor(value * multiplier) / multiplier).toFixed(decimals);
+  }
+
   createPortfolioEmbed(data) {
     const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
     const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
@@ -688,9 +694,9 @@ class DiscordTradingBot {
       .setTitle('💰 Live Portfolio Dashboard')
       .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
       .addFields(
-        { name: '📊 Total Portfolio Value', value: `**$${data.totalValue.toFixed(2)}**`, inline: true },
+        { name: '📊 Total Portfolio Value', value: `**$${this.truncateToFixed(data.totalValue, 2)}**`, inline: true },
         { name: '📈 Daily Buy Status', value: limitStatus, inline: true },
-        { name: '🔄 Remaining Limit', value: `$${remainingLimit.toFixed(2)}`, inline: true }
+        { name: '🔄 Remaining Limit', value: `$${this.truncateToFixed(remainingLimit, 2)}`, inline: true }
       )
       .setTimestamp()
       .setFooter({ text: 'Live Portfolio • Auto-updating' });
@@ -702,8 +708,8 @@ class DiscordTradingBot {
           const changeIndicator = h.change >= 0 ? '📈' : '📉';
           return `${changeIndicator} **${h.currency}**\n` +
                  `Amount: \`${h.amount.toFixed(8)}\`\n` +
-                 `Live Price: **$${h.price.toFixed(2)}**\n` +
-                 `Value: **$${h.value.toFixed(2)}**\n`;
+                 `Live Price: **$${this.truncateToFixed(h.price, 2)}**\n` +
+                 `Value: **$${this.truncateToFixed(h.value, 2)}**\n`;
         })
         .join('\n');
       
@@ -721,8 +727,8 @@ class DiscordTradingBot {
     }
 
     // Add USD/Stablecoin information separately
-    const stablecoinInfo = `💵 **USD Balance**: $${data.usdBalance.toFixed(2)}\n` +
-                          `📊 **Daily Buys**: $${dailyBuyData.totalBought.toFixed(2)}\n` +
+    const stablecoinInfo = `💵 **USD Balance**: $${this.truncateToFixed(data.usdBalance, 2)}\n` +
+                          `📊 **Daily Buys**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
                           `💳 **Daily Limit**: $${tradingSettings.dailyBuyLimit}\n` +
                           `🕐 **Last Updated**: ${new Date().toLocaleTimeString()}`;
 
