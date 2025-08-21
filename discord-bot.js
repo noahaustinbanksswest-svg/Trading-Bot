@@ -533,11 +533,17 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Fix negative USD balance calculation - treat negative as 0 for all calculations
-      const rawUsdBalance = parseFloat(usdBalance.amount);
-      const displayUsdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
-      let totalValue = displayUsdBalance; // Start total with corrected USD balance (not negative)
+      // Use available USD balance instead of total amount (which can be negative due to margin)
+      const totalUsdAmount = parseFloat(usdBalance.amount);
+      const availableUsdAmount = parseFloat(usdBalance.available || '0.00');
+      const displayUsdBalance = availableUsdAmount; // Use available balance, not total amount
+      let totalValue = displayUsdBalance; // Start total with available USD balance
       const holdings = [];
+      
+      console.log(`💵 USD Balance Analysis:`);
+      console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
+      console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
+      console.log(`   Displayed USD: $${displayUsdBalance.toFixed(2)}`);
 
       // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
@@ -673,13 +679,15 @@ class DiscordTradingBot {
         const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
         const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-        // Fix negative USD balance calculation - treat negative as 0 for all calculations
-        const rawUsdBalance = parseFloat(usdBalanceData.amount);
-        usdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
-        totalValue = usdBalance; // Start total with the corrected USD balance (not negative)
+        // Use available USD balance instead of total amount (which can be negative due to margin)
+        const totalUsdAmount = parseFloat(usdBalanceData.amount);
+        const availableUsdAmount = parseFloat(usdBalanceData.available || '0.00');
+        usdBalance = availableUsdAmount; // Use available balance, not total amount
+        totalValue = usdBalance; // Start total with available USD balance
         
         console.log(`💵 USD Balance Analysis:`);
-        console.log(`   Raw USD from API: $${rawUsdBalance.toFixed(2)}`);
+        console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
+        console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
         console.log(`   Displayed USD: $${usdBalance.toFixed(2)}`);
         console.log(`   Starting Total Value: $${totalValue.toFixed(2)}`);
 
@@ -1065,10 +1073,16 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Fix negative USD balance calculation - treat negative as 0 for all calculations
-      const rawUsdBalance = parseFloat(usdBalanceData.amount);
-      usdBalance = Math.max(0, rawUsdBalance); // Use 0 if negative
-      totalValue = usdBalance; // Start total with the corrected USD balance (not negative)
+      // Use available USD balance instead of total amount (which can be negative due to margin)
+      const totalUsdAmount = parseFloat(usdBalanceData.amount);
+      const availableUsdAmount = parseFloat(usdBalanceData.available || '0.00');
+      usdBalance = availableUsdAmount; // Use available balance, not total amount
+      totalValue = usdBalance; // Start total with available USD balance
+      
+      console.log(`💵 USD Balance Analysis:`);
+      console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
+      console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
+      console.log(`   Displayed USD: $${usdBalance.toFixed(2)}`);
 
       // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
