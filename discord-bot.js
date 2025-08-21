@@ -163,7 +163,7 @@ class DiscordTradingBot {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       this.startDailyTracking();
       this.startAutoUpdating();
-      await this.sendDashboardEmbed();
+      await this.findOrCreateDashboardEmbed();
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -532,7 +532,10 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      let totalValue = parseFloat(usdBalance.amount);
+      // Fix negative USD balance display - show 0 if negative
+      const rawUsdBalance = parseFloat(usdBalance.amount);
+      let totalValue = rawUsdBalance;
+      const displayUsdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
       const holdings = [];
 
       // Get current prices and calculate portfolio value
@@ -563,7 +566,7 @@ class DiscordTradingBot {
 
       const embed = this.createPortfolioEmbed({
         totalValue,
-        usdBalance: parseFloat(usdBalance.amount),
+        usdBalance: displayUsdBalance,
         holdings,
         dailyBuyData
       });
@@ -583,6 +586,58 @@ class DiscordTradingBot {
         this.dashboardMessageId = null;
         this.dashboardChannelId = null;
       }
+    }
+  }
+
+  async findOrCreateDashboardEmbed() {
+    try {
+      // Find the dashboard channel
+      const guild = this.client.guilds.cache.first();
+      if (!guild) {
+        console.log('❌ No guild found');
+        return;
+      }
+
+      const dashboardChannel = guild.channels.cache.find(channel => 
+        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+      );
+
+      if (!dashboardChannel) {
+        console.log('❌ Dashboard channel not found. Create a channel named "dashboard"');
+        return;
+      }
+
+      // Try to find existing dashboard embed
+      console.log(`🔍 Searching for existing dashboard embed in #${dashboardChannel.name}`);
+      
+      try {
+        // Fetch recent messages to find existing dashboard
+        const messages = await dashboardChannel.messages.fetch({ limit: 50 });
+        const existingDashboard = messages.find(msg => 
+          msg.author.id === this.client.user.id && 
+          msg.embeds.length > 0 && 
+          msg.embeds[0].title === '💰 Live Portfolio Dashboard'
+        );
+
+        if (existingDashboard) {
+          console.log(`✅ Found existing dashboard message: ${existingDashboard.id}`);
+          this.dashboardMessageId = existingDashboard.id;
+          this.dashboardChannelId = dashboardChannel.id;
+          
+          // Update the existing embed with current data
+          await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
+          return;
+        }
+      } catch (fetchError) {
+        console.log('⚠️ Could not fetch existing messages, creating new dashboard');
+      }
+
+      // No existing dashboard found, create new one
+      console.log(`📊 Creating new portfolio embed in #${dashboardChannel.name}`);
+      await this.sendDashboardEmbed();
+
+    } catch (error) {
+      console.error('❌ Error finding/creating dashboard embed:', error.message);
     }
   }
 
@@ -617,8 +672,10 @@ class DiscordTradingBot {
         const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
         const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-        totalValue = parseFloat(usdBalanceData.amount);
-        usdBalance = parseFloat(usdBalanceData.amount);
+        // Fix negative USD balance display - show 0 if negative
+        const rawUsdBalance = parseFloat(usdBalanceData.amount);
+        totalValue = rawUsdBalance;
+        usdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
 
         // Get current prices and calculate portfolio value
         for (const balance of cryptoBalances) {
@@ -1001,8 +1058,10 @@ class DiscordTradingBot {
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      totalValue = parseFloat(usdBalanceData.amount);
-      usdBalance = parseFloat(usdBalanceData.amount);
+      // Fix negative USD balance display - show 0 if negative
+      const rawUsdBalance = parseFloat(usdBalanceData.amount);
+      totalValue = rawUsdBalance;
+      usdBalance = Math.max(0, rawUsdBalance); // Show 0 if negative
 
       // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
