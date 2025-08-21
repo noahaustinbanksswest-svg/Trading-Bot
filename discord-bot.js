@@ -575,11 +575,14 @@ class DiscordTradingBot {
         components: [buttons],
       });
 
-      console.log(`📊 Auto-updated portfolio message in channel ${channelId}`);
+      console.log(`🔄 Portfolio embed auto-updated at ${new Date().toLocaleTimeString()}`);
     } catch (error) {
-      console.error(`Error updating portfolio message:`, error.message);
-      // Remove invalid message from tracking
-      this.activePortfolioMessages.delete(messageId);
+      console.error(`❌ Failed to auto-update portfolio embed:`, error.message);
+      // Reset dashboard tracking if this was the main dashboard
+      if (messageId === this.dashboardMessageId) {
+        this.dashboardMessageId = null;
+        this.dashboardChannelId = null;
+      }
     }
   }
 
@@ -675,6 +678,7 @@ class DiscordTradingBot {
       this.dashboardChannelId = dashboardChannel.id;
 
       console.log(`✅ Portfolio dashboard sent to #${dashboardChannel.name}`);
+      console.log(`🔧 Dashboard tracking enabled: Message ID ${this.dashboardMessageId} in Channel ID ${this.dashboardChannelId}`);
 
     } catch (error) {
       console.error('❌ Error sending dashboard embed:', error.message);
@@ -687,15 +691,17 @@ class DiscordTradingBot {
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
+        console.log(`🔄 Attempting auto-update for message ${this.dashboardMessageId}`);
         try {
           await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
-          console.log('🔄 Dashboard embed updated every 10 seconds');
         } catch (error) {
           console.error('❌ Dashboard update failed:', error.message);
           // Reset dashboard tracking if message becomes invalid
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
         }
+      } else {
+        console.log(`⚠️ No dashboard message tracked for auto-update`);
       }
     }, 10000); // Update every 10 seconds
   }
