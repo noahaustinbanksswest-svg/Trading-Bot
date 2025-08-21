@@ -1993,10 +1993,24 @@ class DiscordTradingBot {
           console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
           
           if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
-            autoTradeSettings.conditions.portfolioValueReached = true;
-            shouldExecuteTrade = true;
-            reason = `${autoTradeSettings.selectedCrypto} allows $1 USD sale: ${remainingAfterSale.toFixed(8)} SOL remaining >= ${autoTradeSettings.stopAtLoss} base - EXECUTING $1 TRADE`;
-            console.log(`🚨 CONDITION MET! shouldExecuteTrade = true, reason: ${reason}`);
+            // NEW: Check for $1 price rise trigger
+            const baselinePrice = autoTradeSettings.baselinePrice || currentPrice; // Initialize if not set
+            const priceIncrease = currentPrice - baselinePrice;
+            
+            console.log(`📈 PRICE RISE CHECK:`);
+            console.log(`   Baseline Price: $${baselinePrice.toFixed(2)}`);
+            console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
+            console.log(`   Price Increase: $${priceIncrease.toFixed(2)}`);
+            console.log(`   Trigger Threshold: $1.00`);
+            
+            if (priceIncrease >= 1.00) {
+              autoTradeSettings.conditions.portfolioValueReached = true;
+              shouldExecuteTrade = true;
+              reason = `🚀 PRICE TRIGGER: ${autoTradeSettings.selectedCrypto} rose $${priceIncrease.toFixed(2)} (${baselinePrice.toFixed(2)} → ${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+              console.log(`🚨 CONDITION MET! shouldExecuteTrade = true, reason: ${reason}`);
+            } else {
+              console.log(`⏰ Waiting for trigger: Need $${(1.00 - priceIncrease).toFixed(2)} more rise to reach $1.00 threshold`);
+            }
           } else {
             console.log(`✅ ${autoTradeSettings.selectedCrypto} protected: ${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss} base (STOP SELLING - would breach base)`);
           }
