@@ -35,11 +35,11 @@ let dailyBuyData = {
 let autoTradeSettings = {
   enabled: true, // Enable auto trade
   amount: 1.00, // $1 USD trade amount
-  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell (FIXED: was SOLUSD)
+  selectedCrypto: 'SOL', // Which cryptocurrency to monitor/sell
   stopAtLoss: 1.5, // Stop selling when SOL reaches 1.5 base amount
   stopAtValue: null, // Stop when crypto amount reaches this value (e.g., 1 SOL)
   stopOnDailyBuys: null, // Stop when daily purchases reach this USD amount
-  isActive: true, // FIXED: Enable active monitoring
+  isActive: true, // Enable active monitoring - STAYS ON
   startTime: null,
   conditions: {
     portfolioValueReached: false,
@@ -1705,11 +1705,10 @@ class DiscordTradingBot {
     try {
       console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
       
-      // If this would breach base protection, disable auto trade instead of selling
+      // If this would breach base protection, pause briefly but keep monitoring
       if (reason.includes('STOP SELLING') || reason.includes('would breach base')) {
-        autoTradeSettings.enabled = false;
-        autoTradeSettings.isActive = false;
-        console.log(`🛑 Auto Trade disabled - would breach base ${autoTradeSettings.selectedCrypto} amount of ${autoTradeSettings.stopAtLoss}`);
+        // Don't disable, just skip this cycle but keep monitoring
+        console.log(`🛡️ Auto Trade cycle skipped - protecting base ${autoTradeSettings.selectedCrypto} amount of ${autoTradeSettings.stopAtLoss}`);
         
         // Log current portfolio status
         const portfolioData = await this.getPortfolioData();
@@ -1801,9 +1800,10 @@ class DiscordTradingBot {
         });
       }
 
-      // Disable auto trade after execution
-      autoTradeSettings.enabled = false;
-      autoTradeSettings.isActive = false;
+      // Keep auto trade enabled for continuous monitoring
+      // autoTradeSettings.enabled = false; // REMOVED: Keep monitoring active
+      // autoTradeSettings.isActive = false; // REMOVED: Allow continuous trades
+      console.log(`🔄 Auto trade staying enabled for continuous monitoring`);
 
       // Send notification to Discord
       await this.sendAutoTradeNotification(reason, sellOrders);
