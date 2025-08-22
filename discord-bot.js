@@ -1465,7 +1465,14 @@ class DiscordTradingBot {
       
       // NEW REAL-TIME PORTFOLIO VALUE MONITORING
       const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
-      const baselineValue = this.lastPortfolioValue || currentPortfolioValue; // Use current value if no previous trades
+      
+      // CRITICAL FIX: Only set baseline ONCE, not every cycle!
+      if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
+        this.lastPortfolioValue = currentPortfolioValue;
+        console.log(`🎯 REAL-TIME BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
+      }
+      
+      const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
       const targetValue = baselineValue + 1.00;
       
       console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
@@ -1477,6 +1484,10 @@ class DiscordTradingBot {
         // Execute trade immediately when portfolio value target is hit - NO BASE PROTECTION
         console.log(`🚨 REAL-TIME VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (Base protection DISABLED)`);
         const reason = `💰 REAL-TIME PORTFOLIO: ${autoTradeSettings.selectedCrypto} value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
+        
+        // CRITICAL: Update baseline ONLY after trigger
+        console.log(`🔥 REAL-TIME UPDATING BASELINE: $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+        this.lastPortfolioValue = currentPortfolioValue; // Update baseline for next cycle
         
         // Execute the trade using existing trade logic
         await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
@@ -2262,8 +2273,15 @@ class DiscordTradingBot {
           // (Price history is already maintained in startPriceStreaming)
           
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
-          const currentPortfolioValue = cryptoHolding.value; // $273.24
-          const baselineValue = this.lastPortfolioValue || currentPortfolioValue; // Use current value if no previous trades
+          const currentPortfolioValue = cryptoHolding.value; // $267.84
+          
+          // CRITICAL FIX: Only set baseline ONCE, not every cycle!
+          if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
+            this.lastPortfolioValue = currentPortfolioValue;
+            console.log(`🎯 BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
+          }
+          
+          const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
           const targetValue = baselineValue + 1.00;
           const valueIncrease = currentPortfolioValue - baselineValue;
           
@@ -2277,6 +2295,10 @@ class DiscordTradingBot {
           if (currentPortfolioValue >= targetValue) {
             console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
+            
+            // CRITICAL: Update baseline ONLY after trigger (not before)
+            console.log(`🔥 UPDATING BASELINE: $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+            this.lastPortfolioValue = currentPortfolioValue; // Update baseline for next cycle
             
             // Execute trade immediately - base protection removed
             autoTradeSettings.conditions.portfolioValueReached = true;
