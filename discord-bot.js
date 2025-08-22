@@ -1101,8 +1101,12 @@ class DiscordTradingBot {
       console.log(`   Crypto Holdings: ${holdings.length} assets`);
       console.log(`   Total Portfolio Value: $${totalValue.toFixed(2)}`);
 
+      // FORCE CONSISTENT CALCULATION: Use SOL-only value (same as trading logic)
+      const solHolding = holdings.find(h => h.currency === 'SOL');
+      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
+      
       const embed = this.createPortfolioEmbed({
-        totalValue,
+        totalValue: consistentTotalValue, // Always SOL-only (matches trading logic exactly)
         usdBalance: displayUsdBalance,
         holdings,
         dailyBuyData
@@ -1449,12 +1453,12 @@ class DiscordTradingBot {
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
       const message = await channel.messages.fetch(this.dashboardMessageId);
       
-      // CONSISTENT TRACKING: Use SOL value only (same as trading logic) to prevent bouncing
+      // FORCE CONSISTENT CALCULATION: ALWAYS use SOL-only value (same as trading logic)
       const solHolding = holdings.find(h => h.currency === 'SOL');
-      const consistentTotalValue = solHolding ? solHolding.value + displayUsdBalance : displayUsdBalance;
+      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       
       const embed = this.createPortfolioEmbed({
-        totalValue: consistentTotalValue,
+        totalValue: consistentTotalValue, // Now always SOL-only value (matches trading logic)
         usdBalance: displayUsdBalance,
         holdings: holdings
       });
