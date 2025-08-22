@@ -2396,34 +2396,32 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SIMPLE LOGIC: Next trigger = Current Portfolio + $1.00
-          const targetValue = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+          // FIXED TRIGGER LOGIC: Set once and keep it steady
+          if (!this.lastTriggerTarget) {
+            // Set initial trigger only once - never change it
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`🎯 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (will not change)`);
+          }
           
-          console.log(`📈 SIMPLE +$1 TRIGGER CHECK:`);
-          console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
-          console.log(`   Next Trigger: $${targetValue.toFixed(2)} (current + $1.00)`);
+          console.log(`📈 STABLE TRIGGER CHECK:`);
+          console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
+          console.log(`   Fixed Trigger: $${this.lastTriggerTarget.toFixed(2)} (LOCKED)`);
           
-          // TRIGGER: Check if we have a previous target stored and current value exceeds it
-          if (this.lastTriggerTarget && currentPortfolioValue >= this.lastTriggerTarget) {
-            console.log(`🚨 TRIGGER HIT! Portfolio $${currentPortfolioValue.toFixed(2)} >= Target $${this.lastTriggerTarget.toFixed(2)}`);
+          // TRIGGER: Only execute when current >= stored trigger
+          if (currentPortfolioValue >= this.lastTriggerTarget) {
+            console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${this.lastTriggerTarget.toFixed(2)}`);
             
-            // Execute trade and set new trigger
+            // Execute trade and set NEW trigger
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 +$1 TRIGGER: SOL portfolio hit $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
+            reason = `💰 TRIGGER HIT: SOL hit $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
             
-            // Update trigger for next trade
-            this.lastTriggerTarget = targetValue;
+            // Set next trigger after trade
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
             console.log(`🔥 NEW TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
           } else {
-            // Set initial trigger or show current target
-            if (!this.lastTriggerTarget) {
-              this.lastTriggerTarget = targetValue;
-              console.log(`🎯 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
-            }
-            
-            const neededIncrease = this.lastTriggerTarget - currentPortfolioValue;
-            console.log(`🔄 Waiting for trigger: Need $${neededIncrease.toFixed(2)} more to reach $${this.lastTriggerTarget.toFixed(2)}`);
+            const needed = parseFloat((this.lastTriggerTarget - currentPortfolioValue).toFixed(2));
+            console.log(`⏳ Need $${needed} more to hit trigger $${this.lastTriggerTarget.toFixed(2)}`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
