@@ -1569,7 +1569,8 @@ class DiscordTradingBot {
         this.updateSmartBaseline(currentPortfolioValue, 'trade-reset'); // Reset baseline after trade
         
         // Execute the trade using existing trade logic
-        await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
+        // Use unified trading execution to prevent duplicate orders
+        await this.executeAutoTrade(`Real-time trigger: ${reason}`);
       } else {
         const neededIncrease = targetValue - currentPortfolioValue;
         console.log(`🔄 Real-time monitoring: Need $${neededIncrease.toFixed(2)} more portfolio value to reach target $${targetValue.toFixed(2)}`);
@@ -2430,10 +2431,17 @@ class DiscordTradingBot {
         return;
       }
       
-      // CRITICAL: Cooldown check - minimum 30 seconds between trades
+      // CRITICAL: Additional safety check - ensure only one execution per minute
       const now = Date.now();
-      const timeSinceLastTrade = now - this.lastTradeTime;
-      if (timeSinceLastTrade < 30000) {
+      const oneMinute = 60000;
+      if (this.lastTradeTime && (now - this.lastTradeTime) < oneMinute) {
+        console.log(`⏰ Trade frequency protection - ${Math.ceil((oneMinute - (now - this.lastTradeTime))/1000)}s until next trade allowed`);
+        return;
+      }
+      
+      // CRITICAL: Cooldown check - minimum 30 seconds between trades
+      const timeSinceLastTrade = now - (this.lastTradeTime || 0);
+      if (timeSinceLastTrade < 30000 && this.lastTradeTime > 0) {
         console.log(`⏰ Trade cooldown active - ${30 - Math.floor(timeSinceLastTrade/1000)}s remaining`);
         return;
       }
