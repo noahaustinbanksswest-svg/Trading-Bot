@@ -1492,7 +1492,12 @@ class DiscordTradingBot {
         holdings: holdings
       });
       
-      await message.edit({ embeds: [embed] });
+      const buttons = this.createPortfolioButtons();
+      
+      await message.edit({ 
+        embeds: [embed],
+        components: buttons 
+      });
       console.log('✨ REAL-TIME PORTFOLIO UPDATED SUCCESSFULLY!');
       
     } catch (error) {
