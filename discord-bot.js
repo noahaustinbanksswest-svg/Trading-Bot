@@ -2301,9 +2301,8 @@ class DiscordTradingBot {
             // NOW check base protection for this swing trade
             console.log(`🔍 Base Protection Check: ${remainingAfterSale.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} = ${remainingAfterSale >= autoTradeSettings.stopAtLoss}`);
             
-            // Adjust base protection to allow trading with current SOL amount
-            const tradingBuffer = 0.0005; // Allow small buffer for trading
-            const adjustedBaseProtection = autoTradeSettings.stopAtLoss - tradingBuffer;
+            // Use exact base protection - no trading buffer needed
+            const adjustedBaseProtection = autoTradeSettings.stopAtLoss;
             
             if (remainingAfterSale >= adjustedBaseProtection) {
               // BOTH conditions met - execute trade!
@@ -2319,8 +2318,7 @@ class DiscordTradingBot {
             console.log(`🔄 Monitoring swings: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
             
             // Still show base protection status for info
-            const tradingBuffer = 0.0005; // Same buffer as swing check
-            const adjustedBaseProtection = autoTradeSettings.stopAtLoss - tradingBuffer;
+            const adjustedBaseProtection = autoTradeSettings.stopAtLoss;
             if (remainingAfterSale < adjustedBaseProtection) {
               console.log(`ℹ️ Note: Even if swing triggered, would need ${(adjustedBaseProtection - remainingAfterSale).toFixed(8)} more SOL for safe execution`);
             } else {
