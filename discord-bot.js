@@ -1482,16 +1482,12 @@ class DiscordTradingBot {
       console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
       
       if (priceRiseFromLow >= 1.08) {
-        // Check if this specific trade would breach base protection
-        if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
-          console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED!`);
-          const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
-          
-          // Execute the trade using existing trade logic
-          await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
-        } else {
-          console.log(`🛡️ SWING BLOCKED: Trade would breach base protection (${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss})`);
-        }
+        // Execute trade immediately when swing conditions are met - NO BASE PROTECTION
+        console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED! (Base protection DISABLED)`);
+        const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+        
+        // Execute the trade using existing trade logic
+        await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
       } else {
         const neededRise = 1.08 - priceRiseFromLow;
         console.log(`🔄 Real-time monitoring: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
@@ -2284,33 +2280,22 @@ class DiscordTradingBot {
           console.log(`   Swing Trigger: $1.08`);
           console.log(`   Price History: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
           
-          // SWING TRIGGER CHECK FIRST
+          // SWING TRIGGER CHECK - EXECUTE IMMEDIATELY (NO BASE PROTECTION)
           if (priceRiseFromLow >= 1.08) {
             console.log(`🚨 SWING CONDITION MET! Rise of $${priceRiseFromLow.toFixed(2)} >= $1.08 trigger`);
+            console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
             
-            // NOW check base protection for this swing trade
-            console.log(`🔍 Base Protection Check: Current SOL ${cryptoHolding.amount.toFixed(8)} > ${autoTradeSettings.stopAtLoss} = ${cryptoHolding.amount > autoTradeSettings.stopAtLoss}`);
-            
-            if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
-              // BOTH conditions met - execute trade!
-              autoTradeSettings.conditions.portfolioValueReached = true;
-              shouldExecuteTrade = true;
-              reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
-              console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
-            } else {
-              console.log(`🛡️ SWING BLOCKED: Trade would breach base protection (${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss})`);
-            }
+            // Execute trade immediately - base protection removed
+            autoTradeSettings.conditions.portfolioValueReached = true;
+            shouldExecuteTrade = true;
+            reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+            console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
           } else {
             const neededRise = 1.08 - priceRiseFromLow;
             console.log(`🔄 Monitoring swings: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
             
-            // Still show base protection status for info
-            const adjustedBaseProtection = autoTradeSettings.stopAtLoss;
-            if (remainingAfterSale < adjustedBaseProtection) {
-              console.log(`ℹ️ Note: Even if swing triggered, would need ${(adjustedBaseProtection - remainingAfterSale).toFixed(8)} more SOL for safe execution`);
-            } else {
-              console.log(`✅ TRADING ENABLED: Sufficient SOL above adjusted base (${adjustedBaseProtection.toFixed(4)}) for $1 trades`);
-            }
+            // Base protection disabled - ready to trade anytime swing conditions are met
+            console.log(`✅ UNRESTRICTED TRADING: Base protection disabled - ready for any swing trigger`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
