@@ -2367,10 +2367,10 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SIMPLE TRIGGER LOGIC: Current portfolio + $1.00
+          // LOCKED TRIGGER LOGIC: Set once and never change until trade executes
           if (!this.lastTriggerTarget) {
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🎯 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (current $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+            console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (will NOT change until trade executes)`);
           }
           
           console.log(`📈 TRIGGER CHECK:`);
@@ -2422,9 +2422,14 @@ class DiscordTradingBot {
         
         // CRITICAL: Update trigger AFTER successful trade execution
         if (autoTradeSettings.conditions.portfolioValueReached) {
-          const newTrigger = parseFloat((cryptoHolding.value + 1.00).toFixed(2));
-          this.lastTriggerTarget = newTrigger;
-          console.log(`🔄 TRIGGER UPDATED AFTER TRADE: Next trigger is $${newTrigger.toFixed(2)}`);
+          // Get fresh portfolio data after trade
+          const freshPortfolioData = await this.getPortfolioData();
+          const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
+          if (solHolding) {
+            const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
+            this.lastTriggerTarget = newTrigger;
+            console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
+          }
         }
       } else {
         console.log(`⏸️ NO TRADE: Conditions not met yet`);
