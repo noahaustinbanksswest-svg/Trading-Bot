@@ -1544,36 +1544,8 @@ class DiscordTradingBot {
       // NEW REAL-TIME PORTFOLIO VALUE MONITORING
       const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
       
-      // SMART BASELINE: Track the LOWEST portfolio value (dynamic swing trading)
-      // Use master baseline function instead of direct assignment
-      this.updateSmartBaseline(currentPortfolioValue, 'real-time-check');
-      
-      console.log(`🧠 REAL-TIME SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
-      
-      const baselineValue = this.lowestPortfolioValue; // Use LOWEST value as baseline (smart swing trading)
-      const targetValue = baselineValue + 1.00;
-      
-      console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
-      console.log(`🔍 SMART DEBUG: this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
-      console.log(`   Baseline (Lowest): $${baselineValue.toFixed(2)}`);
-      console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);
-      console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
-      
-      if (currentPortfolioValue >= targetValue) {
-        // Execute trade immediately when portfolio value target is hit - NO BASE PROTECTION
-        console.log(`🚨 REAL-TIME VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (Base protection DISABLED)`);
-        const reason = `💰 REAL-TIME PORTFOLIO: ${autoTradeSettings.selectedCrypto} value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
-        
-        // SMART UPDATE: Set new lowest baseline after successful trade  
-        console.log(`🔥 REAL-TIME TRADE EXECUTED: New lowest baseline $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
-        this.updateSmartBaseline(currentPortfolioValue, 'trade-reset'); // Reset baseline after trade
-        
-        // DISABLED: Prevent duplicate execution - main path handles all trades
-        console.log(`⚠️ REAL-TIME PATH DISABLED - Using main trading path only to prevent duplicates`);
-      } else {
-        const neededIncrease = targetValue - currentPortfolioValue;
-        console.log(`🔄 Real-time monitoring: Need $${neededIncrease.toFixed(2)} more portfolio value to reach target $${targetValue.toFixed(2)}`);
-      }
+      // DISABLED: All baseline calculations moved to main path only
+      console.log(`📊 REAL-TIME MONITORING: SOL $${currentPortfolioValue.toFixed(2)} (baseline calculations disabled to prevent bouncing)`);
       
     } catch (error) {
       console.error('❌ Real-time swing check error:', error.message);
