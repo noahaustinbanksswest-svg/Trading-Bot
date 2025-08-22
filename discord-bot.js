@@ -2401,9 +2401,11 @@ class DiscordTradingBot {
           // TRIGGER LOGIC: Initialize once, update on sale completion OR portfolio drop
           if (!this.triggerIsInitialized) {
             this.lastTriggerTarget = 274.61; // YOUR LOCKED VALUE
-            this.lastKnownSOLAmount = cryptoHolding.amount; // Track SOL amount for sale detection
+            // Set to previous SOL amount so we can detect the sale that already happened
+            this.lastKnownSOLAmount = 1.388576424; // Previous SOL amount before the sale
             this.triggerIsInitialized = true;
             console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)}`);
+            console.log(`📊 Tracking from previous SOL: ${this.lastKnownSOLAmount.toFixed(8)}`);
           }
           
           // DETECT SALE: Check if SOL amount decreased (indicating a sale happened)
