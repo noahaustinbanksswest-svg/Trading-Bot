@@ -738,62 +738,60 @@ class DiscordTradingBot {
   }
 
   createPortfolioEmbed(data) {
-    const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
-    const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
+    try {
+      const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
+      const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
 
-    const embed = new EmbedBuilder()
-      .setTitle('💰 Live Portfolio Dashboard')
-      .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
-      .addFields(
+      const embed = new EmbedBuilder()
+        .setTitle('💰 Live Portfolio Dashboard')
+        .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
+        .setTimestamp()
+        .setFooter({ text: 'Live Portfolio • Auto-updating' });
+
+      // Main portfolio info - simplified and safer
+      embed.addFields([
         { name: '📊 Total Portfolio Value', value: `**$${this.truncateToFixed(data.totalValue, 2)}**`, inline: true },
-        { name: '📈 Daily Buy Status', value: limitStatus, inline: true },
-        { name: '🔄 Remaining Limit', value: `$${this.truncateToFixed(remainingLimit, 2)}`, inline: true }
-      )
-      .setTimestamp()
-      .setFooter({ text: 'Live Portfolio • Auto-updating' });
+        { name: '📈 Trading Status', value: limitStatus, inline: true },
+        { name: '💵 USD Balance', value: `$${this.truncateToFixed(data.usdBalance, 2)}`, inline: true }
+      ]);
 
-    // Add cryptocurrency holdings with live prices
-    if (data.holdings.length > 0) {
-      const cryptoText = data.holdings
-        .map(h => {
-          const changeIndicator = h.change >= 0 ? '📈' : '📉';
-          return `${changeIndicator} **${h.currency}**\n` +
-                 `Amount: \`${h.amount.toFixed(8)}\`\n` +
-                 `Live Price: **$${this.truncateToFixed(h.price, 2)}**\n` +
-                 `Value: **$${this.truncateToFixed(h.value, 2)}**\n`;
-        })
-        .join('\n');
-      
+      // SOL-specific info (simplified for trading bot)
+      const solHolding = data.holdings.find(h => h.currency === 'SOL');
+      if (solHolding) {
+        const triggerValue = this.lastPortfolioValue ? this.lastPortfolioValue + 1.00 : solHolding.value + 1.00;
+        const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
+                       `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
+                       `🎯 **Next Trigger**: $${this.truncateToFixed(triggerValue, 2)}\n` +
+                       `💲 **Current Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
+        
+        embed.addFields({ 
+          name: '⚡ SOL Trading Monitor', 
+          value: solInfo, 
+          inline: false 
+        });
+      }
+
+      // Auto-trade status
+      const autoTradeInfo = `🤖 **Auto Trade**: ${autoTradeSettings.enabled ? '✅ ACTIVE' : '❌ DISABLED'}\n` +
+                           `📊 **Daily Spent**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
+                           `⏰ **Updated**: ${new Date().toLocaleTimeString()}`;
+
       embed.addFields({ 
-        name: '🪙 Cryptocurrency Holdings', 
-        value: cryptoText || 'No crypto holdings detected', 
+        name: '🔧 Auto Trade Status', 
+        value: autoTradeInfo, 
         inline: false 
       });
-    } else {
-      embed.addFields({ 
-        name: '🪙 Cryptocurrency Holdings', 
-        value: 'No cryptocurrency holdings detected', 
-        inline: false 
-      });
+
+      return embed;
+    } catch (error) {
+      console.error('❌ Error creating portfolio embed:', error);
+      // Return simple fallback embed
+      return new EmbedBuilder()
+        .setTitle('💰 Portfolio Dashboard')
+        .setDescription('⚠️ Embed display error - please refresh')
+        .setColor(0xFF9800)
+        .setTimestamp();
     }
-
-    // Add USD/Stablecoin information separately
-    const solHolding = data.holdings.find(h => h.currency === 'SOL');
-    const solBalanceText = solHolding ? `🪙 **SOL Balance**: ${solHolding.amount.toFixed(8)} SOL\n` : '';
-    
-    const stablecoinInfo = `💵 **USD Balance**: $${this.truncateToFixed(data.usdBalance, 2)}\n` +
-                          solBalanceText +
-                          `📊 **Daily Buys**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
-                          `💳 **Daily Limit**: $${tradingSettings.dailyBuyLimit}\n` +
-                          `🕐 **Last Updated**: ${new Date().toLocaleTimeString()}`;
-
-    embed.addFields({ 
-      name: '💰 USD & Trading Information', 
-      value: stablecoinInfo, 
-      inline: false 
-    });
-
-    return embed;
   }
 
   createPortfolioButtons() {
