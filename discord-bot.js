@@ -2432,11 +2432,11 @@ class DiscordTradingBot {
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Trigger: $${this.lastTriggerTarget.toFixed(2)}`);
           
-          // TRIGGER RESETS: 1) After trades, 2) When portfolio drops below trigger (even 1 cent)
-          if (currentPortfolioValue < this.lastTriggerTarget) {
+          // TRIGGER LOCKS! Only resets on significant drops (>$0.50 below trigger)
+          if (currentPortfolioValue < (this.lastTriggerTarget - 0.50)) {
             const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
             this.lastTriggerTarget = newTrigger;
-            console.log(`📉 TRIGGER RESET: Portfolio dropped below trigger level`);
+            console.log(`📉 TRIGGER RESET: Portfolio dropped significantly below trigger`);
             console.log(`   New Trigger: $${newTrigger.toFixed(2)} (current portfolio + $1.00)`);
             await this.saveTriggerToFile();
           }
