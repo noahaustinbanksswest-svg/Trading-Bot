@@ -2452,17 +2452,20 @@ class DiscordTradingBot {
           if (currentPortfolioValue >= triggerValue) {
             console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${triggerValue.toFixed(2)}`);
             
+            // Check if we're already in a trade to prevent multiple orders
+            if (this.tradingLock) {
+              console.log(`🔒 TRADING LOCKED - Skipping duplicate trade execution`);
+              return false;
+            }
+            
+            // Lock trading to prevent multiple simultaneous orders
+            this.tradingLock = true;
+            console.log(`🔒 TRADING LOCKED - Executing single trade`);
+            
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
             reason = `💰 SWING TRADE: Portfolio hit $${triggerValue.toFixed(2)} - EXECUTING $1 TRADE`;
-            
-            // Reset baseline AFTER successful trade  
-            console.log(`🔥 TRADE EXECUTING - Will reset baseline after completion`);
-            
-            // Schedule baseline reset after trade
-            this.schedulePostTradeReset = true;
-            this.postTradePortfolioValue = currentPortfolioValue;
           }
           else {
             const needed = parseFloat((triggerValue - currentPortfolioValue).toFixed(2));
@@ -2621,10 +2624,14 @@ class DiscordTradingBot {
         // Execute actual sell order via Gemini API for exactly $1 USD worth
         const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
         
-        // CRITICAL: Record trade time for cooldown AND trade price for next trigger
+        // CRITICAL: Record trade time for cooldown 
         this.lastTradeTime = Date.now();
-        // REMOVED: Old price tracking system
-        console.log(`🎯 NEW BASELINE SET: Next trade will trigger at $${(currentPrice + 1.00).toFixed(2)}`);
+        
+        // RESET BASELINE TO POST-TRADE PORTFOLIO VALUE
+        const postTradePortfolio = cryptoHolding.value - 1.00; // Subtract the $1 we just sold
+        this.baselineValue = parseFloat(postTradePortfolio.toFixed(2));
+        await this.saveTriggerToFile();
+        console.log(`🎯 BASELINE RESET: $${this.baselineValue.toFixed(2)} → Next trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
         
         sellOrders.push({
           currency: autoTradeSettings.selectedCrypto,
