@@ -1521,6 +1521,23 @@ class DiscordTradingBot {
       const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
+      // 🛡️ ANTI-BOUNCE PROTECTION: Only update embed if change is significant
+      if (!this.lastEmbedValue) {
+        this.lastEmbedValue = consistentTotalValue;
+      }
+      
+      const valueChange = Math.abs(consistentTotalValue - this.lastEmbedValue);
+      const SIGNIFICANT_CHANGE_THRESHOLD = 0.25; // Only update if change >$0.25
+      
+      if (valueChange < SIGNIFICANT_CHANGE_THRESHOLD) {
+        console.log(`🔒 EMBED STABLE: Change $${valueChange.toFixed(2)} < $${SIGNIFICANT_CHANGE_THRESHOLD} threshold - no update`);
+        return;
+      }
+      
+      // Significant change detected - update embed
+      console.log(`📈 SIGNIFICANT CHANGE: $${valueChange.toFixed(2)} > $${SIGNIFICANT_CHANGE_THRESHOLD} - updating embed`);
+      this.lastEmbedValue = consistentTotalValue;
+      
       // Update the Discord embed with fresh data
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
       const message = await channel.messages.fetch(this.dashboardMessageId);
