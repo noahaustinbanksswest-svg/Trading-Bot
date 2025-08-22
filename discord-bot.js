@@ -1463,6 +1463,11 @@ class DiscordTradingBot {
         this.lastPriceUpdate = Date.now();
         console.log('🚀 LIVE PRICES UPDATED:', Array.from(this.realTimePrices.keys()));
         
+        // 📺 UPDATE DISCORD EMBED ON PRICE CHANGES (real-time portfolio value)
+        if (this.dashboardMessageId && this.dashboardChannelId) {
+          await this.updatePortfolioMessageFromRealTimeData();
+        }
+        
       } catch (error) {
         if (!error.message.includes('429')) {
           console.error('❌ Price streaming error:', error.message);
