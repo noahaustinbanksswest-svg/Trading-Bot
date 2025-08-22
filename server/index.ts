@@ -76,7 +76,7 @@ app.use((req, res, next) => {
     let restartCount = 0;
     let lastPingTime = Date.now();
     const MAX_RESTARTS = 25; // Increased restart attempts
-    const PING_TIMEOUT = 10000; // 10 seconds without ping = restart
+    const PING_TIMEOUT = 60000; // 60 seconds without ping = restart (more reasonable)
     
     function startBot() {
       if (botProcess) {
@@ -116,7 +116,7 @@ app.use((req, res, next) => {
       }
       
       restartCount++;
-      const delay = Math.min(5000 + (restartCount * 2000), 60000); // Longer delays to prevent rapid spawning
+      const delay = Math.min(10000 + (restartCount * 5000), 120000); // Much longer delays to prevent rapid spawning
       
       log(`🔄 Scheduling bot restart (reason: ${reason}, attempt ${restartCount}/${MAX_RESTARTS}) in ${delay}ms...`);
       
@@ -140,19 +140,24 @@ app.use((req, res, next) => {
     setInterval(() => {
       const timeSinceLastPing = Date.now() - lastPingTime;
       
+      // Only restart if bot is truly unresponsive (much longer timeout)
       if (timeSinceLastPing > PING_TIMEOUT && botProcess) {
-        log(`⚠️ Bot ping timeout (${timeSinceLastPing}ms since last ping), restarting...`);
+        log(`⚠️ Bot appears unresponsive (${Math.floor(timeSinceLastPing/1000)}s since last ping)`);
         
-        // CRITICAL: Kill existing bot first to prevent multiple instances
+        // Try gentle restart first
         if (botProcess) {
-          log(`🔪 Killing existing bot process to prevent duplicates`);
-          botProcess.kill('SIGKILL');
-          botProcess = null;
+          log(`🔄 Attempting graceful bot restart...`);
+          botProcess.kill('SIGTERM'); // Gentle shutdown first
+          setTimeout(() => {
+            if (botProcess) {
+              botProcess.kill('SIGKILL'); // Force kill only if needed
+              botProcess = null;
+            }
+            scheduleRestart('ping timeout');
+          }, 3000);
         }
-        
-        scheduleRestart('ping timeout');
       }
-    }, 5000); // Check every 5 seconds
+    }, 30000); // Check every 30 seconds instead of 5
     
     // Reset restart counter every 30 minutes (more frequent reset for stability)
     setInterval(() => {
