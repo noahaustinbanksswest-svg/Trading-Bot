@@ -475,6 +475,7 @@ class DiscordTradingBot {
     this.priceHistory = [];           // Store price history for swing trading
     this.lastBalanceUpdate = null;
     this.lastPriceUpdate = null;
+    this.lastTriggerTarget = null;    // Store the next trigger value
     
     this.setupEventHandlers();
     this.registerCommands();
@@ -2395,44 +2396,34 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // LOCKED BASELINE: Fixed value, no more bouncing
-          this.lowestPortfolioValue = 264.31; // LOCKED to historical baseline
-        
-        console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
+          // SIMPLE LOGIC: Next trigger = Current Portfolio + $1.00
+          const targetValue = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
           
-        const baselineValue = this.lowestPortfolioValue; // Use MASTER baseline (smart swing trading)
-        // Use precise calculation with fixed precision to avoid floating point errors
-        const targetValue = parseFloat((baselineValue + 1.00).toFixed(2));
-        const valueIncrease = parseFloat((currentPortfolioValue - baselineValue).toFixed(2));
-          
-          console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
-          console.log(`🔍 SMART DEBUG: MASTER this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
-          console.log(`   Baseline (Lowest): $${baselineValue.toFixed(2)}`);
+          console.log(`📈 SIMPLE +$1 TRIGGER CHECK:`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
-          console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
-          console.log(`   Value Increase: $${valueIncrease.toFixed(2)}`);
+          console.log(`   Next Trigger: $${targetValue.toFixed(2)} (current + $1.00)`);
           
-          // TRIGGER: Current portfolio value >= smart baseline + $1.00 (with precision tolerance)
-          const preciseCurrentValue = parseFloat(currentPortfolioValue.toFixed(2));
-          console.log(`🔍 TRIGGER DEBUG: ${preciseCurrentValue} >= ${targetValue} = ${preciseCurrentValue >= targetValue}`);
-          
-          if (preciseCurrentValue >= targetValue) {
-            console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
-            console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
+          // TRIGGER: Check if we have a previous target stored and current value exceeds it
+          if (this.lastTriggerTarget && currentPortfolioValue >= this.lastTriggerTarget) {
+            console.log(`🚨 TRIGGER HIT! Portfolio $${currentPortfolioValue.toFixed(2)} >= Target $${this.lastTriggerTarget.toFixed(2)}`);
             
-            // SMART UPDATE: Set new lowest baseline after successful trade
-            console.log(`🔥 TRADE EXECUTED: New lowest baseline $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
-            this.updateSmartBaseline(currentPortfolioValue, 'trade-reset'); // Reset baseline after trade
-            
-            // Execute trade immediately - base protection removed
+            // Execute trade and set new trigger
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 PORTFOLIO TARGET: SOL value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from baseline $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
-            console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
+            reason = `💰 +$1 TRIGGER: SOL portfolio hit $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
+            
+            // Update trigger for next trade
+            this.lastTriggerTarget = targetValue;
+            console.log(`🔥 NEW TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
           } else {
-            const neededIncrease = targetValue - currentPortfolioValue;
-            console.log(`🔄 Waiting for target: Need $${neededIncrease.toFixed(2)} more portfolio value to reach $${targetValue.toFixed(2)}`);
-            console.log(`✅ UNRESTRICTED TRADING: Ready to execute at $${targetValue.toFixed(2)} portfolio value`);
+            // Set initial trigger or show current target
+            if (!this.lastTriggerTarget) {
+              this.lastTriggerTarget = targetValue;
+              console.log(`🎯 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
+            }
+            
+            const neededIncrease = this.lastTriggerTarget - currentPortfolioValue;
+            console.log(`🔄 Waiting for trigger: Need $${neededIncrease.toFixed(2)} more to reach $${this.lastTriggerTarget.toFixed(2)}`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
