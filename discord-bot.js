@@ -2377,35 +2377,21 @@ class DiscordTradingBot {
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Trigger: $${this.lastTriggerTarget.toFixed(2)}`);
           
-          // EXECUTE ALL MISSED TRADES: Keep executing $1 trades until current < next trigger
-          let tradesExecuted = 0;
-          while (currentPortfolioValue >= this.lastTriggerTarget && tradesExecuted < 50) {
-            console.log(`🚨 TRIGGER HIT #${tradesExecuted + 1}: $${currentPortfolioValue.toFixed(2)} >= $${this.lastTriggerTarget.toFixed(2)}`);
+          // SIMPLE TRIGGER: Execute trade if current >= target
+          if (currentPortfolioValue >= this.lastTriggerTarget) {
+            console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${this.lastTriggerTarget.toFixed(2)}`);
             
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 MISSED TRADE #${tradesExecuted + 1}: Portfolio $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
+            reason = `💰 TRIGGER HIT: Portfolio $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
             
-            // Update trigger for next potential trade
-            this.lastTriggerTarget = parseFloat((this.lastTriggerTarget + 1.00).toFixed(2));
-            tradesExecuted++;
-            console.log(`🔥 NEXT TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
-            
-            // Execute the trade immediately to prevent multiple triggers in one cycle
-            if (shouldExecuteTrade) {
-              console.log(`🚨 EXECUTING MISSED TRADE: ${reason}`);
-              await this.executeAutoTrade(reason);
-              shouldExecuteTrade = false; // Reset for potential next trade
-              autoTradeSettings.conditions.portfolioValueReached = false;
-            }
+            // Set next trigger AFTER execution (not before)
+            console.log(`🔥 TRADE WILL EXECUTE - Next trigger will be set after trade`);
           }
-          
-          if (tradesExecuted === 0) {
+          else {
             const needed = parseFloat((this.lastTriggerTarget - currentPortfolioValue).toFixed(2));
             console.log(`⏳ Need $${needed} more to hit trigger $${this.lastTriggerTarget.toFixed(2)}`);
-          } else {
-            console.log(`✅ EXECUTED ${tradesExecuted} MISSED TRADES`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
@@ -2433,6 +2419,13 @@ class DiscordTradingBot {
       if (shouldExecuteTrade) {
         console.log(`🚨 EXECUTING TRADE: ${reason}`);
         await this.executeAutoTrade(reason);
+        
+        // CRITICAL: Update trigger AFTER successful trade execution
+        if (autoTradeSettings.conditions.portfolioValueReached) {
+          const newTrigger = parseFloat((cryptoHolding.value + 1.00).toFixed(2));
+          this.lastTriggerTarget = newTrigger;
+          console.log(`🔄 TRIGGER UPDATED AFTER TRADE: Next trigger is $${newTrigger.toFixed(2)}`);
+        }
       } else {
         console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
