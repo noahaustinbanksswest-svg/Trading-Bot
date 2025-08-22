@@ -882,7 +882,7 @@ class DiscordTradingBot {
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
         // DISPLAY-ONLY: Use actual dynamic trigger value from trading logic
-        const displayTrigger = this.lastTriggerTarget || (solHolding.value + 1.00);
+        const displayTrigger = this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00);
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
@@ -2446,15 +2446,9 @@ class DiscordTradingBot {
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
           console.log(`   Trigger at: $${triggerValue.toFixed(2)} (baseline + $1.00)`);
           
-          // TRIGGER LOCKS - Only resets on significant drops below baseline (NOT trigger)
-          if (currentPortfolioValue < (this.baselineValue - 0.50)) {
-            console.log(`📉 SIGNIFICANT DROP: Portfolio $${currentPortfolioValue.toFixed(2)} dropped $0.50+ below baseline $${this.baselineValue.toFixed(2)}`);
-            this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-            console.log(`🔒 NEW BASELINE: $${this.baselineValue.toFixed(2)}`);
-            await this.saveTriggerToFile();
-          }
+          // BASELINE COMPLETELY LOCKED - NO RESETS except after trades
           // Execute trade if portfolio hits trigger (baseline + $1.00)
-          else if (currentPortfolioValue >= triggerValue) {
+          if (currentPortfolioValue >= triggerValue) {
             console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${triggerValue.toFixed(2)}`);
             
             // Execute trade
