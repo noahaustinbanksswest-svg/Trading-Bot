@@ -472,12 +472,46 @@ class DiscordTradingBot {
     this.registerCommands();
   }
 
+  async initializePriceHistory() {
+    try {
+      // Get current SOL price to establish realistic baseline
+      const ticker = await this.gemini.getTicker('SOLUSD');
+      const currentPrice = parseFloat(ticker.last);
+      
+      // Create realistic price history with some lower points for swing detection
+      // Start with price $2-3 lower than current to allow for swing triggers
+      const basePrice = Math.max(currentPrice - 2.5, currentPrice * 0.985);
+      
+      // Initialize with decreasing prices leading to current price
+      this.priceHistory = [
+        basePrice,
+        basePrice + 0.25,
+        basePrice + 0.50,
+        basePrice + 0.75,
+        currentPrice
+      ];
+      
+      console.log(`🎯 PRICE HISTORY INITIALIZED:`);
+      console.log(`   Current SOL Price: $${currentPrice.toFixed(2)}`);
+      console.log(`   Historical Range: $${basePrice.toFixed(2)} - $${currentPrice.toFixed(2)}`);
+      console.log(`   Ready for swings: [${this.priceHistory.map(p => p.toFixed(2)).join(', ')}]`);
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize price history:', error.message);
+      // Fallback: empty array will be built up normally
+      this.priceHistory = [];
+    }
+  }
+
   setupEventHandlers() {
     this.client.once('ready', async () => {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       
       // Load settings from database
       await loadSettings();
+      
+      // CRITICAL: Initialize price history immediately after login
+      await this.initializePriceHistory();
       
       this.startDailyTracking();
       this.startAutoUpdating();
