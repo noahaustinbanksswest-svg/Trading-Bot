@@ -460,7 +460,7 @@ class DiscordTradingBot {
     this.dashboardChannelId = null; // Track dashboard channel
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
-    this.lastPortfolioValue = 0; // Track last portfolio value for $1 increments
+    this.lastPortfolioValue = null; // Track last portfolio value for $1 increments (null = use current value)
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -1467,7 +1467,7 @@ class DiscordTradingBot {
       
       // NEW REAL-TIME PORTFOLIO VALUE MONITORING
       const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
-      const baselineValue = this.lastPortfolioValue || 273.00;
+      const baselineValue = this.lastPortfolioValue || currentPortfolioValue; // Use current value if no previous trades
       const targetValue = baselineValue + 1.00;
       
       console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
@@ -2265,7 +2265,7 @@ class DiscordTradingBot {
           
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $273.24
-          const baselineValue = this.lastPortfolioValue || 273.00; // Use last portfolio value
+          const baselineValue = this.lastPortfolioValue || currentPortfolioValue; // Use current value if no previous trades
           const targetValue = baselineValue + 1.00;
           const valueIncrease = currentPortfolioValue - baselineValue;
           
