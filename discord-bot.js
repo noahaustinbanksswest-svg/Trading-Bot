@@ -2398,42 +2398,23 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // TRIGGER LOGIC: Initialize once, update on sale completion OR portfolio drop
+          // SIMPLE TRIGGER LOGIC: Set once based on current portfolio, no bouncing
           if (!this.triggerIsInitialized) {
-            this.lastTriggerTarget = 274.61; // YOUR LOCKED VALUE
-            // Set to previous SOL amount so we can detect the sale that already happened
-            this.lastKnownSOLAmount = 1.388576424; // Previous SOL amount before the sale
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
             this.triggerIsInitialized = true;
-            console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)}`);
-            console.log(`📊 Tracking from previous SOL: ${this.lastKnownSOLAmount.toFixed(8)}`);
+            console.log(`🔒 TRIGGER SET TO: $${this.lastTriggerTarget.toFixed(2)} (portfolio + $1.00)`);
+            await this.saveTriggerToFile();
           }
           
-          // DETECT SALE: Check if SOL amount decreased (indicating a sale happened)
-          const currentSOLAmount = cryptoHolding.amount;
-          const solDecrease = this.lastKnownSOLAmount - currentSOLAmount;
-          
-          if (solDecrease > 0.001) { // Sale detected (more than 0.001 SOL decrease)
+          // Only change trigger after successful trade or portfolio drop below unlock level
+          const unlockLevel = this.lastTriggerTarget - 1.00;
+          if (currentPortfolioValue < unlockLevel) {
             const oldTrigger = this.lastTriggerTarget;
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`💰 SALE DETECTED: SOL decreased by ${solDecrease.toFixed(6)}`);
-            console.log(`🔄 TRIGGER RESET AFTER SALE: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
+            console.log(`📉 TRIGGER RESET: Portfolio dropped below $${unlockLevel.toFixed(2)}`);
+            console.log(`🔄 NEW TRIGGER: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
             await this.saveTriggerToFile();
-          } else {
-            // No sale - check for portfolio drop below trigger base
-            const unlockLevel = this.lastTriggerTarget - 1.00;
-            if (currentPortfolioValue < unlockLevel) {
-              const oldTrigger = this.lastTriggerTarget;
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`📉 PORTFOLIO DROPPED: Below unlock level $${unlockLevel.toFixed(2)}`);
-              console.log(`🔄 TRIGGER RESET: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
-              await this.saveTriggerToFile();
-            } else {
-              console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (unlock at $${unlockLevel.toFixed(2)})`);
-            }
           }
-          
-          // Update SOL amount tracking for next cycle
-          this.lastKnownSOLAmount = currentSOLAmount;
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
