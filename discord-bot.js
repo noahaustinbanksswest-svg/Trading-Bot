@@ -763,8 +763,11 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // ALWAYS use smart baseline - no fallback to old logic
-        const triggerValue = (this.lowestPortfolioValue || solHolding.value) + 1.00;
+        // FORCE SMART BASELINE: Initialize if null, never fall back to different calculations
+        if (this.lowestPortfolioValue === null || this.lowestPortfolioValue === undefined) {
+          this.lowestPortfolioValue = solHolding.value;
+        }
+        const triggerValue = this.lowestPortfolioValue + 1.00;
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(triggerValue, 2)}\n` +
