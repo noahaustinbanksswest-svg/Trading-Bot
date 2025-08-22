@@ -2396,35 +2396,26 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SIMPLE TRIGGER LOCK: Load once, never change unless below trigger
-          if (!this.lastTriggerTarget) {
-            // Load from file ONCE
-            try {
-              const { readFileSync, existsSync } = await import('fs');
-              if (existsSync('trigger.json')) {
-                const data = JSON.parse(readFileSync('trigger.json', 'utf8'));
-                this.lastTriggerTarget = data.trigger;
-                console.log(`🔒 LOADED LOCKED TRIGGER: $${this.lastTriggerTarget.toFixed(2)}`);
-              }
-            } catch (error) {
-              console.log('❌ Could not load trigger file');
-            }
-            
-            // Fallback if no file
-            if (!this.lastTriggerTarget) {
-              this.lastTriggerTarget = 274.61; // HARDCODED USER VALUE
-              console.log(`🔒 HARDCODED TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)}`);
-            }
+          // BULLETPROOF LOCK: Set once, never change unless explicit condition met
+          if (!this.triggerIsInitialized) {
+            // Load trigger ONCE at startup
+            this.lastTriggerTarget = 274.61; // YOUR LOCKED VALUE
+            this.triggerIsInitialized = true;
+            console.log(`🔒 TRIGGER LOCKED AT: $${this.lastTriggerTarget.toFixed(2)}`);
           }
           
-          // ONLY change trigger if portfolio drops below trigger base
-          const triggerBase = this.lastTriggerTarget - 1.00;
-          if (currentPortfolioValue < triggerBase) {
+          // Calculate trigger base (portfolio level that unlocks trigger)
+          const unlockLevel = this.lastTriggerTarget - 1.00; // $273.61
+          
+          // ONLY unlock if portfolio drops below unlock level
+          if (currentPortfolioValue < unlockLevel) {
+            const oldTrigger = this.lastTriggerTarget;
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`📉 BELOW BASE $${triggerBase.toFixed(2)}: NEW TRIGGER $${this.lastTriggerTarget.toFixed(2)}`);
+            console.log(`🔓 TRIGGER UNLOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} < Unlock $${unlockLevel.toFixed(2)}`);
+            console.log(`🔄 NEW TRIGGER: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
             await this.saveTriggerToFile();
           } else {
-            console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (base $${triggerBase.toFixed(2)})`);
+            console.log(`🔒 TRIGGER STAYS LOCKED: $${this.lastTriggerTarget.toFixed(2)} (unlock at $${unlockLevel.toFixed(2)})`);
           }
           
           console.log(`📈 TRIGGER CHECK:`);
