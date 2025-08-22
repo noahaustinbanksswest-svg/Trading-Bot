@@ -2400,11 +2400,17 @@ class DiscordTradingBot {
           console.log(`🐛 DEBUG: Current portfolio $${currentPortfolioValue.toFixed(2)}, existing trigger: $${this.lastTriggerTarget || 'none'}`);
           console.log(`🐛 DEBUG: Last portfolio was: $${this.lastPortfolioValue || 'none'}`);
           
-          // STEP 1: Initialize trigger if not set
+          // STEP 1: Initialize trigger if not set (load from file first!)
           if (!this.lastTriggerTarget) {
-            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
-            await this.saveTriggerToFile();
+            const loaded = await this.loadTriggerFromFile();
+            if (loaded && loaded.trigger) {
+              this.lastTriggerTarget = loaded.trigger;
+              console.log(`📂 TRIGGER LOADED FROM FILE: $${this.lastTriggerTarget.toFixed(2)}`);
+            } else {
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+              await this.saveTriggerToFile();
+            }
           }
           
           // STEP 2: Only update trigger if portfolio dropped BELOW current trigger
