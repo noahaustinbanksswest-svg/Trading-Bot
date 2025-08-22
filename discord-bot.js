@@ -480,39 +480,10 @@ class DiscordTradingBot {
     this.setupEventHandlers();
     this.registerCommands();
     
-    // Load baseline immediately on startup
-    setTimeout(async () => {
-      console.log(`🔄 LOADING BASELINE ON STARTUP...`);
-      await this.loadBaselineFromDatabase();
-    }, 2000); // Wait 2 seconds for server to be ready
+    // No more baseline loading - using fixed triggers now
   }
 
-  // Load baseline from database on first access
-  async loadBaselineFromDatabase() {
-    if (this.baselineLoaded) return;
-    
-    try {
-      // Use HTTP API to get the persistent baseline
-      const response = await fetch('http://localhost:5000/api/bot/settings/portfolio_baseline');
-      if (response.ok) {
-        const baselineData = await response.json();
-        console.log(`📤 DATABASE RESPONSE:`, baselineData);
-        if (baselineData && typeof baselineData.baseline === 'number') {
-          this.lowestPortfolioValue = baselineData.baseline;
-          console.log(`✅ BASELINE RESTORED FROM DATABASE: $${this.lowestPortfolioValue.toFixed(2)}`);
-        } else {
-          console.log(`⚠️ No valid baseline in database, will initialize on first trade`);
-        }
-      } else {
-        console.log(`⚠️ Database API not available, status: ${response.status}`);
-      }
-      
-      this.baselineLoaded = true;
-    } catch (error) {
-      console.error('⚠️ Failed to load baseline from database:', error.message);
-      this.baselineLoaded = true; // Prevent infinite retries
-    }
-  }
+  // No longer needed - using fixed triggers
 
   // Save baseline to database for persistence across restarts
   async saveBaselineToDatabase() {
