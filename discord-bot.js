@@ -500,8 +500,9 @@ class DiscordTradingBot {
         changed = true;
       } else if (reason === 'trade-reset') {
         // Special case: after trade execution, reset baseline to current value
-        this.lowestPortfolioValue = currentValue;
-        console.log(`🔄 MASTER BASELINE RESET: $${this.lowestPortfolioValue.toFixed(2)} (post-trade)`);
+        // Use parseFloat to ensure precision and avoid floating point drift
+        this.lowestPortfolioValue = parseFloat(currentValue.toFixed(2));
+        console.log(`🔄 MASTER BASELINE RESET: $${this.lowestPortfolioValue.toFixed(2)} (post-trade, precise)`);
         changed = true;
       }
     } finally {
@@ -2333,8 +2334,9 @@ class DiscordTradingBot {
           console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
           
           const baselineValue = this.lowestPortfolioValue; // Use MASTER baseline (smart swing trading)
-          const targetValue = baselineValue + 1.00;
-          const valueIncrease = currentPortfolioValue - baselineValue;
+          // Use precise calculation with fixed precision to avoid floating point errors
+          const targetValue = parseFloat((baselineValue + 1.00).toFixed(2));
+          const valueIncrease = parseFloat((currentPortfolioValue - baselineValue).toFixed(2));
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
           console.log(`🔍 SMART DEBUG: MASTER this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
@@ -2343,8 +2345,9 @@ class DiscordTradingBot {
           console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
           console.log(`   Value Increase: $${valueIncrease.toFixed(2)}`);
           
-          // TRIGGER: Current portfolio value >= smart baseline + $1.00
-          if (currentPortfolioValue >= targetValue) {
+          // TRIGGER: Current portfolio value >= smart baseline + $1.00 (with precision tolerance)
+          const preciseCurrentValue = parseFloat(currentPortfolioValue.toFixed(2));
+          if (preciseCurrentValue >= targetValue) {
             console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
             
