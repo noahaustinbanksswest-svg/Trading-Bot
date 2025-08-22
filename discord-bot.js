@@ -763,7 +763,8 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        const triggerValue = this.lowestPortfolioValue ? this.lowestPortfolioValue + 1.00 : solHolding.value + 1.00;
+        // ALWAYS use smart baseline - no fallback to old logic
+        const triggerValue = (this.lowestPortfolioValue || solHolding.value) + 1.00;
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(triggerValue, 2)}\n` +
@@ -1484,7 +1485,7 @@ class DiscordTradingBot {
       console.log(`🔍 SMART DEBUG: this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
       console.log(`   Baseline (Lowest): $${baselineValue.toFixed(2)}`);
       console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);
-      console.log(`   Target Value: $${targetValue.toFixed(2)} (+$1.00)`);
+      console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
       
       if (currentPortfolioValue >= targetValue) {
         // Execute trade immediately when portfolio value target is hit - NO BASE PROTECTION
@@ -2300,7 +2301,7 @@ class DiscordTradingBot {
           console.log(`🔍 SMART DEBUG: lowestPortfolioValue = ${this.lowestPortfolioValue}`);
           console.log(`   Baseline (Lowest): $${baselineValue.toFixed(2)}`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
-          console.log(`   Target Value: $${targetValue.toFixed(2)} (last + $1.00)`);
+          console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
           console.log(`   Value Increase: $${valueIncrease.toFixed(2)}`);
           
           // TRIGGER: Current portfolio value >= last portfolio value + $1.00
