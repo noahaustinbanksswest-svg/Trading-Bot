@@ -1312,7 +1312,7 @@ class DiscordTradingBot {
           console.error('❌ Price streaming error:', error.message);
         }
       }
-    }, 5000); // Every 5 seconds for price updates (reduce API calls)
+    }, 8000); // Every 8 seconds for price updates (prevent rate limits)
   }
   
   startSwingMonitoring() {
@@ -1321,7 +1321,7 @@ class DiscordTradingBot {
     // Monitor for swing trading opportunities every 3 seconds
     setInterval(async () => {
       await this.checkAutoTradeConditionsRealTime();
-    }, 3000); // Every 3 seconds for swing monitoring (reduce API calls)
+    }, 6000); // Every 6 seconds for swing monitoring (prevent rate limits)
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -2228,14 +2228,11 @@ class DiscordTradingBot {
           console.log(`   Total SOL Impact: ${solAmountToSell.toFixed(8)} + ${feeBufferInSOL.toFixed(8)} = ${totalSOLImpact.toFixed(8)} SOL`);
           console.log(`   After Sale: ${cryptoHolding.amount.toFixed(8)} - ${totalSOLImpact.toFixed(8)} = ${remainingAfterSale.toFixed(8)} SOL`);
           
-          // DYNAMIC SWING TRADING: ALWAYS check swing conditions first
+          // DYNAMIC SWING TRADING: Use existing price history from real-time updates
           if (!this.priceHistory) this.priceHistory = [];
           
-          // Keep last 30 price points (30 seconds of 1-second interval history)
-          this.priceHistory.push(currentPrice);
-          if (this.priceHistory.length > 30) {
-            this.priceHistory.shift();
-          }
+          // Don't duplicate price history - use existing real-time data
+          // (Price history is already maintained in startPriceStreaming)
           
           // Find the lowest price in recent history
           const recentLow = Math.min(...this.priceHistory);
