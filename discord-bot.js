@@ -2314,13 +2314,13 @@ class DiscordTradingBot {
     try {
       const { writeFileSync } = await import('fs');
       const triggerData = {
-        trigger: this.lastTriggerTarget,
+        trigger: this.baselineValue,
         timestamp: Date.now()
       };
       writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
-      console.log(`💾 TRIGGER SAVED: $${this.lastTriggerTarget.toFixed(2)}`);
+      console.log(`💾 BASELINE SAVED: $${this.baselineValue.toFixed(2)}`);
     } catch (error) {
-      console.error('Error saving trigger:', error.message);
+      console.error('Error saving baseline:', error.message);
     }
   }
 
@@ -2417,21 +2417,21 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // INITIALIZE TRIGGER ONCE - LOAD FROM FILE OR SET INITIAL
+          // INITIALIZE BASELINE ONCE - LOAD FROM FILE OR SET INITIAL  
           if (!this.triggerIsInitialized) {
             try {
               const triggerData = await this.loadTriggerFromFile();
               if (triggerData && triggerData.trigger) {
-                this.lastTriggerTarget = triggerData.trigger;
-                console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (loaded from file)`);
+                this.baselineValue = triggerData.trigger;
+                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} (loaded from file)`);
               } else {
-                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-                console.log(`🔒 TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
+                this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
+                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)} (initial baseline)`);
                 await this.saveTriggerToFile();
               }
             } catch (error) {
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
+              this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}`);
               await this.saveTriggerToFile();
             }
             this.triggerIsInitialized = true;
@@ -2439,37 +2439,39 @@ class DiscordTradingBot {
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
-          console.log(`📈 TRIGGER CHECK:`);
-          console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
-          console.log(`   Target Trigger: $${this.lastTriggerTarget.toFixed(2)}`);
+          const triggerValue = this.baselineValue + 1.00;
           
-          // TRIGGER LOCKS! Only resets when portfolio drops below trigger threshold
-          if (currentPortfolioValue < this.lastTriggerTarget) {
-            const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`📉 TRIGGER RESET: Portfolio $${currentPortfolioValue.toFixed(2)} dropped below trigger $${this.lastTriggerTarget.toFixed(2)}`);
-            this.lastTriggerTarget = newTrigger;
-            console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)}`);
+          console.log(`📈 SWING TRADE CHECK:`);
+          console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
+          console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
+          console.log(`   Trigger at: $${triggerValue.toFixed(2)} (baseline + $1.00)`);
+          
+          // Reset baseline if portfolio drops below it
+          if (currentPortfolioValue < this.baselineValue) {
+            console.log(`📉 BASELINE RESET: Portfolio dropped below baseline`);
+            this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
+            console.log(`🔒 NEW BASELINE: $${this.baselineValue.toFixed(2)}`);
             await this.saveTriggerToFile();
           }
-          // SIMPLE TRIGGER: Execute trade if current >= target
-          else if (currentPortfolioValue >= this.lastTriggerTarget) {
-            console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${this.lastTriggerTarget.toFixed(2)}`);
+          // Execute trade if portfolio hits trigger (baseline + $1.00)
+          else if (currentPortfolioValue >= triggerValue) {
+            console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${triggerValue.toFixed(2)}`);
             
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 TRIGGER HIT: Portfolio $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
+            reason = `💰 SWING TRADE: Portfolio hit $${triggerValue.toFixed(2)} - EXECUTING $1 TRADE`;
             
-            // Reset trigger AFTER successful trade
-            console.log(`🔥 TRADE EXECUTING - Will reset trigger after completion`);
+            // Reset baseline AFTER successful trade  
+            console.log(`🔥 TRADE EXECUTING - Will reset baseline after completion`);
             
-            // Schedule trigger reset after trade
+            // Schedule baseline reset after trade
             this.schedulePostTradeReset = true;
             this.postTradePortfolioValue = currentPortfolioValue;
           }
           else {
-            const needed = parseFloat((this.lastTriggerTarget - currentPortfolioValue).toFixed(2));
-            console.log(`⏳ Need $${needed} more to hit trigger $${this.lastTriggerTarget.toFixed(2)}`);
+            const needed = parseFloat((triggerValue - currentPortfolioValue).toFixed(2));
+            console.log(`⏳ Need $${needed} more to hit trigger $${triggerValue.toFixed(2)}`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
