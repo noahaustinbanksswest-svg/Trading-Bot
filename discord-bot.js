@@ -1174,11 +1174,11 @@ class DiscordTradingBot {
       }
 
       const dashboardChannel = guild.channels.cache.find(channel => 
-        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+        channel.name.toLowerCase() === 'new-dashboard' && channel.isTextBased()
       );
 
       if (!dashboardChannel) {
-        console.log('❌ Dashboard channel not found. Create a channel named "dashboard"');
+        console.log('❌ Dashboard channel not found. Create a channel named "new-dashboard"');
         return;
       }
 
@@ -1226,11 +1226,11 @@ class DiscordTradingBot {
       }
 
       const dashboardChannel = guild.channels.cache.find(channel => 
-        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+        channel.name.toLowerCase() === 'new-dashboard' && channel.isTextBased()
       );
 
       if (!dashboardChannel) {
-        console.log('❌ Dashboard channel not found. Create a channel named "dashboard"');
+        console.log('❌ Dashboard channel not found. Create a channel named "new-dashboard"');
         return;
       }
 
@@ -2571,7 +2571,7 @@ class DiscordTradingBot {
     try {
       const guild = this.client.guilds.cache.first();
       const dashboardChannel = guild.channels.cache.find(channel => 
-        channel.name.toLowerCase() === 'dashboard' && channel.isTextBased()
+        channel.name.toLowerCase() === 'new-dashboard' && channel.isTextBased()
       );
 
       if (!dashboardChannel) return;
