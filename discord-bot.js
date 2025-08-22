@@ -461,6 +461,7 @@ class DiscordTradingBot {
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     this.lastPortfolioValue = null; // Track last portfolio value for $1 increments (null = use current value)
+    console.log(`🔥 CONSTRUCTOR: lastPortfolioValue initialized to null`);
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -1470,12 +1471,16 @@ class DiscordTradingBot {
       if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
         this.lastPortfolioValue = currentPortfolioValue;
         console.log(`🎯 REAL-TIME BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
+        console.log(`🚀 REAL-TIME READY FOR TRADING: Next trade will trigger at $${(this.lastPortfolioValue + 1.00).toFixed(2)}`);
+      } else {
+        console.log(`✅ REAL-TIME BASELINE MAINTAINED: Using existing baseline $${this.lastPortfolioValue.toFixed(2)}`);
       }
       
       const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
       const targetValue = baselineValue + 1.00;
       
       console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
+      console.log(`🔍 DEBUG: this.lastPortfolioValue = ${this.lastPortfolioValue}`);
       console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
       console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);
       console.log(`   Target Value: $${targetValue.toFixed(2)} (+$1.00)`);
@@ -2279,6 +2284,9 @@ class DiscordTradingBot {
           if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
             this.lastPortfolioValue = currentPortfolioValue;
             console.log(`🎯 BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
+            console.log(`🚀 READY FOR TRADING: Next trade will trigger at $${(this.lastPortfolioValue + 1.00).toFixed(2)}`);
+          } else {
+            console.log(`✅ BASELINE MAINTAINED: Using existing baseline $${this.lastPortfolioValue.toFixed(2)}`);
           }
           
           const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
@@ -2286,6 +2294,7 @@ class DiscordTradingBot {
           const valueIncrease = currentPortfolioValue - baselineValue;
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
+          console.log(`🔍 DEBUG: this.lastPortfolioValue = ${this.lastPortfolioValue}`);
           console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Value: $${targetValue.toFixed(2)} (last + $1.00)`);
