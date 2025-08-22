@@ -1096,14 +1096,14 @@ class DiscordTradingBot {
         }
       }
       
-      console.log(`🎯 Auto-Update Portfolio Summary:`);
-      console.log(`   USD Balance: $${displayUsdBalance.toFixed(2)}`);
-      console.log(`   Crypto Holdings: ${holdings.length} assets`);
-      console.log(`   Total Portfolio Value: $${totalValue.toFixed(2)}`);
-
       // FORCE CONSISTENT CALCULATION: Use SOL-only value (same as trading logic)
       const solHolding = holdings.find(h => h.currency === 'SOL');
       const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
+      
+      console.log(`🎯 Auto-Update Portfolio Summary:`);
+      console.log(`   USD Balance: $${displayUsdBalance.toFixed(2)}`);
+      console.log(`   Crypto Holdings: ${holdings.length} assets`);
+      console.log(`   CONSISTENT Portfolio Value (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
       const embed = this.createPortfolioEmbed({
         totalValue: consistentTotalValue, // Always SOL-only (matches trading logic exactly)
@@ -1447,15 +1447,14 @@ class DiscordTradingBot {
         }
       }
       
-      console.log(`🎆 TOTAL PORTFOLIO: $${totalValue.toFixed(2)}`);
+      // FORCE CONSISTENT CALCULATION: Use SOL-only (same as trading logic)
+      const solHolding = holdings.find(h => h.currency === 'SOL');
+      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
+      console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
       // Update the Discord embed with fresh data
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
       const message = await channel.messages.fetch(this.dashboardMessageId);
-      
-      // FORCE CONSISTENT CALCULATION: ALWAYS use SOL-only value (same as trading logic)
-      const solHolding = holdings.find(h => h.currency === 'SOL');
-      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       
       const embed = this.createPortfolioEmbed({
         totalValue: consistentTotalValue, // Now always SOL-only value (matches trading logic)
