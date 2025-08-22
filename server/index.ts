@@ -108,12 +108,26 @@ app.use((req, res, next) => {
         return;
       }
       
+      // CRITICAL: Kill all existing processes first to prevent multiples
+      if (botProcess) {
+        log(`🔪 Force killing existing bot process before restart`);
+        botProcess.kill('SIGKILL');
+        botProcess = null;
+      }
+      
       restartCount++;
-      const delay = Math.min(2000 + (restartCount * 1000), 30000); // Faster restart, max 30 seconds
+      const delay = Math.min(5000 + (restartCount * 2000), 60000); // Longer delays to prevent rapid spawning
       
       log(`🔄 Scheduling bot restart (reason: ${reason}, attempt ${restartCount}/${MAX_RESTARTS}) in ${delay}ms...`);
       
       setTimeout(() => {
+        // Double-check no process exists before starting
+        if (botProcess) {
+          log(`⚠️ Bot process still exists, killing again...`);
+          botProcess.kill('SIGKILL');
+          botProcess = null;
+        }
+        
         log(`🚀 Restarting Discord bot (attempt ${restartCount}/${MAX_RESTARTS})...`);
         startBot();
       }, delay);
