@@ -816,6 +816,20 @@ class DiscordTradingBot {
     return (Math.floor(value * multiplier) / multiplier).toFixed(decimals);
   }
 
+  // Helper function to calculate current portfolio value for embed change detection
+  calculateCurrentPortfolioValue() {
+    try {
+      const solBalance = this.realTimeBalances.get('SOL');
+      const solPrice = this.realTimePrices.get('SOL');
+      if (solBalance && solPrice) {
+        return solBalance.amount * solPrice.price;
+      }
+      return 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
   // RESET FUNCTION: Delete old embed and create fresh one with fixed logic
   async resetDashboardEmbed() {
     try {
@@ -854,8 +868,8 @@ class DiscordTradingBot {
       const embed = new EmbedBuilder()
         .setTitle('💰 Live Portfolio Dashboard')
         .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
-        .setTimestamp(new Date()) // Force fresh current timestamp
-        .setFooter({ text: `Live Portfolio • Updated: ${new Date().toLocaleTimeString()}` });
+        .setTimestamp() // Keep same timestamp format to reduce bouncing
+        .setFooter({ text: `Live Portfolio • Real-time Updates` }); // Static footer to prevent bouncing
 
       // Main portfolio info - simplified and safer
       embed.addFields([
@@ -1388,9 +1402,9 @@ class DiscordTradingBot {
   }
   
   startBalanceStreaming() {
-    console.log('💰 Starting balance streaming (EVERY 1 SECOND for real-time trading)...');
+    console.log('💰 Starting balance streaming (every 5 seconds to prevent embed bouncing)...');
     
-    // Fetch fresh balance data every 1 second for REAL-TIME monitoring
+    // Fetch fresh balance data every 5 seconds - balance between speed and visual stability
     setInterval(async () => {
       try {
         const balances = await this.gemini.getBalances();
@@ -1408,9 +1422,14 @@ class DiscordTradingBot {
         this.lastBalanceUpdate = Date.now();
         console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
         
-        // 📺 UPDATE DISCORD EMBED IMMEDIATELY when fresh Gemini data arrives
+        // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          await this.updatePortfolioMessageFromRealTimeData();
+          // Only update if significant change in portfolio value (>$0.05 difference)
+          const newPortfolioValue = this.calculateCurrentPortfolioValue();
+          if (!this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.05) {
+            await this.updatePortfolioMessageFromRealTimeData();
+            this.lastEmbedPortfolioValue = newPortfolioValue;
+          }
         }
         
       } catch (error) {
@@ -1418,7 +1437,7 @@ class DiscordTradingBot {
           console.error('❌ Balance streaming error:', error.message);
         }
       }
-    }, 1000); // Every 1 second for REAL-TIME balance updates
+    }, 5000); // Every 5 seconds to prevent embed bouncing
   }
   
   startPriceStreaming() {
