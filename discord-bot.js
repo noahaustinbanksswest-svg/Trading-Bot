@@ -2398,23 +2398,28 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SIMPLE TRIGGER LOGIC: Set once based on current portfolio, no bouncing
+          // LOAD TRIGGER FROM FILE ONCE - NO MORE BOUNCING
           if (!this.triggerIsInitialized) {
-            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            this.triggerIsInitialized = true;
-            console.log(`🔒 TRIGGER SET TO: $${this.lastTriggerTarget.toFixed(2)} (portfolio + $1.00)`);
-            await this.saveTriggerToFile();
+            try {
+              const triggerData = await this.loadTriggerFromFile();
+              if (triggerData && triggerData.trigger) {
+                this.lastTriggerTarget = triggerData.trigger;
+                console.log(`📂 TRIGGER LOADED FROM FILE: $${this.lastTriggerTarget.toFixed(2)}`);
+              } else {
+                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+                console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)}`);
+                await this.saveTriggerToFile();
+              }
+              this.triggerIsInitialized = true;
+            } catch (error) {
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              this.triggerIsInitialized = true;
+              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
+              await this.saveTriggerToFile();
+            }
           }
           
-          // Only change trigger after successful trade or portfolio drop below unlock level
-          const unlockLevel = this.lastTriggerTarget - 1.00;
-          if (currentPortfolioValue < unlockLevel) {
-            const oldTrigger = this.lastTriggerTarget;
-            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`📉 TRIGGER RESET: Portfolio dropped below $${unlockLevel.toFixed(2)}`);
-            console.log(`🔄 NEW TRIGGER: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
-            await this.saveTriggerToFile();
-          }
+          // NEVER CHANGE TRIGGER - IT'S LOCKED
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
@@ -2429,8 +2434,12 @@ class DiscordTradingBot {
             shouldExecuteTrade = true;
             reason = `💰 TRIGGER HIT: Portfolio $${currentPortfolioValue.toFixed(2)} - EXECUTING $1 TRADE`;
             
-            // Set next trigger AFTER execution (not before)
-            console.log(`🔥 TRADE WILL EXECUTE - Next trigger will be set after trade`);
+            // Reset trigger AFTER successful trade
+            console.log(`🔥 TRADE EXECUTING - Will reset trigger after completion`);
+            
+            // Schedule trigger reset after trade
+            this.schedulePostTradeReset = true;
+            this.postTradePortfolioValue = currentPortfolioValue;
           }
           else {
             const needed = parseFloat((this.lastTriggerTarget - currentPortfolioValue).toFixed(2));
