@@ -2402,10 +2402,10 @@ class DiscordTradingBot {
           }
           
           // FORCE CORRECT BASELINE: Set to historical accurate value
-        if (this.lowestPortfolioValue === null || this.lowestPortfolioValue > 264.04) {
-          this.lowestPortfolioValue = 264.04; // Set to correct historical baseline
+        if (this.lowestPortfolioValue === null || this.lowestPortfolioValue !== 264.31) {
+          this.lowestPortfolioValue = 264.31; // Set to correct historical baseline
           await this.saveBaselineToDatabase();
-          console.log(`🔧 CORRECTED BASELINE TO HISTORICAL VALUE: $264.04`);
+          console.log(`🔧 CORRECTED BASELINE TO HISTORICAL VALUE: $264.31`);
         }
         
         console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
