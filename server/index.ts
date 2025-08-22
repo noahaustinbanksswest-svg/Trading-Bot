@@ -128,6 +128,14 @@ app.use((req, res, next) => {
       
       if (timeSinceLastPing > PING_TIMEOUT && botProcess) {
         log(`⚠️ Bot ping timeout (${timeSinceLastPing}ms since last ping), restarting...`);
+        
+        // CRITICAL: Kill existing bot first to prevent multiple instances
+        if (botProcess) {
+          log(`🔪 Killing existing bot process to prevent duplicates`);
+          botProcess.kill('SIGKILL');
+          botProcess = null;
+        }
+        
         scheduleRestart('ping timeout');
       }
     }, 5000); // Check every 5 seconds

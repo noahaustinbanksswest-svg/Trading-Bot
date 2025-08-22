@@ -474,6 +474,12 @@ class DiscordTradingBot {
 
   async initializePriceHistory() {
     try {
+      // Check if we already have a good price history from a previous session
+      if (this.priceHistory && this.priceHistory.length >= 5) {
+        console.log(`🎯 EXISTING PRICE HISTORY PRESERVED: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
+        return;
+      }
+      
       // Get current SOL price to establish realistic baseline
       const ticker = await this.gemini.getTicker('SOLUSD');
       const currentPrice = parseFloat(ticker.last);
@@ -1325,9 +1331,17 @@ class DiscordTradingBot {
             
             // Add to price history for swing trading (SOL only)
             if (currency === 'SOL') {
-              this.priceHistory.push(price);
-              if (this.priceHistory.length > 60) { // Keep 3 minutes of history at 3-second intervals
-                this.priceHistory.shift();
+              // Only add if price is different from the last recorded price
+              const lastPrice = this.priceHistory[this.priceHistory.length - 1];
+              if (!lastPrice || Math.abs(price - lastPrice) > 0.01) {
+                this.priceHistory.push(price);
+                console.log(`📈 PRICE HISTORY UPDATED: ${price.toFixed(2)} (was ${lastPrice ? lastPrice.toFixed(2) : 'empty'})`);
+                
+                if (this.priceHistory.length > 60) { // Keep 3 minutes of history at 3-second intervals
+                  this.priceHistory.shift();
+                }
+              } else {
+                console.log(`📊 Price unchanged: $${price.toFixed(2)} (not adding duplicate)`);
               }
             }
             
