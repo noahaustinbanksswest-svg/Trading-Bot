@@ -460,7 +460,7 @@ class DiscordTradingBot {
     this.dashboardChannelId = null; // Track dashboard channel
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
-    this.lastTradePrice = 0; // Track last trade price for $1 increments
+    this.lastPortfolioValue = 0; // Track last portfolio value for $1 increments
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -1465,33 +1465,26 @@ class DiscordTradingBot {
       console.log(`   Total Impact: ${totalImpact.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
       console.log(`   After Sale: ${remainingAfterSale.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
       
-      // DYNAMIC SWING TRADING: Use cached price history - always evaluate trades
-      if (this.priceHistory.length < 3) {
-        console.log(`🔄 Building price history... (${this.priceHistory.length}/3 minimum)`);
-        return;
-      }
+      // NEW REAL-TIME PORTFOLIO VALUE MONITORING
+      const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
+      const baselineValue = this.lastPortfolioValue || 273.00;
+      const targetValue = baselineValue + 1.00;
       
-      // Find the lowest price in recent history
-      const recentLow = Math.min(...this.priceHistory);
-      const priceRiseFromLow = currentPrice - recentLow;
+      console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
+      console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
+      console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);
+      console.log(`   Target Value: $${targetValue.toFixed(2)} (+$1.00)`);
       
-      console.log(`📈 REAL-TIME DYNAMIC SWING CHECK:`);
-      console.log(`   Recent Low (${this.priceHistory.length} samples): $${recentLow.toFixed(2)}`);
-      console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
-      console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
-      console.log(`   Swing Trigger: $1.08`);
-      console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
-      
-      if (priceRiseFromLow >= 1.08) {
-        // Execute trade immediately when swing conditions are met - NO BASE PROTECTION
-        console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED! (Base protection DISABLED)`);
-        const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+      if (currentPortfolioValue >= targetValue) {
+        // Execute trade immediately when portfolio value target is hit - NO BASE PROTECTION
+        console.log(`🚨 REAL-TIME VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (Base protection DISABLED)`);
+        const reason = `💰 REAL-TIME PORTFOLIO: ${autoTradeSettings.selectedCrypto} value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
         
         // Execute the trade using existing trade logic
         await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
       } else {
-        const neededRise = 1.08 - priceRiseFromLow;
-        console.log(`🔄 Real-time monitoring: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
+        const neededIncrease = targetValue - currentPortfolioValue;
+        console.log(`🔄 Real-time monitoring: Need $${neededIncrease.toFixed(2)} more portfolio value to reach target $${targetValue.toFixed(2)}`);
       }
       
     } catch (error) {
@@ -2270,31 +2263,32 @@ class DiscordTradingBot {
           // Don't duplicate price history - use existing real-time data
           // (Price history is already maintained in startPriceStreaming)
           
-          // NEW LOGIC: Last trade price + $1.00 trigger (no rolling windows)
-          const baselinePrice = this.lastTradePrice || 180.00; // Use last trade price, or 180 if first trade
-          const targetPrice = baselinePrice + 1.00;
-          const priceRise = currentPrice - baselinePrice;
+          // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
+          const currentPortfolioValue = cryptoHolding.value; // $273.24
+          const baselineValue = this.lastPortfolioValue || 273.00; // Use last portfolio value
+          const targetValue = baselineValue + 1.00;
+          const valueIncrease = currentPortfolioValue - baselineValue;
           
-          console.log(`📈 LAST TRADE PRICE + $1 TRIGGER CHECK:`);
-          console.log(`   Last Trade Price: $${baselinePrice.toFixed(2)}`);
-          console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
-          console.log(`   Target Price: $${targetPrice.toFixed(2)} (last + $1.00)`);
-          console.log(`   Price Rise: $${priceRise.toFixed(2)}`);
+          console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
+          console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
+          console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
+          console.log(`   Target Value: $${targetValue.toFixed(2)} (last + $1.00)`);
+          console.log(`   Value Increase: $${valueIncrease.toFixed(2)}`);
           
-          // TRIGGER: Current price >= last trade price + $1.00
-          if (currentPrice >= targetPrice) {
-            console.log(`🚨 PRICE TARGET HIT! $${currentPrice.toFixed(2)} >= $${targetPrice.toFixed(2)} (+$1.00 from last trade)`);
+          // TRIGGER: Current portfolio value >= last portfolio value + $1.00
+          if (currentPortfolioValue >= targetValue) {
+            console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
             
             // Execute trade immediately - base protection removed
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 PROFIT TARGET: SOL hit $${currentPrice.toFixed(2)} (+$1.00 from last trade at $${baselinePrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+            reason = `💰 PORTFOLIO TARGET: SOL value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from last value $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
             console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
           } else {
-            const neededRise = targetPrice - currentPrice;
-            console.log(`🔄 Waiting for target: Need $${neededRise.toFixed(2)} more rise to reach $${targetPrice.toFixed(2)}`);
-            console.log(`✅ UNRESTRICTED TRADING: Ready to execute at $${targetPrice.toFixed(2)}`);
+            const neededIncrease = targetValue - currentPortfolioValue;
+            console.log(`🔄 Waiting for target: Need $${neededIncrease.toFixed(2)} more portfolio value to reach $${targetValue.toFixed(2)}`);
+            console.log(`✅ UNRESTRICTED TRADING: Ready to execute at $${targetValue.toFixed(2)} portfolio value`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
