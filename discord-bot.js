@@ -2780,10 +2780,19 @@ class DiscordTradingBot {
 
   async start() {
     try {
+      console.log('🔗 Attempting Discord login with token...');
+      if (!BOT_TOKEN) {
+        console.error('❌ DISCORD_BOT_TOKEN is missing!');
+        return;
+      }
+      console.log(`🔑 Token exists: ${BOT_TOKEN.substring(0, 10)}...`);
+      
       await this.client.login(BOT_TOKEN);
-      console.log('🚀 Discord monitoring bot started successfully!');
+      console.log('✅ Discord login attempt completed');
     } catch (error) {
-      console.error('❌ Failed to start bot:', error);
+      console.error('❌ Failed to start Discord bot:', error);
+      console.error('❌ Error details:', error.message);
+      console.error('❌ Error stack:', error.stack);
     }
   }
 }
