@@ -2417,24 +2417,12 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // INITIALIZE TRIGGER ONCE - CHANGES ONLY AFTER SUCCESSFUL TRADES
+          // INITIALIZE TRIGGER ONCE - SYNC TO CURRENT PORTFOLIO + $1.00
           if (!this.triggerIsInitialized) {
-            // Use saved trigger or current portfolio + $1.00
-            try {
-              const triggerData = await this.loadTriggerFromFile();
-              if (triggerData && triggerData.trigger) {
-                this.lastTriggerTarget = triggerData.trigger;
-                console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (from file)`);
-              } else {
-                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-                console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)} (current + $1.00)`);
-                await this.saveTriggerToFile();
-              }
-            } catch (error) {
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
-              await this.saveTriggerToFile();
-            }
+            // FORCE SYNC: Always use current portfolio + $1.00 on startup
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`🔄 TRIGGER SYNCED: $${this.lastTriggerTarget.toFixed(2)} (current $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+            await this.saveTriggerToFile();
             this.triggerIsInitialized = true;
           }
           
