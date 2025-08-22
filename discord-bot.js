@@ -867,13 +867,11 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // READ-ONLY EMBED: Never modify baseline here, only display it
-        // Use current SOL value if baseline not yet set (first-time display only)
-        const currentBaseline = this.lowestPortfolioValue || solHolding.value;
-        const triggerValue = currentBaseline + 1.00;
+        // DISPLAY-ONLY: Use actual trigger value from trading logic, never calculate here
+        const displayTrigger = this.lastTriggerTarget || (solHolding.value + 1.00);
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
-                       `🎯 **Next Trigger**: $${this.truncateToFixed(triggerValue, 2)}\n` +
+                       `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
                        `💲 **Current Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
         
         embed.addFields({ 
@@ -2399,6 +2397,7 @@ class DiscordTradingBot {
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
           // SMART TRIGGER LOGIC: Always exactly $1 above current, but only moves down
+          console.log(`🐛 DEBUG: Entering trigger logic with portfolio $${currentPortfolioValue.toFixed(2)}`);
           if (!this.lastPortfolioValue) {
             // First time: load existing trigger or set new one
             const loaded = await this.loadTriggerFromFile();
