@@ -783,8 +783,8 @@ class DiscordTradingBot {
       const embed = new EmbedBuilder()
         .setTitle('💰 Live Portfolio Dashboard')
         .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
-        .setTimestamp()
-        .setFooter({ text: 'Live Portfolio • Auto-updating' });
+        .setTimestamp(new Date()) // Force fresh current timestamp
+        .setFooter({ text: `Live Portfolio • Updated: ${new Date().toLocaleTimeString()}` });
 
       // Main portfolio info - simplified and safer
       embed.addFields([
@@ -815,7 +815,7 @@ class DiscordTradingBot {
       // Auto-trade status
       const autoTradeInfo = `🤖 **Auto Trade**: ${autoTradeSettings.enabled ? '✅ ACTIVE' : '❌ DISABLED'}\n` +
                            `📊 **Daily Spent**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
-                           `⏰ **Updated**: ${new Date().toLocaleTimeString()}`;
+                           `⏰ **Updated**: ${new Date().toLocaleTimeString()} (LIVE)`;
 
       embed.addFields({ 
         name: '🔧 Auto Trade Status', 
@@ -966,7 +966,7 @@ class DiscordTradingBot {
         });
       }
 
-      embed.setTimestamp(dailyBuyData.lastUpdate);
+      embed.setTimestamp(); // Use current time instead of cached timestamp
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
