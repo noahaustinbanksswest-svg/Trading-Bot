@@ -1521,22 +1521,7 @@ class DiscordTradingBot {
       const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
-      // 🛡️ ANTI-BOUNCE PROTECTION: Only update embed if change is significant
-      if (!this.lastEmbedValue) {
-        this.lastEmbedValue = consistentTotalValue;
-      }
-      
-      const valueChange = Math.abs(consistentTotalValue - this.lastEmbedValue);
-      const SIGNIFICANT_CHANGE_THRESHOLD = 0.10; // Only update if change >$0.10
-      
-      if (valueChange < SIGNIFICANT_CHANGE_THRESHOLD) {
-        console.log(`🔒 EMBED STABLE: Change $${valueChange.toFixed(2)} < $${SIGNIFICANT_CHANGE_THRESHOLD} threshold - no update`);
-        return;
-      }
-      
-      // Significant change detected - update embed
-      console.log(`📈 SIGNIFICANT CHANGE: $${valueChange.toFixed(2)} > $${SIGNIFICANT_CHANGE_THRESHOLD} - updating embed`);
-      this.lastEmbedValue = consistentTotalValue;
+      // ⚡ REAL-TIME UPDATES: Always update for live portfolio tracking
       
       // Update the Discord embed with fresh data
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
@@ -2413,27 +2398,40 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // BULLETPROOF LOCK: Set once, never change unless explicit condition met
+          // TRIGGER LOGIC: Initialize once, update on sale completion OR portfolio drop
           if (!this.triggerIsInitialized) {
-            // Load trigger ONCE at startup
             this.lastTriggerTarget = 274.61; // YOUR LOCKED VALUE
+            this.lastKnownSOLAmount = cryptoHolding.amount; // Track SOL amount for sale detection
             this.triggerIsInitialized = true;
-            console.log(`🔒 TRIGGER LOCKED AT: $${this.lastTriggerTarget.toFixed(2)}`);
+            console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)}`);
           }
           
-          // Calculate trigger base (portfolio level that unlocks trigger)
-          const unlockLevel = this.lastTriggerTarget - 1.00; // $273.61
+          // DETECT SALE: Check if SOL amount decreased (indicating a sale happened)
+          const currentSOLAmount = cryptoHolding.amount;
+          const solDecrease = this.lastKnownSOLAmount - currentSOLAmount;
           
-          // ONLY unlock if portfolio drops below unlock level
-          if (currentPortfolioValue < unlockLevel) {
+          if (solDecrease > 0.001) { // Sale detected (more than 0.001 SOL decrease)
             const oldTrigger = this.lastTriggerTarget;
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🔓 TRIGGER UNLOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} < Unlock $${unlockLevel.toFixed(2)}`);
-            console.log(`🔄 NEW TRIGGER: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
+            console.log(`💰 SALE DETECTED: SOL decreased by ${solDecrease.toFixed(6)}`);
+            console.log(`🔄 TRIGGER RESET AFTER SALE: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
             await this.saveTriggerToFile();
           } else {
-            console.log(`🔒 TRIGGER STAYS LOCKED: $${this.lastTriggerTarget.toFixed(2)} (unlock at $${unlockLevel.toFixed(2)})`);
+            // No sale - check for portfolio drop below trigger base
+            const unlockLevel = this.lastTriggerTarget - 1.00;
+            if (currentPortfolioValue < unlockLevel) {
+              const oldTrigger = this.lastTriggerTarget;
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`📉 PORTFOLIO DROPPED: Below unlock level $${unlockLevel.toFixed(2)}`);
+              console.log(`🔄 TRIGGER RESET: $${oldTrigger.toFixed(2)} → $${this.lastTriggerTarget.toFixed(2)}`);
+              await this.saveTriggerToFile();
+            } else {
+              console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (unlock at $${unlockLevel.toFixed(2)})`);
+            }
           }
+          
+          // Update SOL amount tracking for next cycle
+          this.lastKnownSOLAmount = currentSOLAmount;
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
