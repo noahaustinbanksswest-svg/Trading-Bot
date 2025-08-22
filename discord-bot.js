@@ -2401,12 +2401,19 @@ class DiscordTradingBot {
             await this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
           }
           
-          console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
+          // FORCE CORRECT BASELINE: Set to historical accurate value
+        if (this.lowestPortfolioValue === null || this.lowestPortfolioValue > 264.04) {
+          this.lowestPortfolioValue = 264.04; // Set to correct historical baseline
+          await this.saveBaselineToDatabase();
+          console.log(`🔧 CORRECTED BASELINE TO HISTORICAL VALUE: $264.04`);
+        }
+        
+        console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
           
-          const baselineValue = this.lowestPortfolioValue; // Use MASTER baseline (smart swing trading)
-          // Use precise calculation with fixed precision to avoid floating point errors
-          const targetValue = parseFloat((baselineValue + 1.00).toFixed(2));
-          const valueIncrease = parseFloat((currentPortfolioValue - baselineValue).toFixed(2));
+        const baselineValue = this.lowestPortfolioValue; // Use MASTER baseline (smart swing trading)
+        // Use precise calculation with fixed precision to avoid floating point errors
+        const targetValue = parseFloat((baselineValue + 1.00).toFixed(2));
+        const valueIncrease = parseFloat((currentPortfolioValue - baselineValue).toFixed(2));
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
           console.log(`🔍 SMART DEBUG: MASTER this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
