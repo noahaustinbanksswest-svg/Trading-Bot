@@ -461,10 +461,11 @@ class DiscordTradingBot {
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     this.lastPortfolioValue = null; // Track last portfolio value for $1 increments (null = use current value)
+    this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
     this.priceHistory = []; // Clear price history cache
     this.realTimeBalances = new Map(); // Clear balance cache
     this.livePrices = new Map(); // Clear price cache
-    console.log(`🔥 CONSTRUCTOR: All caches cleared, lastPortfolioValue initialized to null`);
+    console.log(`🔥 CONSTRUCTOR: All caches cleared, smart baseline tracking initialized`);
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -1465,16 +1466,18 @@ class DiscordTradingBot {
       // NEW REAL-TIME PORTFOLIO VALUE MONITORING
       const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
       
-      // CRITICAL FIX: Only set baseline ONCE, not every cycle!
-      if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
-        this.lastPortfolioValue = currentPortfolioValue;
-        console.log(`🎯 REAL-TIME BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
-        console.log(`🚀 REAL-TIME READY FOR TRADING: Next trade will trigger at $${(this.lastPortfolioValue + 1.00).toFixed(2)}`);
-      } else {
-        console.log(`✅ REAL-TIME BASELINE MAINTAINED: Using existing baseline $${this.lastPortfolioValue.toFixed(2)}`);
+      // SMART BASELINE: Track the LOWEST portfolio value (dynamic swing trading)
+      if (this.lowestPortfolioValue === null || this.lowestPortfolioValue === undefined) {
+        this.lowestPortfolioValue = currentPortfolioValue;
+        console.log(`🎯 REAL-TIME SMART BASELINE INITIALIZED: $${this.lowestPortfolioValue.toFixed(2)}`);
+      } else if (currentPortfolioValue < this.lowestPortfolioValue) {
+        this.lowestPortfolioValue = currentPortfolioValue;
+        console.log(`📉 REAL-TIME NEW LOW: Baseline updated to $${this.lowestPortfolioValue.toFixed(2)}`);
       }
       
-      const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
+      console.log(`🧠 REAL-TIME SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
+      
+      const baselineValue = this.lowestPortfolioValue; // Use LOWEST value as baseline (smart swing trading)
       const targetValue = baselineValue + 1.00;
       
       console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
@@ -1488,9 +1491,9 @@ class DiscordTradingBot {
         console.log(`🚨 REAL-TIME VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (Base protection DISABLED)`);
         const reason = `💰 REAL-TIME PORTFOLIO: ${autoTradeSettings.selectedCrypto} value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
         
-        // CRITICAL: Update baseline ONLY after trigger
-        console.log(`🔥 REAL-TIME UPDATING BASELINE: $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
-        this.lastPortfolioValue = currentPortfolioValue; // Update baseline for next cycle
+        // SMART UPDATE: Set new lowest baseline after successful trade  
+        console.log(`🔥 REAL-TIME TRADE EXECUTED: New lowest baseline $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+        this.lowestPortfolioValue = currentPortfolioValue; // Reset to current value after trade
         
         // Execute the trade using existing trade logic
         await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
@@ -2278,16 +2281,18 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // CRITICAL FIX: Only set baseline ONCE, not every cycle!
-          if (this.lastPortfolioValue === null || this.lastPortfolioValue === undefined) {
-            this.lastPortfolioValue = currentPortfolioValue;
-            console.log(`🎯 BASELINE SET: Initial baseline set to $${this.lastPortfolioValue.toFixed(2)}`);
-            console.log(`🚀 READY FOR TRADING: Next trade will trigger at $${(this.lastPortfolioValue + 1.00).toFixed(2)}`);
-          } else {
-            console.log(`✅ BASELINE MAINTAINED: Using existing baseline $${this.lastPortfolioValue.toFixed(2)}`);
+          // SMART BASELINE: Track the LOWEST portfolio value (dynamic swing trading)
+          if (this.lowestPortfolioValue === null || this.lowestPortfolioValue === undefined) {
+            this.lowestPortfolioValue = currentPortfolioValue;
+            console.log(`🎯 SMART BASELINE INITIALIZED: $${this.lowestPortfolioValue.toFixed(2)}`);
+          } else if (currentPortfolioValue < this.lowestPortfolioValue) {
+            this.lowestPortfolioValue = currentPortfolioValue;
+            console.log(`📉 NEW LOW DETECTED: Baseline updated to $${this.lowestPortfolioValue.toFixed(2)}`);
           }
           
-          const baselineValue = this.lastPortfolioValue; // Use FIXED baseline, don't reset!
+          console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
+          
+          const baselineValue = this.lowestPortfolioValue; // Use LOWEST value as baseline (smart swing trading)
           const targetValue = baselineValue + 1.00;
           const valueIncrease = currentPortfolioValue - baselineValue;
           
@@ -2303,9 +2308,9 @@ class DiscordTradingBot {
             console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
             
-            // CRITICAL: Update baseline ONLY after trigger (not before)
-            console.log(`🔥 UPDATING BASELINE: $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
-            this.lastPortfolioValue = currentPortfolioValue; // Update baseline for next cycle
+            // SMART UPDATE: Set new lowest baseline after successful trade
+            console.log(`🔥 TRADE EXECUTED: New lowest baseline $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+            this.lowestPortfolioValue = currentPortfolioValue; // Reset to current value after trade
             
             // Execute trade immediately - base protection removed
             autoTradeSettings.conditions.portfolioValueReached = true;
