@@ -1568,9 +1568,8 @@ class DiscordTradingBot {
         console.log(`🔥 REAL-TIME TRADE EXECUTED: New lowest baseline $${baselineValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
         this.updateSmartBaseline(currentPortfolioValue, 'trade-reset'); // Reset baseline after trade
         
-        // Execute the trade using existing trade logic
-        // Use unified trading execution to prevent duplicate orders
-        await this.executeAutoTrade(`Real-time trigger: ${reason}`);
+        // DISABLED: Prevent duplicate execution - main path handles all trades
+        console.log(`⚠️ REAL-TIME PATH DISABLED - Using main trading path only to prevent duplicates`);
       } else {
         const neededIncrease = targetValue - currentPortfolioValue;
         console.log(`🔄 Real-time monitoring: Need $${neededIncrease.toFixed(2)} more portfolio value to reach target $${targetValue.toFixed(2)}`);
