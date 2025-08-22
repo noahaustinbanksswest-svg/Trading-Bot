@@ -460,7 +460,7 @@ class DiscordTradingBot {
     this.dashboardChannelId = null; // Track dashboard channel
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
-    this.lastPortfolioValue = null; // Track last portfolio value for $1 increments (null = use current value)
+    // REMOVED: Old tracking system completely eliminated
     this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
     this.priceHistory = []; // Clear price history cache
     this.realTimeBalances = new Map(); // Clear balance cache
@@ -1414,8 +1414,12 @@ class DiscordTradingBot {
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
       const message = await channel.messages.fetch(this.dashboardMessageId);
       
+      // CONSISTENT TRACKING: Use SOL value only (same as trading logic) to prevent bouncing
+      const solHolding = holdings.find(h => h.currency === 'SOL');
+      const consistentTotalValue = solHolding ? solHolding.value + displayUsdBalance : displayUsdBalance;
+      
       const embed = this.createPortfolioEmbed({
-        totalValue: totalValue,
+        totalValue: consistentTotalValue,
         usdBalance: displayUsdBalance,
         holdings: holdings
       });
@@ -2304,7 +2308,7 @@ class DiscordTradingBot {
           console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
           console.log(`   Value Increase: $${valueIncrease.toFixed(2)}`);
           
-          // TRIGGER: Current portfolio value >= last portfolio value + $1.00
+          // TRIGGER: Current portfolio value >= smart baseline + $1.00
           if (currentPortfolioValue >= targetValue) {
             console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
@@ -2316,7 +2320,7 @@ class DiscordTradingBot {
             // Execute trade immediately - base protection removed
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `💰 PORTFOLIO TARGET: SOL value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from last value $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
+            reason = `💰 PORTFOLIO TARGET: SOL value hit $${currentPortfolioValue.toFixed(2)} (+$1.00 from baseline $${baselineValue.toFixed(2)}) - EXECUTING $1 TRADE`;
             console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
           } else {
             const neededIncrease = targetValue - currentPortfolioValue;
@@ -2455,7 +2459,7 @@ class DiscordTradingBot {
         
         // CRITICAL: Record trade time for cooldown AND trade price for next trigger
         this.lastTradeTime = Date.now();
-        this.lastTradePrice = currentPrice; // Set new baseline for next $1 increment
+        // REMOVED: Old price tracking system
         console.log(`🎯 NEW BASELINE SET: Next trade will trigger at $${(currentPrice + 1.00).toFixed(2)}`);
         
         sellOrders.push({
