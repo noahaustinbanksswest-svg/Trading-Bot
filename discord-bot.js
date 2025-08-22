@@ -912,12 +912,13 @@ class DiscordTradingBot {
       return embed;
     } catch (error) {
       console.error('❌ Error creating portfolio embed:', error);
-      // Return simple fallback embed
+      // Return fallback embed that matches the main format to prevent bouncing
       return new EmbedBuilder()
-        .setTitle('💰 Portfolio Dashboard')
-        .setDescription('⚠️ Embed display error - please refresh')
+        .setTitle('💰 Live Portfolio Dashboard')
+        .setDescription('⚠️ Loading portfolio data...')
         .setColor(0xFF9800)
-        .setTimestamp();
+        .setTimestamp()
+        .setFooter({ text: `Live Portfolio • Real-time Updates` });
     }
   }
 
@@ -1340,7 +1341,7 @@ class DiscordTradingBot {
               currency: balance.currency,
               amount: amount,
               price: currentPrice,
-              value: truncatedValue,
+              value: value,
               change: change
             });
           } catch (error) {
