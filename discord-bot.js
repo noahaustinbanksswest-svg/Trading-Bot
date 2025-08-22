@@ -2367,10 +2367,13 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SMART TRIGGER LOGIC: Lock on gains, unlock on drops
+          // PERSISTENT TRIGGER LOGIC: Load from file, survives restarts
+          await this.loadTriggerFromFile();
+          
           if (!this.lastTriggerTarget) {
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
             console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
+            await this.saveTriggerToFile();
           } else {
             // UNLOCK TRIGGER: If portfolio drops significantly below trigger, reset it
             const triggerGap = this.lastTriggerTarget - currentPortfolioValue;
@@ -2379,6 +2382,7 @@ class DiscordTradingBot {
               console.log(`🔓 TRIGGER UNLOCKED: Portfolio dropped to $${currentPortfolioValue.toFixed(2)}, old trigger $${this.lastTriggerTarget.toFixed(2)} too high`);
               this.lastTriggerTarget = newTrigger;
               console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (reset after drop)`);
+              await this.saveTriggerToFile();
             }
           }
           
@@ -2438,6 +2442,7 @@ class DiscordTradingBot {
             const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
             this.lastTriggerTarget = newTrigger;
             console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
+            await this.saveTriggerToFile();
           }
         }
       } else {
