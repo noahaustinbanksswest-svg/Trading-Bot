@@ -1408,7 +1408,7 @@ class DiscordTradingBot {
         this.lastBalanceUpdate = Date.now();
         console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
         
-        // Trigger immediate portfolio update with fresh data
+        // 📺 UPDATE DISCORD EMBED IMMEDIATELY when fresh Gemini data arrives
         if (this.dashboardMessageId && this.dashboardChannelId) {
           await this.updatePortfolioMessageFromRealTimeData();
         }
@@ -1462,11 +1462,6 @@ class DiscordTradingBot {
         
         this.lastPriceUpdate = Date.now();
         console.log('🚀 LIVE PRICES UPDATED:', Array.from(this.realTimePrices.keys()));
-        
-        // 📺 UPDATE DISCORD EMBED ON PRICE CHANGES (real-time portfolio value)
-        if (this.dashboardMessageId && this.dashboardChannelId) {
-          await this.updatePortfolioMessageFromRealTimeData();
-        }
         
       } catch (error) {
         if (!error.message.includes('429')) {
