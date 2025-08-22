@@ -462,6 +462,7 @@ class DiscordTradingBot {
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     // REMOVED: Old tracking system completely eliminated
     this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
+    this.baselineLoaded = false; // Flag to ensure we load baseline from database first
     this._baselineUpdating = false; // Prevent race conditions
     this.priceHistory = []; // Clear price history cache
     this.realTimeBalances = new Map(); // Clear balance cache
@@ -479,8 +480,54 @@ class DiscordTradingBot {
     this.registerCommands();
   }
 
+  // Load baseline from database on first access
+  async loadBaselineFromDatabase() {
+    if (this.baselineLoaded) return;
+    
+    try {
+      // Use HTTP API to get the persistent baseline
+      const response = await fetch('http://localhost:5000/api/bot/settings/portfolio_baseline');
+      if (response.ok) {
+        const baselineData = await response.json();
+        if (baselineData && typeof baselineData.baseline === 'number') {
+          this.lowestPortfolioValue = baselineData.baseline;
+          console.log(`📤 BASELINE RESTORED FROM DATABASE: $${this.lowestPortfolioValue.toFixed(2)}`);
+        }
+      }
+      
+      this.baselineLoaded = true;
+    } catch (error) {
+      console.error('⚠️ Failed to load baseline from database:', error);
+      this.baselineLoaded = true; // Prevent infinite retries
+    }
+  }
+
+  // Save baseline to database for persistence across restarts
+  async saveBaselineToDatabase() {
+    try {
+      if (this.lowestPortfolioValue !== null) {
+        const response = await fetch('http://localhost:5000/api/bot/settings/portfolio_baseline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            value: {
+              baseline: this.lowestPortfolioValue,
+              lastUpdated: new Date().toISOString()
+            }
+          })
+        });
+        
+        if (response.ok) {
+          console.log(`💾 BASELINE SAVED TO DATABASE: $${this.lowestPortfolioValue.toFixed(2)}`);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to save baseline to database:', error);
+    }
+  }
+
   // SINGLE AUTHORITATIVE BASELINE MANAGER - ONLY function allowed to modify baseline
-  updateSmartBaseline(currentValue, reason = 'update') {
+  async updateSmartBaseline(currentValue, reason = 'update') {
     // Prevent multiple simultaneous updates
     if (this._baselineUpdating) {
       return false;
@@ -503,8 +550,15 @@ class DiscordTradingBot {
         this.lowestPortfolioValue = parseFloat(currentValue.toFixed(2));
         console.log(`🔄 MASTER BASELINE RESET: $${this.lowestPortfolioValue.toFixed(2)} (post-trade) - LOCKED`);
         changed = true;
+        // Save to database after successful trade reset
+        await this.saveBaselineToDatabase();
       } else {
         console.log(`🔒 BASELINE LOCKED: Current $${currentValue.toFixed(2)} vs Locked $${this.lowestPortfolioValue.toFixed(2)} (${reason})`);
+      }
+      
+      // Save baseline changes to database
+      if (changed) {
+        await this.saveBaselineToDatabase();
       }
     } finally {
       this._baselineUpdating = false;
@@ -2328,9 +2382,10 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SMART BASELINE: Only update if truly lower, NEVER reset during regular checks
+          // SMART BASELINE: Load from database first, then only update if truly lower
+          await this.loadBaselineFromDatabase();
           if (this.lowestPortfolioValue === null || currentPortfolioValue < this.lowestPortfolioValue) {
-            this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
+            await this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
           }
           
           console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
