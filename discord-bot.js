@@ -2417,12 +2417,23 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // INITIALIZE TRIGGER ONCE - SYNC TO CURRENT PORTFOLIO + $1.00
+          // INITIALIZE TRIGGER ONCE - LOAD FROM FILE OR SET INITIAL
           if (!this.triggerIsInitialized) {
-            // FORCE SYNC: Always use current portfolio + $1.00 on startup
-            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🔄 TRIGGER SYNCED: $${this.lastTriggerTarget.toFixed(2)} (current $${currentPortfolioValue.toFixed(2)} + $1.00)`);
-            await this.saveTriggerToFile();
+            try {
+              const triggerData = await this.loadTriggerFromFile();
+              if (triggerData && triggerData.trigger) {
+                this.lastTriggerTarget = triggerData.trigger;
+                console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (loaded from file)`);
+              } else {
+                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+                console.log(`🔒 TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
+                await this.saveTriggerToFile();
+              }
+            } catch (error) {
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
+              await this.saveTriggerToFile();
+            }
             this.triggerIsInitialized = true;
           }
           
@@ -2432,12 +2443,12 @@ class DiscordTradingBot {
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Trigger: $${this.lastTriggerTarget.toFixed(2)}`);
           
-          // TRIGGER LOCKS! Only resets on significant drops (>$0.50 below trigger)
-          if (currentPortfolioValue < (this.lastTriggerTarget - 0.50)) {
+          // TRIGGER LOCKS! Only resets when portfolio drops below trigger threshold
+          if (currentPortfolioValue < this.lastTriggerTarget) {
             const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`📉 TRIGGER RESET: Portfolio $${currentPortfolioValue.toFixed(2)} dropped below trigger $${this.lastTriggerTarget.toFixed(2)}`);
             this.lastTriggerTarget = newTrigger;
-            console.log(`📉 TRIGGER RESET: Portfolio dropped significantly below trigger`);
-            console.log(`   New Trigger: $${newTrigger.toFixed(2)} (current portfolio + $1.00)`);
+            console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)}`);
             await this.saveTriggerToFile();
           }
           // SIMPLE TRIGGER: Execute trade if current >= target
