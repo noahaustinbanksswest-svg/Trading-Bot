@@ -2398,34 +2398,32 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // BULLETPROOF TRIGGER LOGIC: Set once, stay locked
-          if (!this.triggerLocked) {
-            // Try to load existing trigger
+          // SMART TRIGGER LOGIC: Always exactly $1 above current, but only moves down
+          if (!this.lastPortfolioValue) {
+            // First time: load existing trigger or set new one
             const loaded = await this.loadTriggerFromFile();
             
             if (!loaded || !this.lastTriggerTarget) {
-              // Set new trigger: current portfolio + exactly $1.00
               this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`🔒 TRIGGER SET & LOCKED: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+              console.log(`🔒 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
               await this.saveTriggerToFile();
             } else {
-              console.log(`📂 EXISTING TRIGGER LOADED & LOCKED: $${this.lastTriggerTarget.toFixed(2)}`);
+              console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)}`);
             }
-            
-            // LOCK THE TRIGGER - will never change except for unlock conditions
-            this.triggerLocked = true;
-            console.log(`🔐 TRIGGER PERMANENTLY LOCKED until hit or significant drop`);
-          }
-          
-          // ONLY check for unlock if trigger is locked
-          if (this.triggerLocked && this.lastTriggerTarget) {
-            const triggerGap = this.lastTriggerTarget - currentPortfolioValue;
-            if (triggerGap > 2.00) {
-              console.log(`🔓 TRIGGER UNLOCK CONDITION: Portfolio $${currentPortfolioValue.toFixed(2)} is $${triggerGap.toFixed(2)} below trigger $${this.lastTriggerTarget.toFixed(2)}`);
+            this.lastPortfolioValue = currentPortfolioValue;
+          } else {
+            // Check if portfolio dropped from last time
+            if (currentPortfolioValue < this.lastPortfolioValue) {
+              // Portfolio dropped - recalculate trigger to current + $1.00
               this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`🔒 NEW TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+              console.log(`📉 PORTFOLIO DROPPED: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+              console.log(`🔄 TRIGGER UPDATED: $${this.lastTriggerTarget.toFixed(2)} (new portfolio + $1.00)`);
               await this.saveTriggerToFile();
+            } else if (currentPortfolioValue > this.lastPortfolioValue) {
+              console.log(`📈 PORTFOLIO RISING: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)} (trigger stays locked)`);
             }
+            // Update last portfolio value for next comparison
+            this.lastPortfolioValue = currentPortfolioValue;
           }
           
           console.log(`📈 TRIGGER CHECK:`);
