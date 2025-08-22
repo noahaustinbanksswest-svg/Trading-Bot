@@ -1382,7 +1382,7 @@ class DiscordTradingBot {
 
   async checkAutoTradeConditionsRealTime() {
     try {
-      const autoTradeSettings = await storage.getAutoTradeSettings();
+      // Use the global autoTradeSettings variable instead of storage
       if (!autoTradeSettings || !autoTradeSettings.enabled || !autoTradeSettings.selectedCrypto) {
         return;
       }
