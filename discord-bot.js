@@ -2395,18 +2395,8 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SMART BASELINE: Load from database first, then only update if truly lower
-          await this.loadBaselineFromDatabase();
-          if (this.lowestPortfolioValue === null || currentPortfolioValue < this.lowestPortfolioValue) {
-            await this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
-          }
-          
-          // FORCE CORRECT BASELINE: Set to historical accurate value
-        if (this.lowestPortfolioValue === null || this.lowestPortfolioValue !== 264.31) {
-          this.lowestPortfolioValue = 264.31; // Set to correct historical baseline
-          await this.saveBaselineToDatabase();
-          console.log(`🔧 CORRECTED BASELINE TO HISTORICAL VALUE: $264.31`);
-        }
+          // LOCKED BASELINE: Fixed value, no more bouncing
+          this.lowestPortfolioValue = 264.31; // LOCKED to historical baseline
         
         console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
           
