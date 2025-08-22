@@ -1464,37 +1464,37 @@ class DiscordTradingBot {
       console.log(`   Total Impact: ${totalImpact.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
       console.log(`   After Sale: ${remainingAfterSale.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
       
-      if (currentAmount > autoTradeSettings.stopAtLoss) {
-        // DYNAMIC SWING TRADING: Use cached price history
-        if (this.priceHistory.length < 3) {
-          console.log(`🔄 Building price history... (${this.priceHistory.length}/3 minimum)`);
-          return;
-        }
-        
-        // Find the lowest price in recent history
-        const recentLow = Math.min(...this.priceHistory);
-        const priceRiseFromLow = currentPrice - recentLow;
-        
-        console.log(`📈 REAL-TIME DYNAMIC SWING CHECK:`);
-        console.log(`   Recent Low (${this.priceHistory.length} samples): $${recentLow.toFixed(2)}`);
-        console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
-        console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
-        console.log(`   Swing Trigger: $1.08`);
-        console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
-        
-        if (priceRiseFromLow >= 1.08) {
+      // DYNAMIC SWING TRADING: Use cached price history - always evaluate trades
+      if (this.priceHistory.length < 3) {
+        console.log(`🔄 Building price history... (${this.priceHistory.length}/3 minimum)`);
+        return;
+      }
+      
+      // Find the lowest price in recent history
+      const recentLow = Math.min(...this.priceHistory);
+      const priceRiseFromLow = currentPrice - recentLow;
+      
+      console.log(`📈 REAL-TIME DYNAMIC SWING CHECK:`);
+      console.log(`   Recent Low (${this.priceHistory.length} samples): $${recentLow.toFixed(2)}`);
+      console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
+      console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
+      console.log(`   Swing Trigger: $1.08`);
+      console.log(`   Recent Prices: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
+      
+      if (priceRiseFromLow >= 1.08) {
+        // Check if this specific trade would breach base protection
+        if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
           console.log(`🚨 REAL-TIME SWING TRADE TRIGGERED!`);
           const reason = `🌊 REAL-TIME SWING: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
           
           // Execute the trade using existing trade logic
           await this.executeAutoTrade(autoTradeSettings.selectedCrypto, 1.0, reason);
-          
         } else {
-          const neededRise = 1.08 - priceRiseFromLow;
-          console.log(`🔄 Real-time monitoring: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
+          console.log(`🛡️ SWING BLOCKED: Trade would breach base protection (${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss})`);
         }
       } else {
-        console.log(`🛡️ TRADING STOPPED: ${autoTradeSettings.selectedCrypto} reached base protection limit (${currentAmount.toFixed(8)} <= ${autoTradeSettings.stopAtLoss})`);
+        const neededRise = 1.08 - priceRiseFromLow;
+        console.log(`🔄 Real-time monitoring: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
       }
       
     } catch (error) {
@@ -2241,17 +2241,7 @@ class DiscordTradingBot {
           // Get current price for the crypto (fix property name)
           const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
           
-          // CRITICAL PRIMARY CHECK: Are we already below base protection?
-          if (cryptoHolding.amount < autoTradeSettings.stopAtLoss) {
-            console.log(`🚨 BELOW BASE PROTECTION!`);
-            console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)} SOL`);
-            console.log(`   Base Protection Level: ${autoTradeSettings.stopAtLoss} SOL`);
-            console.log(`   Deficit: ${(autoTradeSettings.stopAtLoss - cryptoHolding.amount).toFixed(8)} SOL`);
-            console.log(`   🛑 ALL TRADING STOPPED - Must buy more ${autoTradeSettings.selectedCrypto} to restore base`);
-            return; // Exit immediately - no trades allowed when below base
-          }
-          
-          console.log(`✅ Base Protection Status: ${cryptoHolding.amount.toFixed(8)} >= ${autoTradeSettings.stopAtLoss} SOL - Safe to evaluate trades`);
+          console.log(`✅ Base Protection Status: ${cryptoHolding.amount.toFixed(8)} SOL vs ${autoTradeSettings.stopAtLoss} SOL protection - Evaluating individual trades`);
           
           // Calculate $1 USD trade impact INCLUDING post-execution fee deduction
           const tradeAmountUSD = 1.00; // $1 USD trade
@@ -2301,14 +2291,14 @@ class DiscordTradingBot {
             // NOW check base protection for this swing trade
             console.log(`🔍 Base Protection Check: Current SOL ${cryptoHolding.amount.toFixed(8)} > ${autoTradeSettings.stopAtLoss} = ${cryptoHolding.amount > autoTradeSettings.stopAtLoss}`);
             
-            if (cryptoHolding.amount > autoTradeSettings.stopAtLoss) {
+            if (remainingAfterSale >= autoTradeSettings.stopAtLoss) {
               // BOTH conditions met - execute trade!
               autoTradeSettings.conditions.portfolioValueReached = true;
               shouldExecuteTrade = true;
               reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
               console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
             } else {
-              console.log(`🛡️ TRADING STOPPED: ${autoTradeSettings.selectedCrypto} reached base protection limit (${cryptoHolding.amount.toFixed(8)} <= ${autoTradeSettings.stopAtLoss})`);
+              console.log(`🛡️ SWING BLOCKED: Trade would breach base protection (${remainingAfterSale.toFixed(8)} < ${autoTradeSettings.stopAtLoss})`);
             }
           } else {
             const neededRise = 1.08 - priceRiseFromLow;
