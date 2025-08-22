@@ -2396,34 +2396,30 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SMART TRIGGER LOGIC: Always exactly $1 above current, but only moves down
-          console.log(`🐛 DEBUG: Entering trigger logic with portfolio $${currentPortfolioValue.toFixed(2)}`);
-          if (!this.lastPortfolioValue) {
-            // First time: load existing trigger or set new one
-            const loaded = await this.loadTriggerFromFile();
-            
-            if (!loaded || !this.lastTriggerTarget) {
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`🔒 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
-              await this.saveTriggerToFile();
-            } else {
-              console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)}`);
-            }
-            this.lastPortfolioValue = currentPortfolioValue;
-          } else {
-            // Check if portfolio dropped from last time
-            if (currentPortfolioValue < this.lastPortfolioValue) {
-              // Portfolio dropped - recalculate trigger to current + $1.00
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              console.log(`📉 PORTFOLIO DROPPED: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
-              console.log(`🔄 TRIGGER UPDATED: $${this.lastTriggerTarget.toFixed(2)} (new portfolio + $1.00)`);
-              await this.saveTriggerToFile();
-            } else if (currentPortfolioValue > this.lastPortfolioValue) {
-              console.log(`📈 PORTFOLIO RISING: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)} (trigger stays locked)`);
-            }
-            // Update last portfolio value for next comparison
-            this.lastPortfolioValue = currentPortfolioValue;
+          // BULLETPROOF TRIGGER LOGIC: Lock trigger, never change unless conditions met
+          console.log(`🐛 DEBUG: Current portfolio $${currentPortfolioValue.toFixed(2)}, existing trigger: $${this.lastTriggerTarget || 'none'}`);
+          console.log(`🐛 DEBUG: Last portfolio was: $${this.lastPortfolioValue || 'none'}`);
+          
+          // STEP 1: Initialize trigger if not set
+          if (!this.lastTriggerTarget) {
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)} (portfolio $${currentPortfolioValue.toFixed(2)} + $1.00)`);
+            await this.saveTriggerToFile();
           }
+          
+          // STEP 2: Only update trigger if portfolio dropped significantly 
+          if (this.lastPortfolioValue && currentPortfolioValue < (this.lastPortfolioValue - 0.10)) {
+            // Portfolio dropped more than 10 cents - update trigger
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`📉 SIGNIFICANT DROP: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+            console.log(`🔄 TRIGGER RESET: $${this.lastTriggerTarget.toFixed(2)} (new base + $1.00)`);
+            await this.saveTriggerToFile();
+          } else {
+            console.log(`🔒 TRIGGER LOCKED: Staying at $${this.lastTriggerTarget.toFixed(2)} (no significant drop)`);
+          }
+          
+          // Always update last portfolio value for next cycle
+          this.lastPortfolioValue = currentPortfolioValue;
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
