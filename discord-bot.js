@@ -775,6 +775,36 @@ class DiscordTradingBot {
     return (Math.floor(value * multiplier) / multiplier).toFixed(decimals);
   }
 
+  // RESET FUNCTION: Delete old embed and create fresh one with fixed logic
+  async resetDashboardEmbed() {
+    try {
+      console.log('🔄 RESETTING DASHBOARD EMBED - Creating fresh one with fixed logic...');
+      
+      // Delete existing embed if it exists
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        try {
+          const channel = await this.client.channels.fetch(this.dashboardChannelId);
+          const message = await channel.messages.fetch(this.dashboardMessageId);
+          await message.delete();
+          console.log('✅ Old dashboard embed deleted successfully');
+        } catch (error) {
+          console.log('⚠️ Could not delete old embed (probably already gone)');
+        }
+      }
+      
+      // Reset tracking IDs to force creation of new embed
+      this.dashboardMessageId = null;
+      this.dashboardChannelId = null;
+      
+      // Create fresh embed with fixed calculation logic
+      await this.findOrCreateDashboardEmbed();
+      console.log('✅ NEW FRESH DASHBOARD EMBED CREATED - Uses consistent SOL-only calculation!');
+      
+    } catch (error) {
+      console.error('❌ Error resetting dashboard embed:', error.message);
+    }
+  }
+
   createPortfolioEmbed(data) {
     try {
       const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
