@@ -1627,7 +1627,7 @@ class DiscordTradingBot {
       });
     }, 2000);
     
-    // Reduced frequency polling for backup (every 30 seconds instead of 1 second)
+    // HIGH FREQUENCY Discord embed updates (every 1 second with fresh Gemini data)
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
@@ -1651,7 +1651,7 @@ class DiscordTradingBot {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 30000); // Backup sync every 30 seconds (much less frequent)
+    }, 1000); // Every 1 second with fresh Gemini data
   }
 
   startKeepAlive() {
