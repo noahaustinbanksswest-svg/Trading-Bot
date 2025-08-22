@@ -2417,12 +2417,25 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // HARD-CODED TRIGGER - NO MORE BOUNCING EVER
+          // INITIALIZE TRIGGER ONCE - CHANGES ONLY AFTER SUCCESSFUL TRADES
           if (!this.triggerIsInitialized) {
-            // ABSOLUTE LOCK - USE YOUR ORIGINAL TRIGGER VALUE
-            this.lastTriggerTarget = 275.87;
+            // Use saved trigger or current portfolio + $1.00
+            try {
+              const triggerData = await this.loadTriggerFromFile();
+              if (triggerData && triggerData.trigger) {
+                this.lastTriggerTarget = triggerData.trigger;
+                console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (from file)`);
+              } else {
+                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+                console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)} (current + $1.00)`);
+                await this.saveTriggerToFile();
+              }
+            } catch (error) {
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
+              await this.saveTriggerToFile();
+            }
             this.triggerIsInitialized = true;
-            console.log(`🔒 TRIGGER ABSOLUTELY LOCKED: $${this.lastTriggerTarget.toFixed(2)} (NEVER CHANGES)`);
           }
           
           // NEVER CHANGE TRIGGER - IT'S ABSOLUTELY LOCKED AT $275.87
@@ -2485,8 +2498,8 @@ class DiscordTradingBot {
           const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
           if (solHolding) {
             const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
-            // TRIGGER PERMANENTLY LOCKED - NO CHANGES ALLOWED
-            console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
+            this.lastTriggerTarget = newTrigger; // RESET TRIGGER AFTER SUCCESSFUL TRADE
+            console.log(`🔄 TRIGGER RESET AFTER TRADE: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
             await this.saveTriggerToFile();
           }
         }
