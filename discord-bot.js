@@ -2407,15 +2407,15 @@ class DiscordTradingBot {
             await this.saveTriggerToFile();
           }
           
-          // STEP 2: Only update trigger if portfolio dropped significantly 
-          if (this.lastPortfolioValue && currentPortfolioValue < (this.lastPortfolioValue - 0.10)) {
-            // Portfolio dropped more than 10 cents - update trigger
+          // STEP 2: Only update trigger if portfolio dropped BELOW current trigger
+          if (currentPortfolioValue < this.lastTriggerTarget - 1.00) {
+            // Portfolio dropped below trigger - recalculate trigger
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`📉 SIGNIFICANT DROP: $${this.lastPortfolioValue.toFixed(2)} → $${currentPortfolioValue.toFixed(2)}`);
+            console.log(`📉 DROPPED BELOW TRIGGER: Portfolio $${currentPortfolioValue.toFixed(2)} < Trigger $${(this.lastTriggerTarget + 1.00).toFixed(2)}`);
             console.log(`🔄 TRIGGER RESET: $${this.lastTriggerTarget.toFixed(2)} (new base + $1.00)`);
             await this.saveTriggerToFile();
           } else {
-            console.log(`🔒 TRIGGER LOCKED: Staying at $${this.lastTriggerTarget.toFixed(2)} (no significant drop)`);
+            console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} still above trigger base $${(this.lastTriggerTarget - 1.00).toFixed(2)}`);
           }
           
           // Always update last portfolio value for next cycle
