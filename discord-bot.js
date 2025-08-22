@@ -1387,16 +1387,17 @@ class DiscordTradingBot {
         return;
       }
 
-      // Use real-time cached data instead of API calls
+      // FORCE FRESH PRICE CHECK - No cached data for swing monitoring
       const balanceData = this.realTimeBalances.get(autoTradeSettings.selectedCrypto);
-      const priceData = this.realTimePrices.get(autoTradeSettings.selectedCrypto);
-      
-      if (!balanceData || !priceData) {
-        console.log(`⏳ Waiting for real-time data... Balance: ${!!balanceData}, Price: ${!!priceData}`);
+      if (!balanceData) {
+        console.log(`⏳ Waiting for balance data for ${autoTradeSettings.selectedCrypto}`);
         return;
       }
       
-      const currentPrice = priceData.price;
+      // Get FRESH price from API every swing check
+      const symbol = `${autoTradeSettings.selectedCrypto}USD`;
+      const ticker = await this.gemini.getTicker(symbol);
+      const currentPrice = parseFloat(ticker.last);
       const currentAmount = balanceData.amount;
       
       console.log(`📊 REAL-TIME SWING CHECK:`);
