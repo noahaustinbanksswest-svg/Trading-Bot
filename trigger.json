@@ -1,4 +1,6 @@
 {
-  "trigger": 276.5,
-  "timestamp": 1755892324070
+  "trigger": 275.87,
+  "absoluteLock": true,
+  "note": "NEVER CHANGE THIS VALUE - HARD LOCKED",
+  "timestamp": 1755892530000
 }

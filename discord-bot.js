@@ -868,7 +868,7 @@ class DiscordTradingBot {
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
         // DISPLAY-ONLY: Use actual trigger value from trading logic, never calculate here
-        const displayTrigger = this.lastTriggerTarget || (solHolding.value + 1.00);
+        const displayTrigger = 275.87; // HARD LOCKED TRIGGER
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
@@ -2398,28 +2398,15 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // LOAD TRIGGER FROM FILE ONCE - NO MORE BOUNCING
+          // HARD-CODED TRIGGER - NO MORE BOUNCING EVER
           if (!this.triggerIsInitialized) {
-            try {
-              const triggerData = await this.loadTriggerFromFile();
-              if (triggerData && triggerData.trigger) {
-                this.lastTriggerTarget = triggerData.trigger;
-                console.log(`📂 TRIGGER LOADED FROM FILE: $${this.lastTriggerTarget.toFixed(2)}`);
-              } else {
-                this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-                console.log(`🔒 TRIGGER INITIALIZED: $${this.lastTriggerTarget.toFixed(2)}`);
-                await this.saveTriggerToFile();
-              }
-              this.triggerIsInitialized = true;
-            } catch (error) {
-              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-              this.triggerIsInitialized = true;
-              console.log(`🔒 TRIGGER FALLBACK: $${this.lastTriggerTarget.toFixed(2)}`);
-              await this.saveTriggerToFile();
-            }
+            // ABSOLUTE LOCK - USE YOUR ORIGINAL TRIGGER VALUE
+            this.lastTriggerTarget = 275.87;
+            this.triggerIsInitialized = true;
+            console.log(`🔒 TRIGGER ABSOLUTELY LOCKED: $${this.lastTriggerTarget.toFixed(2)} (NEVER CHANGES)`);
           }
           
-          // NEVER CHANGE TRIGGER - IT'S LOCKED
+          // NEVER CHANGE TRIGGER - IT'S ABSOLUTELY LOCKED AT $275.87
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
@@ -2479,7 +2466,7 @@ class DiscordTradingBot {
           const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
           if (solHolding) {
             const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
-            this.lastTriggerTarget = newTrigger;
+            // TRIGGER PERMANENTLY LOCKED - NO CHANGES ALLOWED
             console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
             await this.saveTriggerToFile();
           }
