@@ -881,8 +881,8 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // DISPLAY-ONLY: Use actual trigger value from trading logic, never calculate here
-        const displayTrigger = 275.87; // HARD LOCKED TRIGGER
+        // DISPLAY-ONLY: Use actual dynamic trigger value from trading logic
+        const displayTrigger = this.lastTriggerTarget || (solHolding.value + 1.00);
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
@@ -2426,7 +2426,7 @@ class DiscordTradingBot {
             this.triggerIsInitialized = true;
           }
           
-          // NEVER CHANGE TRIGGER - IT'S ABSOLUTELY LOCKED AT $275.87
+          // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
           console.log(`📈 TRIGGER CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
