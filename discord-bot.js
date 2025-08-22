@@ -1388,9 +1388,9 @@ class DiscordTradingBot {
   }
   
   startBalanceStreaming() {
-    console.log('💰 Starting balance streaming (every 10 seconds)...');
+    console.log('💰 Starting balance streaming (EVERY 1 SECOND for real-time trading)...');
     
-    // Fetch fresh balance data every 10 seconds (instead of every 1 second)
+    // Fetch fresh balance data every 1 second for REAL-TIME monitoring
     setInterval(async () => {
       try {
         const balances = await this.gemini.getBalances();
@@ -1418,13 +1418,13 @@ class DiscordTradingBot {
           console.error('❌ Balance streaming error:', error.message);
         }
       }
-    }, 10000); // Every 10 seconds for balance updates
+    }, 1000); // Every 1 second for REAL-TIME balance updates
   }
   
   startPriceStreaming() {
-    console.log('📈 Starting price streaming (every 3 seconds)...');
+    console.log('📈 Starting price streaming (EVERY 1 SECOND for real-time trading)...');
     
-    // Fetch fresh price data every 5 seconds for reliable swing detection (avoid rate limits)
+    // Fetch fresh price data every 1 second for REAL-TIME trading detection
     setInterval(async () => {
       try {
         // Get prices for all currencies we have balances for
