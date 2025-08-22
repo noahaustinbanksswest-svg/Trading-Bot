@@ -1651,7 +1651,7 @@ class DiscordTradingBot {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 1000); // Every 1 second with fresh Gemini data
+    }, 5000); // Every 5 seconds for stable Discord display
   }
 
   startKeepAlive() {
@@ -2418,24 +2418,23 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // INITIALIZE BASELINE ONCE - LOAD FROM FILE OR SET INITIAL  
-          if (!this.triggerIsInitialized) {
+          // BASELINE INITIALIZATION - ONLY ONCE PER SESSION
+          if (typeof this.baselineValue === 'undefined' || this.baselineValue === null) {
             try {
               const triggerData = await this.loadTriggerFromFile();
               if (triggerData && triggerData.trigger) {
                 this.baselineValue = triggerData.trigger;
-                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} (loaded from file)`);
+                console.log(`🔒 BASELINE LOADED: $${this.baselineValue.toFixed(2)} (from file) - LOCKED FOREVER`);
               } else {
                 this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)} (initial baseline)`);
+                console.log(`🔒 BASELINE INITIAL: $${this.baselineValue.toFixed(2)} - LOCKED FOREVER`);
                 await this.saveTriggerToFile();
               }
             } catch (error) {
               this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}`);
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)} - LOCKED FOREVER`);
               await this.saveTriggerToFile();
             }
-            this.triggerIsInitialized = true;
           }
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
