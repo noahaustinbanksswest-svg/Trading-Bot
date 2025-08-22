@@ -511,8 +511,9 @@ class DiscordTradingBot {
     }
   }
 
-  // SINGLE AUTHORITATIVE BASELINE MANAGER - ONLY function allowed to modify baseline
+  // DISABLED OLD BASELINE SYSTEM - Using new baselineValue system only
   async updateSmartBaseline(currentValue, reason = 'update') {
+    return false; // Completely disabled
     // Prevent multiple simultaneous updates
     if (this._baselineUpdating) {
       return false;
