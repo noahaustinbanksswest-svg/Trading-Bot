@@ -460,6 +460,7 @@ class DiscordTradingBot {
     this.dashboardChannelId = null; // Track dashboard channel
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
+    this.lastTradePrice = 0; // Track last trade price for $1 increments
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -2269,33 +2270,31 @@ class DiscordTradingBot {
           // Don't duplicate price history - use existing real-time data
           // (Price history is already maintained in startPriceStreaming)
           
-          // Find the lowest price in recent history
-          const recentLow = Math.min(...this.priceHistory);
-          const priceRiseFromLow = currentPrice - recentLow;
+          // NEW LOGIC: Last trade price + $1.00 trigger (no rolling windows)
+          const baselinePrice = this.lastTradePrice || 180.00; // Use last trade price, or 180 if first trade
+          const targetPrice = baselinePrice + 1.00;
+          const priceRise = currentPrice - baselinePrice;
           
-          console.log(`📈 DYNAMIC SWING TRADING CHECK:`);
-          console.log(`   Recent Low (30s): $${recentLow.toFixed(2)}`);
+          console.log(`📈 LAST TRADE PRICE + $1 TRIGGER CHECK:`);
+          console.log(`   Last Trade Price: $${baselinePrice.toFixed(2)}`);
           console.log(`   Current Price: $${currentPrice.toFixed(2)}`);  
-          console.log(`   Rise from Low: $${priceRiseFromLow.toFixed(2)}`);
-          console.log(`   Swing Trigger: $1.08`);
-          console.log(`   Price History: [${this.priceHistory.slice(-5).map(p => p.toFixed(2)).join(', ')}]`);
+          console.log(`   Target Price: $${targetPrice.toFixed(2)} (last + $1.00)`);
+          console.log(`   Price Rise: $${priceRise.toFixed(2)}`);
           
-          // SWING TRIGGER CHECK - EXECUTE IMMEDIATELY (NO BASE PROTECTION)
-          if (priceRiseFromLow >= 1.08) {
-            console.log(`🚨 SWING CONDITION MET! Rise of $${priceRiseFromLow.toFixed(2)} >= $1.08 trigger`);
+          // TRIGGER: Current price >= last trade price + $1.00
+          if (currentPrice >= targetPrice) {
+            console.log(`🚨 PRICE TARGET HIT! $${currentPrice.toFixed(2)} >= $${targetPrice.toFixed(2)} (+$1.00 from last trade)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
             
             // Execute trade immediately - base protection removed
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
-            reason = `🌊 SWING PROFIT: ${autoTradeSettings.selectedCrypto} rose $${priceRiseFromLow.toFixed(2)} from recent low ($${recentLow.toFixed(2)} → $${currentPrice.toFixed(2)}) - EXECUTING $1 TRADE`;
+            reason = `💰 PROFIT TARGET: SOL hit $${currentPrice.toFixed(2)} (+$1.00 from last trade at $${baselinePrice.toFixed(2)}) - EXECUTING $1 TRADE`;
             console.log(`🚨 SWING TRADE TRIGGERED! shouldExecuteTrade = true, reason: ${reason}`);
           } else {
-            const neededRise = 1.08 - priceRiseFromLow;
-            console.log(`🔄 Monitoring swings: Need $${neededRise.toFixed(2)} more rise from recent low to trigger trade`);
-            
-            // Base protection disabled - ready to trade anytime swing conditions are met
-            console.log(`✅ UNRESTRICTED TRADING: Base protection disabled - ready for any swing trigger`);
+            const neededRise = targetPrice - currentPrice;
+            console.log(`🔄 Waiting for target: Need $${neededRise.toFixed(2)} more rise to reach $${targetPrice.toFixed(2)}`);
+            console.log(`✅ UNRESTRICTED TRADING: Ready to execute at $${targetPrice.toFixed(2)}`);
           }
         } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
@@ -2427,8 +2426,10 @@ class DiscordTradingBot {
         // Execute actual sell order via Gemini API for exactly $1 USD worth
         const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
         
-        // CRITICAL: Record trade time for cooldown
+        // CRITICAL: Record trade time for cooldown AND trade price for next trigger
         this.lastTradeTime = Date.now();
+        this.lastTradePrice = currentPrice; // Set new baseline for next $1 increment
+        console.log(`🎯 NEW BASELINE SET: Next trade will trigger at $${(currentPrice + 1.00).toFixed(2)}`);
         
         sellOrders.push({
           currency: autoTradeSettings.selectedCrypto,
