@@ -2367,10 +2367,19 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // LOCKED TRIGGER LOGIC: Set once and never change until trade executes
+          // SMART TRIGGER LOGIC: Lock on gains, unlock on drops
           if (!this.lastTriggerTarget) {
             this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (will NOT change until trade executes)`);
+            console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
+          } else {
+            // UNLOCK TRIGGER: If portfolio drops significantly below trigger, reset it
+            const triggerGap = this.lastTriggerTarget - currentPortfolioValue;
+            if (triggerGap > 2.00) {
+              const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`🔓 TRIGGER UNLOCKED: Portfolio dropped to $${currentPortfolioValue.toFixed(2)}, old trigger $${this.lastTriggerTarget.toFixed(2)} too high`);
+              this.lastTriggerTarget = newTrigger;
+              console.log(`🔒 NEW TRIGGER LOCKED: $${newTrigger.toFixed(2)} (reset after drop)`);
+            }
           }
           
           console.log(`📈 TRIGGER CHECK:`);
