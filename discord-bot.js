@@ -882,12 +882,14 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // DISPLAY-ONLY: Use actual dynamic trigger value from trading logic
+        // ANTI-BOUNCING: Always use locked baseline for consistent display
         const displayTrigger = this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00);
+        
+        // FIXED FORMATTING: Ensure consistent number of decimal places to prevent bouncing
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
-                       `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
-                       `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
-                       `💲 **Current Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
+                       `💰 **Value**: $${solHolding.value.toFixed(2)}\n` +
+                       `🎯 **Next Trigger**: $${displayTrigger.toFixed(2)}\n` +
+                       `💲 **Current Price**: $${solHolding.price.toFixed(2)}`;
         
         embed.addFields({ 
           name: '⚡ SOL Trading Monitor', 
@@ -1651,7 +1653,7 @@ class DiscordTradingBot {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 5000); // Every 5 seconds for stable Discord display
+    }, 1000); // Every 1 second for live updates
   }
 
   startKeepAlive() {
