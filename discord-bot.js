@@ -2297,7 +2297,7 @@ class DiscordTradingBot {
           const valueIncrease = currentPortfolioValue - baselineValue;
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
-          console.log(`🔍 SMART DEBUG: this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
+          console.log(`🔍 SMART DEBUG: lowestPortfolioValue = ${this.lowestPortfolioValue}`);
           console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Value: $${targetValue.toFixed(2)} (last + $1.00)`);
