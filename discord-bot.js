@@ -461,7 +461,10 @@ class DiscordTradingBot {
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     this.lastPortfolioValue = null; // Track last portfolio value for $1 increments (null = use current value)
-    console.log(`🔥 CONSTRUCTOR: lastPortfolioValue initialized to null`);
+    this.priceHistory = []; // Clear price history cache
+    this.realTimeBalances = new Map(); // Clear balance cache
+    this.livePrices = new Map(); // Clear price cache
+    console.log(`🔥 CONSTRUCTOR: All caches cleared, lastPortfolioValue initialized to null`);
     
     // Real-time data storage
     this.realTimeBalances = new Map(); // Store live balance data
@@ -1331,17 +1334,12 @@ class DiscordTradingBot {
             
             // Add to price history for swing trading (SOL only)
             if (currency === 'SOL') {
-              // Only add if price is different from the last recorded price
-              const lastPrice = this.priceHistory[this.priceHistory.length - 1];
-              if (!lastPrice || Math.abs(price - lastPrice) > 0.01) {
-                this.priceHistory.push(price);
-                console.log(`📈 PRICE HISTORY UPDATED: ${price.toFixed(2)} (was ${lastPrice ? lastPrice.toFixed(2) : 'empty'})`);
-                
-                if (this.priceHistory.length > 60) { // Keep 3 minutes of history at 3-second intervals
-                  this.priceHistory.shift();
-                }
-              } else {
-                console.log(`📊 Price unchanged: $${price.toFixed(2)} (not adding duplicate)`);
+              // FORCE ALL PRICE UPDATES - No caching/duplicate prevention
+              this.priceHistory.push(price);
+              console.log(`🔥 LIVE PRICE UPDATE: $${price.toFixed(4)} (FORCED FRESH)`);
+              
+              if (this.priceHistory.length > 60) { // Keep 3 minutes of history at 3-second intervals
+                this.priceHistory.shift();
               }
             }
             
