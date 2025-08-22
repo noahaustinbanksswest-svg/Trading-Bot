@@ -2293,12 +2293,12 @@ class DiscordTradingBot {
   // PERSISTENT TRIGGER: Save/load trigger from file
   async saveTriggerToFile() {
     try {
-      const fs = require('fs');
+      const { writeFileSync } = await import('fs');
       const triggerData = {
         trigger: this.lastTriggerTarget,
         timestamp: Date.now()
       };
-      fs.writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
+      writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
       console.log(`💾 TRIGGER SAVED: $${this.lastTriggerTarget.toFixed(2)}`);
     } catch (error) {
       console.error('Error saving trigger:', error.message);
@@ -2307,14 +2307,17 @@ class DiscordTradingBot {
 
   async loadTriggerFromFile() {
     try {
-      const fs = require('fs');
-      if (fs.existsSync('trigger.json')) {
-        const triggerData = JSON.parse(fs.readFileSync('trigger.json', 'utf8'));
+      const { readFileSync, existsSync } = await import('fs');
+      if (existsSync('trigger.json')) {
+        const triggerData = JSON.parse(readFileSync('trigger.json', 'utf8'));
         this.lastTriggerTarget = triggerData.trigger;
         console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Error loading trigger:', error.message);
+      return false;
     }
   }
 
@@ -2395,15 +2398,19 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // PERSISTENT TRIGGER LOGIC: Load from file, survives restarts
-          await this.loadTriggerFromFile();
-          
-          if (!this.lastTriggerTarget) {
-            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
-            console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
-            await this.saveTriggerToFile();
+          // PERSISTENT TRIGGER LOGIC: Only set once, survives restarts
+          if (!this.triggerInitialized) {
+            const loaded = await this.loadTriggerFromFile();
+            
+            if (!loaded || !this.lastTriggerTarget) {
+              this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+              console.log(`🔒 TRIGGER LOCKED: $${this.lastTriggerTarget.toFixed(2)} (initial lock)`);
+              await this.saveTriggerToFile();
+            }
+            
+            this.triggerInitialized = true;
           } else {
-            // UNLOCK TRIGGER: If portfolio drops significantly below trigger, reset it
+            // UNLOCK TRIGGER: Only if portfolio drops significantly below trigger
             const triggerGap = this.lastTriggerTarget - currentPortfolioValue;
             if (triggerGap > 2.00) {
               const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
