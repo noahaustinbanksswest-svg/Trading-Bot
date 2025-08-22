@@ -2418,24 +2418,32 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // BASELINE INITIALIZATION - ONLY ONCE PER SESSION
+          // BASELINE COMPLETELY LOCKED - Load once from file and never change
           if (typeof this.baselineValue === 'undefined' || this.baselineValue === null) {
             try {
               const triggerData = await this.loadTriggerFromFile();
               if (triggerData && triggerData.trigger) {
                 this.baselineValue = triggerData.trigger;
-                console.log(`🔒 BASELINE LOADED: $${this.baselineValue.toFixed(2)} (from file) - LOCKED FOREVER`);
+                console.log(`🔒 BASELINE LOADED & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
               } else {
                 this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-                console.log(`🔒 BASELINE INITIAL: $${this.baselineValue.toFixed(2)} - LOCKED FOREVER`);
+                console.log(`🔒 BASELINE SET & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
                 await this.saveTriggerToFile();
               }
             } catch (error) {
               this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)} - LOCKED FOREVER`);
+              console.log(`🔒 BASELINE FALLBACK & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
               await this.saveTriggerToFile();
             }
           }
+          
+          // BASELINE IS NOW LOCKED FOREVER - Show locked status
+          console.log(`🔒 BASELINE LOCKED AT: $${this.baselineValue.toFixed(2)} (unchangeable)`);
+          console.log(`🎯 TRIGGER TARGET: $${(this.baselineValue + 1.00).toFixed(2)} (baseline + $1.00)`);
+          console.log(`📊 CURRENT PORTFOLIO: $${currentPortfolioValue.toFixed(2)}`);
+          console.log(`💰 AMOUNT NEEDED: $${Math.max(0, (this.baselineValue + 1.00) - currentPortfolioValue).toFixed(2)}`);
+          console.log(`🚫 BASELINE WILL NEVER CHANGE (except after successful trades)`);
+          
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
