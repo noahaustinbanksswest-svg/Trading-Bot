@@ -2548,12 +2548,14 @@ class DiscordTradingBot {
 
   async sendAutoTradeNotification(reason, sellOrders) {
     try {
+      // Send confirmation as private DM instead of channel message
       const guild = this.client.guilds.cache.first();
-      const dashboardChannel = guild.channels.cache.find(channel => 
-        channel.name.toLowerCase() === 'new-dashboard' && channel.isTextBased()
-      );
-
-      if (!dashboardChannel) return;
+      const botOwner = guild.members.cache.find(member => member.permissions.has('ADMINISTRATOR'));
+      
+      if (!botOwner) {
+        console.log('⚠️ Bot owner not found for private DM confirmation');
+        return;
+      }
 
       const isStoppedCase = sellOrders === 'STOPPED';
       
@@ -2582,7 +2584,9 @@ class DiscordTradingBot {
         );
       }
 
-      await dashboardChannel.send({ embeds: [embed] });
+      // Send as private DM instead of channel message
+      await botOwner.send({ embeds: [embed] });
+      console.log('✅ Trade confirmation sent as private DM');
       
     } catch (error) {
       console.error('Error sending auto trade notification:', error.message);
