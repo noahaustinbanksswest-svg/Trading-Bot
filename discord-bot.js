@@ -2415,26 +2415,11 @@ class DiscordTradingBot {
       console.log(`   Estimated fee: $${estimatedFeeUSD.toFixed(2)} USD`);
       console.log(`   Net proceeds: $${netProceedsUSD.toFixed(2)} USD`);
       
-      // CRITICAL: FINAL BASE PROTECTION CHECK with live data
-      console.log(`🛡️ FINAL BASE PROTECTION CHECK before placing order...`);
-      const feeBufferInSOL = 0.04 / currentPrice; // Fee buffer in SOL
-      const totalSOLImpact = solAmountFor1USD + feeBufferInSOL;
-      const finalRemainingSOL = cryptoHolding.amount - totalSOLImpact;
-      
-      console.log(`🔍 FINAL SAFETY CHECK:`);
+      // BASE PROTECTION COMPLETELY DISABLED - Execute unrestricted trades
+      console.log(`🔥 BASE PROTECTION DISABLED - Executing $1 trade unrestricted!`);
       console.log(`   Current SOL: ${cryptoHolding.amount.toFixed(8)}`);
-      console.log(`   Trade + Fee Impact: ${totalSOLImpact.toFixed(8)} SOL`);
-      console.log(`   Final Remaining: ${finalRemainingSOL.toFixed(8)} SOL`);
-      console.log(`   Base Protection: ${autoTradeSettings.stopAtLoss} SOL`);
-      console.log(`   Safe to trade: ${finalRemainingSOL >= autoTradeSettings.stopAtLoss}`);
-      
-      if (cryptoHolding.amount <= autoTradeSettings.stopAtLoss) {
-        console.log(`🛡️ TRADING STOPPED: Already at base protection limit (${cryptoHolding.amount.toFixed(8)} <= ${autoTradeSettings.stopAtLoss})`);
-        this.tradingLock = false; // Release lock
-        return;
-      }
-      
-      console.log(`✅ FINAL CHECK PASSED - Safe to execute trade`);
+      console.log(`   Trade Amount: ${solAmountFor1USD.toFixed(8)} SOL`);
+      console.log(`   Unrestricted execution enabled!`);
       
       try {
         console.log(`💰 Placing $1 USD sell order: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} on ${symbol}`);
