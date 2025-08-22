@@ -2404,6 +2404,8 @@ class DiscordTradingBot {
           
           // TRIGGER: Current portfolio value >= smart baseline + $1.00 (with precision tolerance)
           const preciseCurrentValue = parseFloat(currentPortfolioValue.toFixed(2));
+          console.log(`🔍 TRIGGER DEBUG: ${preciseCurrentValue} >= ${targetValue} = ${preciseCurrentValue >= targetValue}`);
+          
           if (preciseCurrentValue >= targetValue) {
             console.log(`🚨 PORTFOLIO VALUE TARGET HIT! $${currentPortfolioValue.toFixed(2)} >= $${targetValue.toFixed(2)} (+$1.00 value increase)`);
             console.log(`🔥 BASE PROTECTION DISABLED - Executing trade unrestricted!`);
@@ -2444,9 +2446,12 @@ class DiscordTradingBot {
         reason = `Daily buys reached $${dailyBuyData.totalBought.toFixed(2)} (trigger: $${autoTradeSettings.stopOnDailyBuys})`;
       }
 
+      console.log(`🔍 FINAL CHECK: shouldExecuteTrade = ${shouldExecuteTrade}`);
       if (shouldExecuteTrade) {
-        console.log(`🤖 Auto Trade condition met: ${reason}`);
+        console.log(`🚨 EXECUTING TRADE: ${reason}`);
         await this.executeAutoTrade(reason);
+      } else {
+        console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
 
     } catch (error) {
