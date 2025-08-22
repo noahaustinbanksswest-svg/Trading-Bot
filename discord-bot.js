@@ -2361,12 +2361,12 @@ class DiscordTradingBot {
           
           console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
           
-          const baselineValue = this.lowestPortfolioValue; // Use LOWEST value as baseline (smart swing trading)
+          const baselineValue = this.lowestPortfolioValue; // Use MASTER baseline (smart swing trading)
           const targetValue = baselineValue + 1.00;
           const valueIncrease = currentPortfolioValue - baselineValue;
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
-          console.log(`🔍 SMART DEBUG: lowestPortfolioValue = ${this.lowestPortfolioValue}`);
+          console.log(`🔍 SMART DEBUG: MASTER this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
           console.log(`   Baseline (Lowest): $${baselineValue.toFixed(2)}`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Value: $${targetValue.toFixed(2)} (baseline + $1.00)`);
