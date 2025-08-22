@@ -763,7 +763,7 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        const triggerValue = this.lastPortfolioValue ? this.lastPortfolioValue + 1.00 : solHolding.value + 1.00;
+        const triggerValue = this.lowestPortfolioValue ? this.lowestPortfolioValue + 1.00 : solHolding.value + 1.00;
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Next Trigger**: $${this.truncateToFixed(triggerValue, 2)}\n` +
@@ -1481,7 +1481,7 @@ class DiscordTradingBot {
       const targetValue = baselineValue + 1.00;
       
       console.log(`📈 REAL-TIME PORTFOLIO VALUE CHECK:`);
-      console.log(`🔍 DEBUG: this.lastPortfolioValue = ${this.lastPortfolioValue}`);
+      console.log(`🔍 SMART DEBUG: this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
       console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
       console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);
       console.log(`   Target Value: $${targetValue.toFixed(2)} (+$1.00)`);
@@ -2297,7 +2297,7 @@ class DiscordTradingBot {
           const valueIncrease = currentPortfolioValue - baselineValue;
           
           console.log(`📈 PORTFOLIO VALUE + $1 TRIGGER CHECK:`);
-          console.log(`🔍 DEBUG: this.lastPortfolioValue = ${this.lastPortfolioValue}`);
+          console.log(`🔍 SMART DEBUG: this.lowestPortfolioValue = ${this.lowestPortfolioValue}`);
           console.log(`   Last Portfolio Value: $${baselineValue.toFixed(2)}`);
           console.log(`   Current Portfolio Value: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Value: $${targetValue.toFixed(2)} (last + $1.00)`);
