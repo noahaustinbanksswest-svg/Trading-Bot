@@ -491,19 +491,20 @@ class DiscordTradingBot {
     
     try {
       if (this.lowestPortfolioValue === null || this.lowestPortfolioValue === undefined) {
-        this.lowestPortfolioValue = currentValue;
-        console.log(`🎯 MASTER BASELINE INIT: $${this.lowestPortfolioValue.toFixed(2)} (${reason})`);
+        this.lowestPortfolioValue = parseFloat(currentValue.toFixed(2));
+        console.log(`🎯 MASTER BASELINE INIT: $${this.lowestPortfolioValue.toFixed(2)} (${reason}) - LOCKED`);
         changed = true;
-      } else if (currentValue < this.lowestPortfolioValue) {
-        this.lowestPortfolioValue = currentValue;
-        console.log(`📉 MASTER BASELINE NEW LOW: $${this.lowestPortfolioValue.toFixed(2)} (${reason})`);
+      } else if (currentValue < this.lowestPortfolioValue && reason !== 'trade-reset') {
+        this.lowestPortfolioValue = parseFloat(currentValue.toFixed(2));
+        console.log(`📉 MASTER BASELINE NEW LOW: $${this.lowestPortfolioValue.toFixed(2)} (${reason}) - LOCKED`);
         changed = true;
       } else if (reason === 'trade-reset') {
-        // Special case: after trade execution, reset baseline to current value
-        // Use parseFloat to ensure precision and avoid floating point drift
+        // ONLY place baseline can be reset - after successful trade
         this.lowestPortfolioValue = parseFloat(currentValue.toFixed(2));
-        console.log(`🔄 MASTER BASELINE RESET: $${this.lowestPortfolioValue.toFixed(2)} (post-trade, precise)`);
+        console.log(`🔄 MASTER BASELINE RESET: $${this.lowestPortfolioValue.toFixed(2)} (post-trade) - LOCKED`);
         changed = true;
+      } else {
+        console.log(`🔒 BASELINE LOCKED: Current $${currentValue.toFixed(2)} vs Locked $${this.lowestPortfolioValue.toFixed(2)} (${reason})`);
       }
     } finally {
       this._baselineUpdating = false;
@@ -2327,9 +2328,10 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // SMART BASELINE: Track the LOWEST portfolio value (dynamic swing trading)
-          // Use master baseline function instead of direct assignment
-          this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
+          // SMART BASELINE: Only update if truly lower, NEVER reset during regular checks
+          if (this.lowestPortfolioValue === null || currentPortfolioValue < this.lowestPortfolioValue) {
+            this.updateSmartBaseline(currentPortfolioValue, 'main-trading-check');
+          }
           
           console.log(`🧠 SMART LOGIC: Current $${currentPortfolioValue.toFixed(2)} | Lowest $${this.lowestPortfolioValue.toFixed(2)}`);
           
