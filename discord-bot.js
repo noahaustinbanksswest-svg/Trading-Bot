@@ -2290,6 +2290,34 @@ class DiscordTradingBot {
     await interaction.editReply({ embeds: [embed] });
   }
 
+  // PERSISTENT TRIGGER: Save/load trigger from file
+  async saveTriggerToFile() {
+    try {
+      const fs = require('fs');
+      const triggerData = {
+        trigger: this.lastTriggerTarget,
+        timestamp: Date.now()
+      };
+      fs.writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
+      console.log(`💾 TRIGGER SAVED: $${this.lastTriggerTarget.toFixed(2)}`);
+    } catch (error) {
+      console.error('Error saving trigger:', error.message);
+    }
+  }
+
+  async loadTriggerFromFile() {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync('trigger.json')) {
+        const triggerData = JSON.parse(fs.readFileSync('trigger.json', 'utf8'));
+        this.lastTriggerTarget = triggerData.trigger;
+        console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
+      }
+    } catch (error) {
+      console.error('Error loading trigger:', error.message);
+    }
+  }
+
   async checkAutoTradeConditions() {
     // Debug log to show monitoring is running
     console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
