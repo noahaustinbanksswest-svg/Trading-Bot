@@ -2367,12 +2367,10 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // RESET TRIGGER TO CATCH MISSED TRADES: Always start from a reasonable baseline
+          // SIMPLE TRIGGER LOGIC: Current portfolio + $1.00
           if (!this.lastTriggerTarget) {
-            // Set trigger to lowest reasonable value to catch all missed opportunities
-            const baselineTrigger = Math.min(currentPortfolioValue - 10, 264.00); // Use either current-$10 or $264, whichever is lower
-            this.lastTriggerTarget = parseFloat((baselineTrigger + 1.00).toFixed(2));
-            console.log(`🎯 RESET TRIGGER TO CATCH MISSED TRADES: $${this.lastTriggerTarget.toFixed(2)} (baseline: $${baselineTrigger.toFixed(2)})`);
+            this.lastTriggerTarget = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            console.log(`🎯 INITIAL TRIGGER SET: $${this.lastTriggerTarget.toFixed(2)} (current $${currentPortfolioValue.toFixed(2)} + $1.00)`);
           }
           
           console.log(`📈 TRIGGER CHECK:`);
