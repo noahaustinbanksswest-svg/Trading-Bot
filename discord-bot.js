@@ -1527,7 +1527,7 @@ class DiscordTradingBot {
       }
       
       const valueChange = Math.abs(consistentTotalValue - this.lastEmbedValue);
-      const SIGNIFICANT_CHANGE_THRESHOLD = 0.25; // Only update if change >$0.25
+      const SIGNIFICANT_CHANGE_THRESHOLD = 0.10; // Only update if change >$0.10
       
       if (valueChange < SIGNIFICANT_CHANGE_THRESHOLD) {
         console.log(`🔒 EMBED STABLE: Change $${valueChange.toFixed(2)} < $${SIGNIFICANT_CHANGE_THRESHOLD} threshold - no update`);
