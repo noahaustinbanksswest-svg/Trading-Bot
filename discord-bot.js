@@ -2444,8 +2444,16 @@ class DiscordTradingBot {
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Target Trigger: $${this.lastTriggerTarget.toFixed(2)}`);
           
+          // CRITICAL: Check if portfolio dropped below trigger (reset condition)
+          if (currentPortfolioValue < (this.lastTriggerTarget - 1.00)) {
+            const newTrigger = parseFloat((currentPortfolioValue + 1.00).toFixed(2));
+            this.lastTriggerTarget = newTrigger;
+            console.log(`📉 TRIGGER RESET: Portfolio dropped below trigger level`);
+            console.log(`   New Trigger: $${newTrigger.toFixed(2)} (current portfolio + $1.00)`);
+            await this.saveTriggerToFile();
+          }
           // SIMPLE TRIGGER: Execute trade if current >= target
-          if (currentPortfolioValue >= this.lastTriggerTarget) {
+          else if (currentPortfolioValue >= this.lastTriggerTarget) {
             console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${this.lastTriggerTarget.toFixed(2)}`);
             
             // Execute trade
