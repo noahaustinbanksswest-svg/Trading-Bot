@@ -1807,21 +1807,17 @@ class DiscordTradingBot {
           this.handleReconnection('keep_alive_check');
           await sendKeepAlivePing('reconnecting', 'Discord connection lost');
         } else {
-          // Test actual Discord functionality every 30 seconds
-          if (Date.now() % 30000 < 1000) {
-            try {
-              // Try to fetch the bot's own user to test if connection really works
-              await this.client.user.fetch();
-              console.log('💚 Discord connection VERIFIED (real test passed)');
-              await sendKeepAlivePing('running');
-            } catch (discordError) {
-              console.log('🚨 Discord connection FAILED real test - triggering reconnection');
-              console.log('Discord error:', discordError.message);
-              this.handleReconnection('connection_test_failed');
-              await sendKeepAlivePing('reconnecting', 'Discord real test failed');
-            }
-          } else {
+          // Test actual Discord functionality EVERY SECOND for bulletproof monitoring
+          try {
+            // Try to fetch the bot's own user to test if connection really works
+            await this.client.user.fetch();
+            console.log('💚 Discord connection VERIFIED (real test passed)');
             await sendKeepAlivePing('running');
+          } catch (discordError) {
+            console.log('🚨 Discord connection FAILED real test - triggering reconnection');
+            console.log('Discord error:', discordError.message);
+            this.handleReconnection('connection_test_failed');
+            await sendKeepAlivePing('reconnecting', 'Discord real test failed');
           }
         }
       } catch (error) {
