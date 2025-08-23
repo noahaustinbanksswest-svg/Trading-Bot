@@ -1425,11 +1425,17 @@ class DiscordTradingBot {
         
         // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Only update if significant change in portfolio value (>$0.05 difference)
+          // Update for any meaningful change (>$0.01) or periodically every minute
           const newPortfolioValue = this.calculateCurrentPortfolioValue();
-          if (!this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.05) {
+          const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
+          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.01;
+          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every minute
+          
+          if (shouldUpdateForChange || shouldUpdateForTime) {
             await this.updatePortfolioMessageFromRealTimeData();
             this.lastEmbedPortfolioValue = newPortfolioValue;
+            this.lastEmbedUpdateTime = Date.now();
+            console.log(`📊 DISCORD EMBED UPDATED: $${newPortfolioValue.toFixed(2)} (change: ${shouldUpdateForChange ? 'value' : 'time'})`);
           }
         }
         
@@ -2489,11 +2495,26 @@ class DiscordTradingBot {
             // Check if we're already in a trade to prevent multiple orders
             if (this.tradingLock) {
               console.log(`🔒 TRADING LOCKED - Skipping duplicate trade execution`);
+              console.log(`🔍 DEBUG: Trading lock status: ${this.tradingLock}, resetting lock after 30 seconds if stuck`);
+              
+              // Auto-reset stuck locks after 30 seconds (in case of restart issues)
+              if (!this.lockResetTimer) {
+                this.lockResetTimer = setTimeout(() => {
+                  console.log(`🔓 AUTO-RESET: Trading lock released after timeout`);
+                  this.tradingLock = false;
+                  this.lockResetTimer = null;
+                }, 30000);
+              }
               return false;
             }
             
             // Lock trading to prevent multiple simultaneous orders
             this.tradingLock = true;
+            // Clear any existing reset timer since we're starting a new trade
+            if (this.lockResetTimer) {
+              clearTimeout(this.lockResetTimer);
+              this.lockResetTimer = null;
+            }
             console.log(`🔒 TRADING LOCKED - Executing single trade`);
             
             // Execute trade
