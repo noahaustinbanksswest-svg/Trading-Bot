@@ -2321,7 +2321,11 @@ class DiscordTradingBot {
     return false;
   }
 
-  // REMOVED: All orphaned trading logic moved to independent Gemini API system
+  // REMOVED: All massive orphaned trading logic block - fixing Discord bot startup
+  // This entire section has been disabled to allow 24/7 embed updates to resume
+  /*
+  
+  // ORIGINAL ORPHANED CODE BLOCK STARTS HERE:
         if (cryptoHolding) {
           // Debug portfolio data structure
           console.log(`🔍 DEBUG - SOL Portfolio Data:`, {
@@ -2477,31 +2481,21 @@ class DiscordTradingBot {
           console.log(`❌ TradingEngine API error:`, error.message);
         }
         
-        // CRITICAL: Update trigger AFTER successful trade execution
-        if (autoTradeSettings.conditions.portfolioValueReached) {
-          // Get fresh portfolio data after trade
-          const freshPortfolioData = await this.getPortfolioData();
-          const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
-          if (solHolding) {
-            const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
-            this.lastTriggerTarget = newTrigger; // RESET TRIGGER AFTER SUCCESSFUL TRADE
-            console.log(`🔄 TRIGGER RESET AFTER TRADE: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
-            // REMOVED: Orphaned await call
-          }
-        }
+        // CRITICAL: All trigger update logic also moved to TradingEngine
+        // Discord bot now ONLY handles visuals - no trading logic
+        console.log('📱 Discord: Trading trigger handling moved to TradingEngine API');
+        
       } else {
-        console.log(`⏸️ NO TRADE: Conditions not met yet`);
+        console.log('⏸️ NO TRADE: Conditions not met yet');
       }
-      
-      // All orphaned trading logic cleaned up
     } catch (error) {
-      console.error('Error checking auto trade conditions:', error.message);
+      console.error('Error in auto trade check:', error.message);
     }
   }
 
-  // ✅ CLEAN: All trading moved to TradingEngine API - Discord handles only visuals
+  // ✅ CLEAN: All trading moved to TradingEngine API - Discord handles only visuals  
   async executeAutoTrade_DISABLED(reason) {
-    console.log('📱 Discord: Trade execution handled by independent Gemini system');
+    console.log('📱 Discord: Trade execution handled by independent TradingEngine system');
     return false;
   }
 
