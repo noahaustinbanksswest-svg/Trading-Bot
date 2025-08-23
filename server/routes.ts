@@ -384,10 +384,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/bot/ping", async (req, res) => {
     try {
       const { status, errorMessage } = req.body;
+      const now = Date.now();
       
       // Enhanced logging for bot pings
       const pingTime = new Date().toLocaleTimeString();
       console.log(`🤖 Bot ping at ${pingTime} - Status: ${status || 'running'}`);
+      
+      // Save timestamp for guardian monitoring (TIMESTAMP GUARDIAN SYSTEM)
+      const { writeFileSync } = await import('fs');
+      const timestampData = {
+        timestamp: now,
+        lastPing: new Date().toISOString(),
+        status: status || 'running',
+        serverUptime: Math.floor(process.uptime()),
+        errorMessage: errorMessage || null
+      };
+      
+      try {
+        writeFileSync('last-bot-ping.json', JSON.stringify(timestampData, null, 2));
+      } catch (fsError) {
+        console.error('❌ Failed to save timestamp for guardian:', fsError.message);
+      }
       
       const [existingStatus] = await db.select().from(botStatus).limit(1);
       
