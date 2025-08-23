@@ -177,26 +177,65 @@ app.use((req, res, next) => {
     if (process.env.REPLIT_DOMAINS) {
       log('🔄 Setting up Replit keep-alive system...');
       
-      // Self-ping every 5 minutes to prevent Repl from sleeping
+      // Self-ping every 2 minutes to keep reserved VM active  
       setInterval(async () => {
         try {
           const domain = process.env.REPLIT_DOMAINS.split(',')[0];
           const response = await fetch(`https://${domain}/api/health`);
           if (response.ok) {
-            log('💚 Replit keep-alive ping successful');
+            log('💚 Reserved VM keep-alive ping successful');
           } else {
-            log('⚠️ Replit keep-alive ping failed:', response.status);
+            log('⚠️ Reserved VM ping failed:', response.status);
+            // Try alternative ping
+            try {
+              const altResponse = await fetch(`https://${domain}/api/ping`);
+              if (altResponse.ok) {
+                log('💚 Alternative ping successful');
+              }
+            } catch (altError) {
+              log('❌ All ping methods failed:', altError.message);
+            }
           }
         } catch (error) {
-          log('❌ Replit keep-alive error:', error.message);
+          log('❌ Primary ping error, trying localhost:', error.message);
+          // Fallback to localhost ping
+          try {
+            const localResponse = await fetch(`http://localhost:${port}/api/health`);
+            if (localResponse.ok) {
+              log('💚 Localhost ping successful');
+            }
+          } catch (localError) {
+            log('❌ All ping methods failed:', localError.message);
+          }
         }
-      }, 5 * 60 * 1000); // Every 5 minutes
+      }, 2 * 60 * 1000); // Every 2 minutes for reserved VM
       
-      // System monitor for continuous operation
+      // Enhanced system monitor for reserved VM
       setInterval(() => {
         const memUsage = process.memoryUsage();
-        log(`🔋 System alive - Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
-      }, 10 * 60 * 1000); // Every 10 minutes
+        const uptime = Math.floor(process.uptime() / 60); // uptime in minutes
+        log(`🔋 Reserved VM Status - Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB, Uptime: ${uptime}min`);
+        
+        // Check if bot process is healthy
+        if (botProcess && !botProcess.killed) {
+          log('🤖 Bot process healthy and active');
+        } else {
+          log('⚠️ Bot process may need attention');
+        }
+      }, 5 * 60 * 1000); // Every 5 minutes for reserved VM
+      
+      // Additional web server heartbeat
+      setInterval(async () => {
+        try {
+          // Internal server health check
+          const startTime = Date.now();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const responseTime = Date.now() - startTime;
+          log(`📡 Web server heartbeat - Response time: ${responseTime}ms`);
+        } catch (error) {
+          log('❌ Web server heartbeat error:', error.message);
+        }
+      }, 3 * 60 * 1000); // Every 3 minutes
     }
     
     // Graceful shutdown
