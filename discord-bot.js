@@ -456,8 +456,11 @@ class DiscordTradingBot {
 
     this.gemini = new GeminiAPI();
     this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
+    // Load persistent dashboard tracking (survives restarts)
     this.dashboardMessageId = null; // Track main dashboard message
     this.dashboardChannelId = null; // Track dashboard channel
+    // Load saved embed IDs after bot starts
+    this.loadDashboardTracking().catch(err => console.log('Dashboard tracking load failed:', err.message));
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     // REMOVED: Old tracking system completely eliminated
@@ -851,6 +854,7 @@ class DiscordTradingBot {
       // Reset tracking IDs to force creation of new embed
       this.dashboardMessageId = null;
       this.dashboardChannelId = null;
+      await this.saveDashboardTracking(); // Save the reset state
       
       // Create fresh embed with fixed calculation logic
       await this.findOrCreateDashboardEmbed();
@@ -1214,6 +1218,7 @@ class DiscordTradingBot {
       if (messageId === this.dashboardMessageId) {
         this.dashboardMessageId = null;
         this.dashboardChannelId = null;
+        await this.saveDashboardTracking(); // Save the reset state
       }
     }
   }
@@ -2345,6 +2350,46 @@ class DiscordTradingBot {
     } catch (error) {
       console.error('Error loading trigger:', error.message);
       return null;
+    }
+  }
+
+  // Save dashboard tracking to prevent embed bouncing on restarts
+  async saveDashboardTracking() {
+    try {
+      const { writeFileSync } = await import('fs');
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        const dashboardData = {
+          messageId: this.dashboardMessageId,
+          channelId: this.dashboardChannelId,
+          timestamp: Date.now()
+        };
+        writeFileSync('dashboard.json', JSON.stringify(dashboardData, null, 2));
+        console.log(`💾 Dashboard tracking saved: ${this.dashboardMessageId}`);
+      }
+    } catch (error) {
+      console.error('Failed to save dashboard tracking:', error.message);
+    }
+  }
+
+  // Load dashboard tracking to prevent embed bouncing on restarts
+  async loadDashboardTracking() {
+    try {
+      const { readFileSync, existsSync } = await import('fs');
+      if (existsSync('dashboard.json')) {
+        const dashboardData = JSON.parse(readFileSync('dashboard.json', 'utf8'));
+        if (dashboardData.messageId && dashboardData.channelId) {
+          this.dashboardMessageId = dashboardData.messageId;
+          this.dashboardChannelId = dashboardData.channelId;
+          console.log(`📂 Dashboard tracking loaded: ${this.dashboardMessageId}`);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to load dashboard tracking:', error.message);
+      this.dashboardMessageId = null;
+      this.dashboardChannelId = null;
+      return false;
     }
   }
 
