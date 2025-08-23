@@ -1535,7 +1535,7 @@ class DiscordTradingBot {
     // Monitor for swing trading opportunities every 3 seconds
     setInterval(async () => {
       await this.checkAutoTradeConditionsRealTime();
-    }, 12000); // Every 12 seconds for swing monitoring (prevent rate limits)
+    }, 30000); // Every 30 seconds for swing monitoring (prevent rate limits and restarts)
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -1705,7 +1705,7 @@ class DiscordTradingBot {
     // Initial ping
     sendKeepAlivePing('running');
     
-    // Heartbeat every 30 seconds (reduced from 5s to prevent rate limits)
+    // Heartbeat every 60 seconds (stable ping frequency)
     setInterval(async () => {
       try {
         await sendKeepAlivePing('running', null);
@@ -1713,7 +1713,7 @@ class DiscordTradingBot {
       } catch (error) {
         console.error('💔 Keep-alive heartbeat failed:', error.message);
       }
-    }, 30000); // 30 seconds instead of 5
+    }, 60000); // 60 seconds - stable ping
   }
 
   async showActiveOrders(interaction) {

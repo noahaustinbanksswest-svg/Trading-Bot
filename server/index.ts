@@ -76,7 +76,7 @@ app.use((req, res, next) => {
     let restartCount = 0;
     let lastPingTime = Date.now();
     const MAX_RESTARTS = 25; // Increased restart attempts
-    const PING_TIMEOUT = 60000; // 60 seconds without ping = restart (more reasonable)
+    const PING_TIMEOUT = 300000; // 5 minutes without ping = restart (much more reasonable)
     
     function startBot() {
       if (botProcess) {
@@ -157,7 +157,7 @@ app.use((req, res, next) => {
           }, 3000);
         }
       }
-    }, 30000); // Check every 30 seconds instead of 5
+    }, 120000); // Check every 2 minutes instead of 30 seconds
     
     // Reset restart counter every 30 minutes (more frequent reset for stability)
     setInterval(() => {
