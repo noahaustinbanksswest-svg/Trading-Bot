@@ -126,61 +126,17 @@ export class GeminiService {
   async getBalances(): Promise<GeminiBalance[]> {
     try {
       const endpoint = '/v1/balances';
+      const payload = { accounts: ["Primary"] };
+      const headers = this.generateHeaders(endpoint, payload);
       
-      // Try without accounts parameter first (for account-level keys)
-      console.log('🔐 Trying balances WITHOUT accounts parameter...');
-      let headers = this.generateHeaders(endpoint);
+      const response: AxiosResponse<GeminiBalance[]> = await axios.post(
+        `${this.baseUrl}${endpoint}`,
+        {},
+        { headers }
+      );
       
-      console.log('🔐 Gemini API Request (No Accounts):', {
-        url: `${this.baseUrl}${endpoint}`,
-        headers: { ...headers, 'X-GEMINI-SIGNATURE': '[HIDDEN]' }
-      });
-      
-      try {
-        const response: AxiosResponse<GeminiBalance[]> = await axios.post(
-          `${this.baseUrl}${endpoint}`,
-          {},
-          { headers }
-        );
-        
-        console.log('✅ SUCCESS! Got balances without accounts parameter');
-        return response.data;
-      } catch (firstError: any) {
-        console.log('❌ Failed without accounts parameter:', firstError.response?.data);
-        
-        // If that fails, try with different common account names
-        console.log('🔐 Trying balances WITH different account names...');
-        const commonAccountNames = ["Primary", "primary", "default", "main", "trading", "exchange"];
-        
-        for (const accountName of commonAccountNames) {
-          try {
-            console.log(`🔍 Trying account name: "${accountName}"`);
-            const payload = { accounts: [accountName] };
-            headers = this.generateHeaders(endpoint, payload);
-            
-            const response: AxiosResponse<GeminiBalance[]> = await axios.post(
-              `${this.baseUrl}${endpoint}`,
-              {},
-              { headers }
-            );
-            
-            console.log(`✅ SUCCESS! Account name "${accountName}" worked!`);
-            return response.data;
-          } catch (accountError: any) {
-            console.log(`❌ Account "${accountName}" failed:`, accountError.response?.data?.reason || accountError.response?.data?.message);
-          }
-        }
-        
-        // If all account names fail, throw the original error
-        throw new Error('All account names failed');
-      }
+      return response.data;
     } catch (error: any) {
-      console.log('❌ Gemini API Error Details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        url: `${this.baseUrl}/v1/balances`
-      });
       throw new Error(`Failed to get balances: ${error}`);
     }
   }
