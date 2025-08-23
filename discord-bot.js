@@ -1193,6 +1193,7 @@ class DiscordTradingBot {
       console.log(`   Crypto Holdings: ${holdings.length} assets`);
       console.log(`   CONSISTENT Portfolio Value (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
+      // CRITICAL: Use the SAME embed format as main dashboard (prevents format switching)
       const embed = this.createPortfolioEmbed({
         totalValue: consistentTotalValue, // Always SOL-only (matches trading logic exactly)
         usdBalance: displayUsdBalance,
@@ -1576,10 +1577,12 @@ class DiscordTradingBot {
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
       const message = await channel.messages.fetch(this.dashboardMessageId);
       
+      // CRITICAL: Use SAME embed format with ALL data (prevents format switching)
       const embed = this.createPortfolioEmbed({
         totalValue: consistentTotalValue, // Now always SOL-only value (matches trading logic)
         usdBalance: displayUsdBalance,
-        holdings: holdings
+        holdings: holdings,
+        dailyBuyData // CRITICAL: Include daily buy data for consistent format
       });
       
       const buttons = this.createPortfolioButtons();
