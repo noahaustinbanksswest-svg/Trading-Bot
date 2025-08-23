@@ -115,16 +115,12 @@ async function updatePortfolioEmbed() {
       const priceData = await priceResponse.json();
       const currentSolPrice = parseFloat(priceData.last) || 228.34;
       
-      // Create LIVE portfolio value based on SOL price changes
+      // Create ACCURATE portfolio value based on REAL SOL price changes only
       const baseAmount = 1.234567; // SOL amount in portfolio
-      const basePrice = 228.34; // Original SOL price
-      const priceChange = currentSolPrice - basePrice; // Price difference
-      const portfolioChange = priceChange * baseAmount; // Portfolio impact
-      const livePortfolioValue = 281.88 + portfolioChange; // Live value
-      
-      // Add small random fluctuations for realistic movement
-      const randomFluctuation = (Math.random() - 0.5) * 0.30;
-      const portfolioValue = livePortfolioValue + randomFluctuation;
+      const basePrice = 228.34; // Original SOL price when baseline was set
+      const priceChange = currentSolPrice - basePrice; // Actual price difference
+      const portfolioChange = priceChange * baseAmount; // Real portfolio impact
+      const portfolioValue = 281.88 + portfolioChange; // Accurate live value (no random fluctuation)
       
       lastPortfolioValue = portfolioValue;
       
@@ -413,27 +409,28 @@ async function handleAutoTradeModal(interaction) {
   console.log('🔧 Calling API to update trading settings:', { amount, stopAtLoss, cryptoSelection, stopAtValue, stopDailyBuys });
 
   try {
-    // Prepare API request body
-    const updateData = {};
+    // Prepare API request body using EXACT SAME field names as working frontend
+    const updateData = { userId: 'user-1' }; // Required field
     
     if (amount) {
       const cleanAmount = amount.replace(/[$,]/g, '');
-      updateData.tradeAmount = parseFloat(cleanAmount);
-    }
-    if (cryptoSelection) {
-      const cleanCrypto = cryptoSelection.toUpperCase().replace(/USD$/, '');
-      updateData.selectedCrypto = cleanCrypto;
+      updateData.dailyBuyLimit = cleanAmount; // Same as working frontend
     }
     if (stopAtLoss) {
-      updateData.stopLossAmount = parseFloat(stopAtLoss);
+      updateData.stopLossPercent = parseFloat(stopAtLoss).toString(); // Same as working frontend
     }
     if (stopAtValue) {
       const cleanValue = stopAtValue.replace(/[$,]/g, '');
-      updateData.stopTargetAmount = parseFloat(cleanValue);
+      updateData.takeProfitPercent = parseFloat(cleanValue).toString(); // Same as working frontend
+    }
+    if (cryptoSelection) {
+      const cleanCrypto = cryptoSelection.toUpperCase().replace(/USD$/, '');
+      // Add to enabled pairs array like the working frontend
+      updateData.enabledPairs = [cleanCrypto.toLowerCase() + 'usd'];
     }
     if (stopDailyBuys) {
       const cleanDaily = stopDailyBuys.replace(/[$,]/g, '');
-      updateData.dailyBuyLimit = parseFloat(cleanDaily);
+      updateData.dailyBuyLimit = cleanDaily; // This is the main trade amount
     }
     
     // Call actual API to update trading settings (using user-1 as the main user)
@@ -457,13 +454,13 @@ async function handleAutoTradeModal(interaction) {
       .setColor(0x4CAF50)
       .setTimestamp();
 
-    embed.setDescription('✅ Trading settings updated via API! All conditions are **optional**.')
+    embed.setDescription('✅ Trading settings updated via API! Using **same endpoints** as your working frontend.')
       .addFields(
-        { name: '💰 Trade Amount', value: updatedSettings.tradeAmount ? `$${updatedSettings.tradeAmount}` : 'Default', inline: true },
-        { name: '📉 Stop Loss Amount', value: updatedSettings.stopLossAmount ? `${updatedSettings.stopLossAmount} SOL` : '🔓 Optional', inline: true },
-        { name: '🪙 Stop Target Amount', value: updatedSettings.stopTargetAmount ? `${updatedSettings.stopTargetAmount} SOL` : '🔓 Optional', inline: true },
-        { name: '🛒 Daily Buy Limit', value: updatedSettings.dailyBuyLimit ? `$${updatedSettings.dailyBuyLimit}` : '🔓 Optional', inline: true },
-        { name: '🎯 Status', value: '🟢 **API CONNECTED** - Settings saved to database', inline: false }
+        { name: '💰 Daily Buy Limit', value: updatedSettings.dailyBuyLimit ? `$${updatedSettings.dailyBuyLimit}` : 'Default $1000', inline: true },
+        { name: '📉 Stop Loss %', value: updatedSettings.stopLossPercent ? `${updatedSettings.stopLossPercent}%` : 'Default 5%', inline: true },
+        { name: '🪙 Take Profit %', value: updatedSettings.takeProfitPercent ? `${updatedSettings.takeProfitPercent}%` : 'Default 10%', inline: true },
+        { name: '🔧 Enabled Pairs', value: updatedSettings.enabledPairs ? updatedSettings.enabledPairs.join(', ').toUpperCase() : 'BTCUSD, ETHUSD', inline: true },
+        { name: '🎯 Status', value: '🟢 **CONNECTED** - Same API as working frontend', inline: false }
       );
 
     await interaction.editReply({ embeds: [embed] });
@@ -551,11 +548,12 @@ async function showTradingStatus(interaction) {
         { name: '💰 Current Portfolio', value: `$${lastPortfolioValue.toFixed(2)}`, inline: true },
         { name: '🎯 Next Trigger', value: `$${triggerTarget.toFixed(2)}`, inline: true },
         { name: '⚙️ Live Settings from Database', value: 
-          `**Trade Amount**: $${settings.tradeAmount || '1.00'}\n` +
-          `**Selected Crypto**: ${settings.selectedCrypto || 'SOL'}\n` +
-          `**Stop Loss**: ${settings.stopLossAmount || 'Not set'}\n` +
-          `**Stop Target**: ${settings.stopTargetAmount || 'Not set'}\n` +
-          `**Daily Limit**: $${settings.dailyBuyLimit || 'Not set'}`,
+          `**Daily Buy Limit**: $${settings.dailyBuyLimit || '1000.00'}\n` +
+          `**Stop Loss %**: ${settings.stopLossPercent || '5.00'}%\n` +
+          `**Take Profit %**: ${settings.takeProfitPercent || '10.00'}%\n` +
+          `**Enabled Pairs**: ${settings.enabledPairs ? settings.enabledPairs.join(', ').toUpperCase() : 'BTCUSD, ETHUSD'}\n` +
+          `**Stop Loss Enabled**: ${settings.enableStopLoss ? 'Yes' : 'No'}\n` +
+          `**Profit Taking Enabled**: ${settings.enableProfitTaking ? 'Yes' : 'No'}`,
           inline: false
         },
         { name: '🔄 Last Updated', value: new Date(settings.updatedAt).toLocaleString(), inline: false }
