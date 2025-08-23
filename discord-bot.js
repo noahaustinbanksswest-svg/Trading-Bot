@@ -2332,12 +2332,12 @@ class DiscordTradingBot {
         const triggerData = JSON.parse(readFileSync('trigger.json', 'utf8'));
         this.lastTriggerTarget = triggerData.trigger;
         console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
-        return true;
+        return triggerData; // FIXED: Return the actual data object
       }
-      return false;
+      return null;
     } catch (error) {
       console.error('Error loading trigger:', error.message);
-      return false;
+      return null;
     }
   }
 
