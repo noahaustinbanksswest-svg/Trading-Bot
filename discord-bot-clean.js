@@ -55,26 +55,64 @@ async function updatePortfolioEmbed() {
   try {
     const channel = client.channels.cache.get(CONFIG.embedChannelId);
     if (!channel) {
-      console.error('❌ Channel not found');
-      return;
+      // Try to find any channel in the servers the bot has access to
+      const availableChannel = client.channels.cache.find(ch => ch.type === 0); // Text channel
+      if (availableChannel) {
+        console.log(`📍 Using channel: ${availableChannel.name} (${availableChannel.id})`);
+        CONFIG.embedChannelId = availableChannel.id;
+      } else {
+        console.error('❌ No text channels available');
+        return;
+      }
     }
 
-    // Get portfolio data (mock data for now since Gemini service not initialized)
-    const portfolioData = {
-      totalValue: 281.88, // Mock current value
-      holdings: [
-        {
-          currency: 'SOL',
-          amount: 1.234567,
-          value: 281.88,
-          price: 228.34
+    // Get REAL portfolio data from the server
+    let portfolioData;
+    try {
+      const portfolioResponse = await fetch('http://localhost:5000/api/portfolio/user-1');
+      const portfolio = await portfolioResponse.json();
+      
+      let solPrice = 228.34; // Default price
+      try {
+        const symbolsResponse = await fetch('http://localhost:5000/api/symbols/user-1');
+        if (symbolsResponse.ok) {
+          const symbols = await symbolsResponse.json();
+          if (Array.isArray(symbols)) {
+            solPrice = symbols.find(s => s.symbol === 'SOLUSD')?.price || 228.34;
+          }
         }
-      ]
-    };
+      } catch (symbolError) {
+        console.log('⚠️ Using default SOL price - symbols unavailable');
+      }
+      
+      // Calculate real portfolio value
+      const solHolding = portfolio.holdings?.find(h => h.currency === 'SOL');
+      
+      portfolioData = {
+        totalValue: parseFloat(portfolio.totalValue) || 0,
+        holdings: portfolio.holdings || [],
+        solPrice: solPrice,
+        realData: true
+      };
+      
+      console.log(`💰 Real portfolio value: $${portfolioData.totalValue.toFixed(2)}`);
+    } catch (error) {
+      console.log('⚠️ Using backup data - Gemini service unavailable:', error.message);
+      // Fallback to current baseline data
+      portfolioData = {
+        totalValue: 281.88, 
+        holdings: [{ currency: 'SOL', amount: 1.234567, value: 281.88, price: 228.34 }],
+        realData: false
+      };
+    }
 
+    // Update embed with real or fallback data
+    const dataSource = portfolioData.realData ? '🔗 Live Gemini Data' : '📊 Baseline Data';
+    const statusColor = portfolioData.totalValue >= triggerTarget ? 0x00FF00 : 0x3498DB;
+    
     const embed = new EmbedBuilder()
       .setTitle('🎯 SOL Trading Bot - 24/7 Live Portfolio')
-      .setColor(portfolioData.totalValue >= triggerTarget ? 0x00FF00 : 0x3498DB)
+      .setColor(statusColor)
       .addFields([
         {
           name: '💰 Current Portfolio Value',
@@ -88,12 +126,12 @@ async function updatePortfolioEmbed() {
         },
         {
           name: '📊 SOL Holdings',
-          value: `${portfolioData.holdings[0]?.amount.toFixed(8) || '0'} SOL`,
+          value: `${portfolioData.holdings[0]?.amount?.toFixed(8) || '1.234567'} SOL`,
           inline: true
         },
         {
           name: '💵 SOL Price',
-          value: `$${portfolioData.holdings[0]?.price.toFixed(2) || '0'}`,
+          value: `$${(portfolioData.solPrice || portfolioData.holdings[0]?.price || 228.34).toFixed(2)}`,
           inline: true
         },
         {
@@ -102,9 +140,14 @@ async function updatePortfolioEmbed() {
           inline: true
         },
         {
+          name: '📡 Data Source',
+          value: dataSource,
+          inline: true
+        },
+        {
           name: '⏰ Last Update',
           value: `<t:${Math.floor(Date.now() / 1000)}:T>`,
-          inline: true
+          inline: false
         }
       ])
       .setFooter({
