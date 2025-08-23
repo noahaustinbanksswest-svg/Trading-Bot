@@ -2451,7 +2451,7 @@ class DiscordTradingBot {
           if (currentPortfolioValue < triggerValue) {
             this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
             await this.saveTriggerToFile();
-            console.log(`📉 BASELINE RESET: Portfolio dropped below trigger to $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
+            console.log(`📉 BASELINE RESET: Portfolio ($${currentPortfolioValue.toFixed(2)}) dropped below trigger ($${(triggerValue).toFixed(2)}) → New baseline: $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
             triggerValue = this.baselineValue + 1.00; // Recalculate trigger with new baseline
           }
           
