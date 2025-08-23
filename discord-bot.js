@@ -1801,13 +1801,28 @@ class DiscordTradingBot {
     // Send keep-alive ping every 1 second for maximum uptime
     setInterval(async () => {
       try {
-        // Check Discord connection health
+        // REAL Discord connection test - actually try to use the connection
         if (!this.client.isReady()) {
-          console.log('🚨 Discord connection down - triggering reconnection');
+          console.log('🚨 Discord connection down (isReady=false) - triggering reconnection');
           this.handleReconnection('keep_alive_check');
           await sendKeepAlivePing('reconnecting', 'Discord connection lost');
         } else {
-          await sendKeepAlivePing('running');
+          // Test actual Discord functionality every 30 seconds
+          if (Date.now() % 30000 < 1000) {
+            try {
+              // Try to fetch the bot's own user to test if connection really works
+              await this.client.user.fetch();
+              console.log('💚 Discord connection VERIFIED (real test passed)');
+              await sendKeepAlivePing('running');
+            } catch (discordError) {
+              console.log('🚨 Discord connection FAILED real test - triggering reconnection');
+              console.log('Discord error:', discordError.message);
+              this.handleReconnection('connection_test_failed');
+              await sendKeepAlivePing('reconnecting', 'Discord real test failed');
+            }
+          } else {
+            await sendKeepAlivePing('running');
+          }
         }
       } catch (error) {
         console.log('Keep-alive ping failed:', error.message);
