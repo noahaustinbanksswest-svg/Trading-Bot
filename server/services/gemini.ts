@@ -68,9 +68,7 @@ export class GeminiService {
   }
 
   private generateHeaders(endpoint: string, payload: any = {}): { [key: string]: string } {
-    // Generate nonce as timestamp in seconds + counter to match Gemini server time
-    const baseTime = Math.floor(Date.now() / 1000);  // Get current time in seconds
-    const nonce = baseTime;  // Use just the seconds timestamp
+    const nonce = Date.now() * 1000;
     const payloadWithDefaults = {
       request: endpoint,
       nonce: nonce.toString(),
@@ -102,32 +100,10 @@ export class GeminiService {
     }
   }
 
-  async getAccounts(): Promise<string[]> {
-    try {
-      const endpoint = '/v1/accounts';
-      const headers = this.generateHeaders(endpoint);
-      
-      console.log('🔐 Getting Gemini accounts list...');
-      
-      const response = await axios.post(
-        `${this.baseUrl}${endpoint}`,
-        {},
-        { headers }
-      );
-      
-      console.log('📋 Available accounts:', response.data);
-      return response.data.map((acc: any) => acc.name || acc.account || acc);
-    } catch (error: any) {
-      console.log('❌ Failed to get accounts:', error.response?.data);
-      return ["Primary"]; // Fallback to Primary
-    }
-  }
-
   async getBalances(): Promise<GeminiBalance[]> {
     try {
       const endpoint = '/v1/balances';
-      const payload = { accounts: ["Primary"] };
-      const headers = this.generateHeaders(endpoint, payload);
+      const headers = this.generateHeaders(endpoint);
       
       const response: AxiosResponse<GeminiBalance[]> = await axios.post(
         `${this.baseUrl}${endpoint}`,
@@ -136,7 +112,7 @@ export class GeminiService {
       );
       
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       throw new Error(`Failed to get balances: ${error}`);
     }
   }

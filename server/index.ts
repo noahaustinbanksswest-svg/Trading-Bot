@@ -75,8 +75,8 @@ app.use((req, res, next) => {
     let botProcess: ChildProcess | null = null;
     let restartCount = 0;
     let lastPingTime = Date.now();
-    const MAX_RESTARTS = 5; // Reduced restart attempts to prevent Discord rate limiting
-    const PING_TIMEOUT = 300000; // 5 minutes without ping = restart (prevent rate limiting)
+    const MAX_RESTARTS = 25; // Increased restart attempts
+    const PING_TIMEOUT = 60000; // 60 seconds without ping = restart (more reasonable)
     
     function startBot() {
       if (botProcess) {
@@ -85,7 +85,7 @@ app.use((req, res, next) => {
       }
       
       log('🤖 Starting Discord bot...');
-      botProcess = spawn('node', ['discord-bot-clean.js'], {
+      botProcess = spawn('node', ['discord-bot.js'], {
         stdio: 'inherit',
         cwd: process.cwd()
       });
@@ -116,7 +116,7 @@ app.use((req, res, next) => {
       }
       
       restartCount++;
-      const delay = Math.min(30000 + (restartCount * 15000), 600000); // Even longer delays to prevent Discord rate limiting
+      const delay = Math.min(10000 + (restartCount * 5000), 120000); // Much longer delays to prevent rapid spawning
       
       log(`🔄 Scheduling bot restart (reason: ${reason}, attempt ${restartCount}/${MAX_RESTARTS}) in ${delay}ms...`);
       
@@ -140,8 +140,8 @@ app.use((req, res, next) => {
     setInterval(() => {
       const timeSinceLastPing = Date.now() - lastPingTime;
       
-      // Only restart if bot is truly unresponsive AND we haven't hit max restarts
-      if (timeSinceLastPing > PING_TIMEOUT && botProcess && restartCount < MAX_RESTARTS) {
+      // Only restart if bot is truly unresponsive (much longer timeout)
+      if (timeSinceLastPing > PING_TIMEOUT && botProcess) {
         log(`⚠️ Bot appears unresponsive (${Math.floor(timeSinceLastPing/1000)}s since last ping)`);
         
         // Try gentle restart first

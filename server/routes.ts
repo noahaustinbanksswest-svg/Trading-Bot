@@ -127,56 +127,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get portfolio holdings from REAL Gemini API
+  // Get portfolio holdings
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
-      // Use environment Gemini API credentials (same as working system)
-      const geminiApiKey = process.env.GEMINI_API_KEY;
-      const geminiApiSecret = process.env.GEMINI_API_SECRET;
-      
-      if (!geminiApiKey || !geminiApiSecret) {
-        return res.json({
-          holdings: [],
-          totalValue: "0.00",
-          error: "Gemini API credentials not available"
-        });
-      }
-
-      // Initialize Gemini service with environment credentials (same as working system)
-      const { GeminiService } = await import('./services/gemini.js');
-      const geminiService = new GeminiService(
-        geminiApiKey, 
-        geminiApiSecret, 
-        false // Use production mode for real balances
-      );
-
-      // Get REAL balances from Gemini API
-      const balances = await geminiService.getBalances();
-      
-      // Convert to portfolio holdings format
-      const holdings = balances
-        .filter(balance => parseFloat(balance.available) > 0)
-        .map(balance => ({
-          currency: balance.currency.toUpperCase(),
-          amount: balance.available,
-          valueUSD: balance.currency.toLowerCase() === 'usd' ? balance.available : '0'
-        }));
-
-      // Get current prices for non-USD holdings
-      for (const holding of holdings) {
-        if (holding.currency !== 'USD') {
-          try {
-            const ticker = await geminiService.getTicker(`${holding.currency.toLowerCase()}usd`);
-            const price = parseFloat(ticker.last);
-            const amount = parseFloat(holding.amount);
-            holding.valueUSD = (amount * price).toFixed(2);
-          } catch (error) {
-            console.warn(`Could not get price for ${holding.currency}:`, (error as Error).message);
-            holding.valueUSD = '0';
-          }
-        }
-      }
-
+      const holdings = await storage.getPortfolioHoldings(req.params.userId);
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
       res.json({
@@ -184,11 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalValue: totalValue.toFixed(2),
       });
     } catch (error) {
-      console.error('Portfolio API error:', (error as Error).message);
-      res.status(500).json({ 
-        error: "Failed to get portfolio from Gemini API",
-        details: (error as Error).message 
-      });
+      res.status(500).json({ error: "Failed to get portfolio" });
     }
   });
 
@@ -262,28 +212,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(history);
     } catch (error) {
       res.status(500).json({ error: "Failed to get trading history" });
-    }
-  });
-
-  // 🚀 NEW: Independent TradingEngine endpoint for Discord bot triggers
-  app.post("/api/trading/execute-swing-trade", async (req, res) => {
-    try {
-      const { userId, reason, amount } = req.body;
-      console.log(`📡 TradingEngine API called by Discord:`, { userId, reason, amount });
-      
-      // For now, simulate trade execution - will connect to actual TradingEngine later
-      const result = {
-        success: true, 
-        message: `TradingEngine received Discord trigger: ${reason}`,
-        amount: amount || 1.00,
-        timestamp: new Date().toISOString()
-      };
-      
-      console.log(`🎯 TradingEngine executing $${amount} swing trade: ${reason}`);
-      res.json(result);
-    } catch (error) {
-      console.error('TradingEngine API error:', error);
-      res.status(500).json({ error: "TradingEngine execution failed" });
     }
   });
 

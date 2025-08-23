@@ -458,8 +458,8 @@ class DiscordTradingBot {
     this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
     this.dashboardMessageId = null; // Track main dashboard message
     this.dashboardChannelId = null; // Track dashboard channel
-    // REMOVED: Trading logic moved to independent Gemini API system
-    // Discord bot is now ONLY for visuals and settings
+    this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
+    this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     // REMOVED: Old tracking system completely eliminated
     this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
     this.baselineLoaded = false; // Flag to ensure we load baseline from database first
@@ -882,14 +882,12 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // ANTI-BOUNCING: Always use locked baseline for consistent display
+        // DISPLAY-ONLY: Use actual dynamic trigger value from trading logic
         const displayTrigger = this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00);
-        
-        // FIXED FORMATTING: Ensure consistent number of decimal places to prevent bouncing
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
-                       `💰 **Value**: $${solHolding.value.toFixed(2)}\n` +
-                       `🎯 **Next Trigger**: $${displayTrigger.toFixed(2)}\n` +
-                       `💲 **Current Price**: $${solHolding.price.toFixed(2)}`;
+                       `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
+                       `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
+                       `💲 **Current Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
         
         embed.addFields({ 
           name: '⚡ SOL Trading Monitor', 
@@ -912,13 +910,12 @@ class DiscordTradingBot {
       return embed;
     } catch (error) {
       console.error('❌ Error creating portfolio embed:', error);
-      // Return fallback embed that matches the main format to prevent bouncing
+      // Return simple fallback embed
       return new EmbedBuilder()
-        .setTitle('💰 Live Portfolio Dashboard')
-        .setDescription('⚠️ Loading portfolio data...')
+        .setTitle('💰 Portfolio Dashboard')
+        .setDescription('⚠️ Embed display error - please refresh')
         .setColor(0xFF9800)
-        .setTimestamp()
-        .setFooter({ text: `Live Portfolio • Real-time Updates` });
+        .setTimestamp();
     }
   }
 
@@ -1223,12 +1220,6 @@ class DiscordTradingBot {
 
   async findOrCreateDashboardEmbed() {
     try {
-      // Check if Discord client is ready before attempting to find guild
-      if (!this.client.isReady() || !this.client.user) {
-        console.log('⚠️ Discord client not ready - cannot access guilds');
-        return;
-      }
-      
       // Find the dashboard channel
       const guild = this.client.guilds.cache.first();
       if (!guild) {
@@ -1347,7 +1338,7 @@ class DiscordTradingBot {
               currency: balance.currency,
               amount: amount,
               price: currentPrice,
-              value: value,
+              value: truncatedValue,
               change: change
             });
           } catch (error) {
@@ -1408,7 +1399,7 @@ class DiscordTradingBot {
     // Create intelligent data refresh intervals
     this.startBalanceStreaming();
     this.startPriceStreaming();
-    // REMOVED: Discord no longer does trading monitoring
+    this.startSwingMonitoring();
   }
   
   startBalanceStreaming() {
@@ -1500,17 +1491,17 @@ class DiscordTradingBot {
     }, 8000); // Every 8 seconds for price updates (prevent rate limits)
   }
   
-  // REMOVED: Trading monitoring moved to independent Gemini API system
-  // Discord is now ONLY for visuals and settings
+  startSwingMonitoring() {
+    console.log('🌊 Starting swing trading monitoring (every 1 second)...');
+    
+    // Monitor for swing trading opportunities every 3 seconds
+    setInterval(async () => {
+      await this.checkAutoTradeConditionsRealTime();
+    }, 6000); // Every 6 seconds for swing monitoring (prevent rate limits)
+  }
   
   async updatePortfolioMessageFromRealTimeData() {
     try {
-      // Check if Discord client is actually ready and connected
-      if (!this.client.isReady() || !this.client.user) {
-        console.log('⚠️ Discord client not ready - skipping embed update');
-        return;
-      }
-      
       if (!this.dashboardMessageId || !this.dashboardChannelId) {
         return;
       }
@@ -1575,8 +1566,52 @@ class DiscordTradingBot {
     }
   }
 
-  // REMOVED: All trading logic moved to independent Gemini API system
-  // Discord bot is now ONLY for visuals and settings
+  async checkAutoTradeConditionsRealTime() {
+    try {
+      // Use the global autoTradeSettings variable instead of storage
+      if (!autoTradeSettings || !autoTradeSettings.enabled || !autoTradeSettings.selectedCrypto) {
+        return;
+      }
+
+      // FORCE FRESH PRICE CHECK - No cached data for swing monitoring
+      const balanceData = this.realTimeBalances.get(autoTradeSettings.selectedCrypto);
+      if (!balanceData) {
+        console.log(`⏳ Waiting for balance data for ${autoTradeSettings.selectedCrypto}`);
+        return;
+      }
+      
+      // Get FRESH price from API every swing check
+      const symbol = `${autoTradeSettings.selectedCrypto}USD`;
+      const ticker = await this.gemini.getTicker(symbol);
+      const currentPrice = parseFloat(ticker.last);
+      const currentAmount = balanceData.amount;
+      
+      console.log(`📊 REAL-TIME SWING CHECK:`);
+      console.log(`   ${autoTradeSettings.selectedCrypto}: ${currentAmount.toFixed(8)}`);
+      console.log(`   Current Price: $${currentPrice.toFixed(2)}`);
+      
+      // Base protection check using real-time data
+      const tradeAmount = 1.0 / currentPrice; // $1 worth in crypto
+      const feeBuffer = 0.04 / currentPrice; // $0.04 fee buffer (actual Gemini fee ~0.35%)
+      const totalImpact = tradeAmount + feeBuffer;
+      const remainingAfterSale = currentAmount - totalImpact;
+      
+      console.log(`💰 Real-time $1 Trade Check:`);
+      console.log(`   Trade: $1 worth = ${tradeAmount.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      console.log(`   Fee Buffer: ${feeBuffer.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);  
+      console.log(`   Total Impact: ${totalImpact.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      console.log(`   After Sale: ${remainingAfterSale.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
+      
+      // NEW REAL-TIME PORTFOLIO VALUE MONITORING
+      const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
+      
+      // DISABLED: All baseline calculations moved to main path only
+      console.log(`📊 REAL-TIME MONITORING: SOL $${currentPortfolioValue.toFixed(2)} (baseline calculations disabled to prevent bouncing)`);
+      
+    } catch (error) {
+      console.error('❌ Real-time swing check error:', error.message);
+    }
+  }
 
   startAutoUpdating() {
     console.log('🚀 Starting REAL-TIME portfolio monitoring with live data streams...');
@@ -1592,14 +1627,8 @@ class DiscordTradingBot {
       });
     }, 2000);
     
-    // HIGH FREQUENCY Discord embed updates (every 1 second with fresh Gemini data)
+    // Reduced frequency polling for backup (every 30 seconds instead of 1 second)
     setInterval(async () => {
-      // CRITICAL: Only attempt Discord updates if client is properly connected
-      if (!this.client.isReady() || !this.client.user) {
-        // Discord not connected - trading continues independently
-        return;
-      }
-      
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
         console.log(`🔄 Backup sync for message ${this.dashboardMessageId}`);
@@ -1611,11 +1640,9 @@ class DiscordTradingBot {
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
           console.log('🔄 Attempting to reconnect to dashboard...');
-          if (this.client.isReady()) {
-            await this.findOrCreateDashboardEmbed();
-          }
+          await this.findOrCreateDashboardEmbed();
         }
-      } else if (this.client.isReady()) {
+      } else {
         console.log(`⚠️ No dashboard message tracked - RECONNECTING...`);
         try {
           await this.findOrCreateDashboardEmbed();
@@ -1624,7 +1651,7 @@ class DiscordTradingBot {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 1000); // Every 1 second for live updates
+    }, 30000); // Backup sync every 30 seconds (much less frequent)
   }
 
   startKeepAlive() {
@@ -2045,11 +2072,11 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // REMOVED: All trading monitoring moved to independent Gemini API system
-    // Discord bot is now ONLY for visuals and settings
+    // Auto trade monitoring every 1 second
     setInterval(async () => {
       try {
-        // Discord only receives status updates now
+        // Check auto trade conditions every 1 second for maximum price accuracy
+        await this.checkAutoTradeConditions();
         
       } catch (error) {
         console.error('Error in auto trade monitoring:', error.message);
@@ -2314,24 +2341,35 @@ class DiscordTradingBot {
     }
   }
 
-  // REMOVED: All trading logic moved to independent Gemini API system
-  // Discord bot is now ONLY for visuals and settings - returns immediately
-  async checkAutoTradeConditions_DISABLED() {
-    console.log('📱 Discord: Visuals only - trading handled by independent Gemini system');
-    return false;
-  }
+  async checkAutoTradeConditions() {
+    // Debug log to show monitoring is running
+    console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
+    
+    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) {
+      console.log(`⏸️ Auto Trade monitoring skipped - not enabled/active`);
+      return;
+    }
 
-  // REMOVED: All massive orphaned trading logic block - fixing Discord bot startup
-  // This entire section has been disabled to allow 24/7 embed updates to resume
-  
-  // ✅ CLEAN METHOD: All trading moved to TradingEngine API
-  async cleanMethod() {
-    console.log('📱 Discord: Clean method - trading handled by TradingEngine');
-    return true;
-  }
-  
-  /* 
-  // ORIGINAL ORPHANED CODE BLOCK - FULLY COMMENTED OUT:
+    try {
+      // Get current portfolio data
+      const portfolioData = await this.getPortfolioData();
+      const { totalValue, holdings } = portfolioData;
+
+      let shouldExecuteTrade = false;
+      let reason = '';
+
+      // DEBUG: Show current auto trade settings
+      console.log(`🔧 AUTO TRADE SETTINGS:`, {
+        enabled: autoTradeSettings.enabled,
+        selectedCrypto: autoTradeSettings.selectedCrypto,
+        stopAtLoss: autoTradeSettings.stopAtLoss,
+        stopAtValue: autoTradeSettings.stopAtValue
+      });
+      console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => h.currency));
+      
+      // Check if selected crypto holdings allow $1 USD sale while protecting base amount
+      if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
+        const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
         if (cryptoHolding) {
           // Debug portfolio data structure
           console.log(`🔍 DEBUG - SOL Portfolio Data:`, {
@@ -2380,30 +2418,25 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // BASELINE COMPLETELY LOCKED - Load once from file and never change
-          if (typeof this.baselineValue === 'undefined' || this.baselineValue === null) {
+          // INITIALIZE BASELINE ONCE - LOAD FROM FILE OR SET INITIAL  
+          if (!this.triggerIsInitialized) {
             try {
-              // REMOVED: Orphaned code causing syntax error
-              // Baseline loading logic moved to TradingEngine
-              console.log('📱 Discord: Baseline handling moved to TradingEngine');
+              const triggerData = await this.loadTriggerFromFile();
+              if (triggerData && triggerData.trigger) {
+                this.baselineValue = triggerData.trigger;
+                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} (loaded from file)`);
+              } else {
                 this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-                console.log(`🔒 BASELINE SET & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
-                // REMOVED: Orphaned await call
+                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)} (initial baseline)`);
+                await this.saveTriggerToFile();
               }
             } catch (error) {
               this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-              console.log(`🔒 BASELINE FALLBACK & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
-              // REMOVED: Orphaned await call
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}`);
+              await this.saveTriggerToFile();
             }
+            this.triggerIsInitialized = true;
           }
-          
-          // BASELINE IS NOW LOCKED FOREVER - Show locked status
-          console.log(`🔒 BASELINE LOCKED AT: $${this.baselineValue.toFixed(2)} (unchangeable)`);
-          console.log(`🎯 TRIGGER TARGET: $${(this.baselineValue + 1.00).toFixed(2)} (baseline + $1.00)`);
-          console.log(`📊 CURRENT PORTFOLIO: $${currentPortfolioValue.toFixed(2)}`);
-          console.log(`💰 AMOUNT NEEDED: $${Math.max(0, (this.baselineValue + 1.00) - currentPortfolioValue).toFixed(2)}`);
-          console.log(`🚫 BASELINE WILL NEVER CHANGE (except after successful trades)`);
-          
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
@@ -2425,12 +2458,9 @@ class DiscordTradingBot {
               return false;
             }
             
-            // 🔄 NEW ARCHITECTURE: Call independent TradingEngine instead of Discord executing
-            console.log(`📡 TRIGGER → Calling independent TradingEngine to execute trade`);
-            
             // Lock trading to prevent multiple simultaneous orders
             this.tradingLock = true;
-            console.log(`🔒 TRADING LOCKED - TradingEngine will execute`);
+            console.log(`🔒 TRADING LOCKED - Executing single trade`);
             
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
@@ -2441,15 +2471,9 @@ class DiscordTradingBot {
             const needed = parseFloat((triggerValue - currentPortfolioValue).toFixed(2));
             console.log(`⏳ Need $${needed} more to hit trigger $${triggerValue.toFixed(2)}`);
           }
-        }
-        
-        // REMOVED: Problematic orphaned code temporarily commented out
-        // TODO: Clean up orphaned trading logic completely
-        /*
-        if (!cryptoHolding) {
+        } else {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
         }
-        */
       }
 
       // Check crypto amount condition (SOL)
@@ -2472,42 +2496,30 @@ class DiscordTradingBot {
       console.log(`🔍 FINAL CHECK: shouldExecuteTrade = ${shouldExecuteTrade}`);
       if (shouldExecuteTrade) {
         console.log(`🚨 EXECUTING TRADE: ${reason}`);
-        // 🔄 NEW ARCHITECTURE: Call independent TradingEngine API instead of Discord executing
-        try {
-          const response = await fetch('http://localhost:5000/api/trading/execute-swing-trade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'test-user', reason, amount: 1.00 })
-          });
-          const result = await response.json();
-          console.log(`📡 TradingEngine API called:`, result);
-        } catch (error) {
-          console.log(`❌ TradingEngine API error:`, error.message);
+        await this.executeAutoTrade(reason);
+        
+        // CRITICAL: Update trigger AFTER successful trade execution
+        if (autoTradeSettings.conditions.portfolioValueReached) {
+          // Get fresh portfolio data after trade
+          const freshPortfolioData = await this.getPortfolioData();
+          const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
+          if (solHolding) {
+            const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
+            this.lastTriggerTarget = newTrigger; // RESET TRIGGER AFTER SUCCESSFUL TRADE
+            console.log(`🔄 TRIGGER RESET AFTER TRADE: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
+            await this.saveTriggerToFile();
+          }
         }
-        
-        // CRITICAL: All trigger update logic also moved to TradingEngine
-        // Discord bot now ONLY handles visuals - no trading logic
-        console.log('📱 Discord: Trading trigger handling moved to TradingEngine API');
-        
       } else {
-        console.log('⏸️ NO TRADE: Conditions not met yet');
+        console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
-      
-      console.log('📱 Discord: All trading logic moved to TradingEngine API');
+
     } catch (error) {
-      console.error('Error in method:', error.message);
+      console.error('Error checking auto trade conditions:', error.message);
     }
   }
 
-  // ✅ CLEAN: All trading moved to TradingEngine API - Discord handles only visuals  
-  async executeAutoTrade_DISABLED(reason) {
-    console.log('📱 Discord: Trade execution handled by independent TradingEngine system');
-    return false;
-  }
-
-  // REMOVED: All remaining orphaned trading code - fully commented out
-  /*
-  async executeAutoTrade_OLD_DISABLED(reason) {
+  async executeAutoTrade(reason) {
     try {
       // CRITICAL: Trading lock to prevent multiple simultaneous executions
       if (this.tradingLock) {
@@ -2618,7 +2630,7 @@ class DiscordTradingBot {
         // RESET BASELINE TO POST-TRADE PORTFOLIO VALUE
         const postTradePortfolio = cryptoHolding.value - 1.00; // Subtract the $1 we just sold
         this.baselineValue = parseFloat(postTradePortfolio.toFixed(2));
-        // REMOVED: Orphaned await call
+        await this.saveTriggerToFile();
         console.log(`🎯 BASELINE RESET: $${this.baselineValue.toFixed(2)} → Next trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
         
         sellOrders.push({
@@ -2742,7 +2754,7 @@ class DiscordTradingBot {
     console.log(`⚡ Test Auto Trade Settings:`, autoTradeSettings);
     
     // Run the condition check manually
-    // REMOVED: Trading moved to independent Gemini API system
+    await this.checkAutoTradeConditions();
     
     // Restore original settings
     autoTradeSettings.enabled = originalSettings.enabled;
@@ -2889,22 +2901,12 @@ class DiscordTradingBot {
       
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
-      console.log('🎯 Trading system continues to run independently of Discord status');
     } catch (error) {
       console.error('❌ Failed to start Discord bot:', error);
       console.error('❌ Error details:', error.message);
-      
-      // Check if it's a rate limiting error
-      if (error.message.includes('sessions remaining') || error.message.includes('shards')) {
-        console.log('🔄 Discord rate limited - trading continues independently without Discord notifications');
-        // Exit gracefully instead of crashing to prevent restart loops
-        process.exit(1);
-      }
-      
       console.error('❌ Error stack:', error.stack);
     }
   }
-  */
 }
 
 // Start the bot
