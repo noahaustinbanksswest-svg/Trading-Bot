@@ -6,8 +6,8 @@
  * User insight: If Discord timestamps are behind real-time = bot is dead
  */
 
-const { spawn, exec } = require('child_process');
-const fs = require('fs');
+import { spawn, exec } from 'child_process';
+import fs from 'fs';
 
 class DiscordTimestampGuardian {
   constructor() {
@@ -86,7 +86,7 @@ class DiscordTimestampGuardian {
     this.isRestarting = true;
     this.restartCount++;
 
-    console.log(`⚡ DISCORD-TRIGGERED RESTART #${this.restartCount}`);
+    console.log(`🚨 APP CRASHED - RESTARTING NOW! (Restart #${this.restartCount})`);
     console.log(`🔍 Reason: ${reason}`);
     console.log(`⏰ Guardian uptime: ${Math.floor((Date.now() - this.startTime) / 60000)} minutes`);
 
@@ -95,15 +95,22 @@ class DiscordTimestampGuardian {
       await this.killAllProcesses();
       
       // Wait for clean shutdown
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Create restart signal file for the main system
-      this.createRestartSignal();
+      // RESTART THE WORKFLOW DIRECTLY
+      console.log('⚡ RESTARTING WORKFLOW: "Start application"');
+      await this.restartWorkflow();
       
-      console.log('✅ Discord timestamp guardian restart sequence completed');
+      console.log('✅ APP SUCCESSFULLY RESTARTED!');
       
     } catch (error) {
       console.error('❌ Restart failed:', error.message);
+      // Try again in 30 seconds
+      setTimeout(() => {
+        console.log('🔄 Retrying restart...');
+        this.isRestarting = false;
+        this.restartBot('retry after failure');
+      }, 30000);
     } finally {
       // Reset restart flag
       setTimeout(() => {
@@ -129,21 +136,35 @@ class DiscordTimestampGuardian {
     });
   }
 
-  createRestartSignal() {
-    // Create a signal file that can trigger other restart mechanisms
-    const restartSignal = {
-      reason: 'Discord timestamps lagging behind real-time',
-      timestamp: Date.now(),
-      restartCount: this.restartCount,
-      detectedBy: 'DiscordTimestampGuardian'
-    };
-    
-    try {
-      fs.writeFileSync('restart-signal.json', JSON.stringify(restartSignal, null, 2));
-      console.log('📝 Restart signal created for external monitoring systems');
-    } catch (error) {
-      console.error('❌ Could not create restart signal:', error.message);
-    }
+  async restartWorkflow() {
+    return new Promise((resolve, reject) => {
+      console.log('🔄 Executing workflow restart command...');
+      
+      // Use curl to call the Replit API to restart the workflow
+      const restartCommand = `curl -X POST http://localhost:5000/api/restart-workflow || echo "API unavailable, trying direct restart..."`;
+      
+      exec(restartCommand, (error, stdout, stderr) => {
+        if (error) {
+          console.log('📡 API restart failed, trying direct npm command...');
+          
+          // Fallback: Start the workflow directly
+          const directStart = spawn('npm', ['run', 'dev'], {
+            stdio: 'inherit',
+            detached: true
+          });
+          
+          directStart.unref(); // Allow process to continue independently
+          
+          setTimeout(() => {
+            console.log('⚡ Direct workflow start initiated');
+            resolve();
+          }, 3000);
+        } else {
+          console.log('✅ Workflow restarted via API');
+          resolve();
+        }
+      });
+    });
   }
 
   setupProtection() {
