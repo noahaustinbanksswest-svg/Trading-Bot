@@ -85,7 +85,7 @@ app.use((req, res, next) => {
       }
       
       log('🤖 Starting Discord bot...');
-      botProcess = spawn('node', ['discord-bot.js'], {
+      botProcess = spawn('node', ['discord-bot-clean.js'], {
         stdio: 'inherit',
         cwd: process.cwd()
       });
