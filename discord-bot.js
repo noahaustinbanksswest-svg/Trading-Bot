@@ -2551,9 +2551,13 @@ class DiscordTradingBot {
           console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $1.00) = ${currentPortfolioValue < resetThreshold}`);
           
           if (currentPortfolioValue < resetThreshold) {
-            // STABLE MODE: Never auto-reset to prevent bouncing (user can manually reset if needed)
-            console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} but keeping baseline STABLE at $${this.baselineValue.toFixed(2)} to prevent bouncing`);
-            // Do NOT reset baseline or trigger values to keep embed stable
+            // RESET TRIGGER: Portfolio dropped below threshold, reset to current portfolio value
+            console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
+            this.baselineValue = currentPortfolioValue;
+            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            triggerValue = this.savedTriggerValue;
+            await this.saveTriggerToFile();
+            console.log(`🔄 NEW BASELINE: $${this.baselineValue.toFixed(2)}, NEW TRIGGER: $${this.savedTriggerValue.toFixed(2)}`);
           } else {
             // KEEP TRIGGER LOCKED - don't reset just because baseline equals portfolio
             console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above reset threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue.toFixed(2)}`);
