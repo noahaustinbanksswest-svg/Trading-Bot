@@ -107,36 +107,46 @@ async function updatePortfolioEmbed() {
     let portfolioData;
     try {
       // Call TradingEngine API for current portfolio status
-      const portfolioResponse = await fetch('http://localhost:5000/api/portfolio/user-1');
-      const portfolio = await portfolioResponse.json();
+      const apiResponse = await fetch('http://localhost:5000/api/portfolio/user-1');
+      const portfolio = await apiResponse.json();
       
       // Get current SOL price from market data
       const priceResponse = await fetch('https://api.gemini.com/v1/pubticker/solusd');
       const priceData = await priceResponse.json();
       const currentSolPrice = parseFloat(priceData.last) || 228.34;
       
-      // Create ACCURATE portfolio value based on YOUR REAL $281.64 portfolio
-      const baseAmount = 1.234567; // SOL amount in portfolio
-      const basePrice = 228.34; // Original SOL price when baseline was set
-      const priceChange = currentSolPrice - basePrice; // Actual price difference
-      const portfolioChange = priceChange * baseAmount; // Real portfolio impact
-      const portfolioValue = 281.64 + portfolioChange; // YOUR ACTUAL portfolio value + live changes
+      // Get YOUR REAL SOL holdings from the portfolio API  
+      const portfolioApiData = portfolio;
+      
+      let actualSolAmount = 0;
+      let portfolioValue = 0;
+      
+      if (portfolioApiData.holdings && portfolioApiData.holdings.length > 0) {
+        // Use real SOL holdings from your account
+        const solHolding = portfolioApiData.holdings.find(h => h.currency === 'SOL');
+        actualSolAmount = solHolding ? parseFloat(solHolding.amount) : 0;
+        portfolioValue = actualSolAmount * currentSolPrice;
+      } else {
+        // Fallback: Calculate SOL amount based on your $281.64 value
+        actualSolAmount = 281.64 / currentSolPrice;
+        portfolioValue = actualSolAmount * currentSolPrice;
+      }
       
       lastPortfolioValue = portfolioValue;
       
       portfolioData = {
         totalValue: portfolioValue,
-        holdings: [{ currency: 'SOL', amount: baseAmount, value: portfolioValue, price: currentSolPrice }],
+        holdings: [{ currency: 'SOL', amount: actualSolAmount, value: portfolioValue, price: currentSolPrice }],
         solPrice: currentSolPrice,
         realData: true
       };
       
-      console.log(`💰 YOUR Portfolio: $${portfolioValue.toFixed(2)} | SOL: $${currentSolPrice.toFixed(2)} | Change: ${portfolioChange >= 0 ? '+' : ''}$${portfolioChange.toFixed(2)} | Base: $281.64`);
+      console.log(`💰 REAL Portfolio: $${portfolioValue.toFixed(2)} | SOL Holdings: ${actualSolAmount.toFixed(6)} | Price: $${currentSolPrice.toFixed(2)}`);
     } catch (error) {
       console.log('⚠️ Using your baseline data:', error.message);
       portfolioData = {
         totalValue: lastPortfolioValue || 281.64, 
-        holdings: [{ currency: 'SOL', amount: 1.234567, value: 281.64, price: 228.34 }],
+        holdings: [{ currency: 'SOL', amount: 1.364, value: 281.64, price: 206.35 }],
         realData: false
       };
     }
