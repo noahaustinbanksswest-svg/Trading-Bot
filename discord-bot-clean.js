@@ -154,10 +154,10 @@ async function updatePortfolioEmbed() {
     // Update embed with real or fallback data
     const dataSource = portfolioData.realData ? '🔗 Live Gemini Data' : '📊 Baseline Data';
     const currentPortfolioValue = parseFloat(portfolioData.totalValue);
-    // SMART TRIGGER: Calculate trigger based on your actual value + $1.00
-    const baselinePortfolioValue = 282.10; // Your actual current portfolio value
-    const updatedTriggerTarget = baselinePortfolioValue + 1.00; // Always your actual value + $1.00
-    const statusColor = currentPortfolioValue >= updatedTriggerTarget ? 0x00FF00 : 0x3498DB;
+    // SMART TRIGGER: Calculate trigger based on your fixed value + $1.00
+    const fixedPortfolioValue = 282.10; // Your FIXED portfolio value
+    const updatedTriggerTarget = fixedPortfolioValue + 1.00; // Always $282.10 + $1.00 = $283.10
+    const statusColor = fixedPortfolioValue >= updatedTriggerTarget ? 0x00FF00 : 0x3498DB;
     
     const embed = new EmbedBuilder()
       .setTitle('🎯 SOL Trading Bot - 24/7 Live Portfolio')
@@ -165,7 +165,7 @@ async function updatePortfolioEmbed() {
       .addFields([
         {
           name: '💰 Current Portfolio Value', 
-          value: `$${parseFloat(portfolioData.totalValue).toFixed(2)}`,
+          value: `$282.10`,
           inline: true
         },
         {
@@ -180,7 +180,7 @@ async function updatePortfolioEmbed() {
         },
         {
           name: '💵 SOL Price',
-          value: `$${(portfolioData.currentSolPrice || portfolioData.solPrice || portfolioData.holdings[0]?.price || 206.33).toFixed(2)}`,
+          value: `$${(portfolioData.currentSolPrice || portfolioData.solPrice || 206.89).toFixed(2)}`,
           inline: true
         },
         {
