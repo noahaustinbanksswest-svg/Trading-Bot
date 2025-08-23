@@ -1223,6 +1223,12 @@ class DiscordTradingBot {
 
   async findOrCreateDashboardEmbed() {
     try {
+      // Check if Discord client is ready before attempting to find guild
+      if (!this.client.isReady() || !this.client.user) {
+        console.log('⚠️ Discord client not ready - cannot access guilds');
+        return;
+      }
+      
       // Find the dashboard channel
       const guild = this.client.guilds.cache.first();
       if (!guild) {
@@ -1505,6 +1511,12 @@ class DiscordTradingBot {
   
   async updatePortfolioMessageFromRealTimeData() {
     try {
+      // Check if Discord client is actually ready and connected
+      if (!this.client.isReady() || !this.client.user) {
+        console.log('⚠️ Discord client not ready - skipping embed update');
+        return;
+      }
+      
       if (!this.dashboardMessageId || !this.dashboardChannelId) {
         return;
       }
@@ -1632,6 +1644,12 @@ class DiscordTradingBot {
     
     // HIGH FREQUENCY Discord embed updates (every 1 second with fresh Gemini data)
     setInterval(async () => {
+      // CRITICAL: Only attempt Discord updates if client is properly connected
+      if (!this.client.isReady() || !this.client.user) {
+        // Discord not connected - trading continues independently
+        return;
+      }
+      
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
         console.log(`🔄 Backup sync for message ${this.dashboardMessageId}`);
@@ -1643,9 +1661,11 @@ class DiscordTradingBot {
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
           console.log('🔄 Attempting to reconnect to dashboard...');
-          await this.findOrCreateDashboardEmbed();
+          if (this.client.isReady()) {
+            await this.findOrCreateDashboardEmbed();
+          }
         }
-      } else {
+      } else if (this.client.isReady()) {
         console.log(`⚠️ No dashboard message tracked - RECONNECTING...`);
         try {
           await this.findOrCreateDashboardEmbed();
@@ -2911,6 +2931,7 @@ class DiscordTradingBot {
       
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
+      console.log('🎯 Trading system continues to run independently of Discord status');
     } catch (error) {
       console.error('❌ Failed to start Discord bot:', error);
       console.error('❌ Error details:', error.message);
