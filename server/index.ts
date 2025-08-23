@@ -177,7 +177,7 @@ app.use((req, res, next) => {
     if (process.env.REPLIT_DOMAINS) {
       log('🔄 Setting up Replit keep-alive system...');
       
-      // Self-ping every 2 minutes to keep web server awake on reserved VM
+      // Self-ping every 10 seconds to keep web server awake on reserved VM
       setInterval(async () => {
         try {
           const domain = process.env.REPLIT_DOMAINS.split(',')[0];
@@ -208,7 +208,7 @@ app.use((req, res, next) => {
             log('❌ Critical: All web server pings failed:', localError.message);
           }
         }
-      }, 2 * 60 * 1000); // Every 2 minutes to keep web server alive
+      }, 10 * 1000); // Every 10 seconds to keep web server alive
       
       // Enhanced system monitor for reserved VM
       setInterval(() => {
