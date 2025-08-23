@@ -1,8 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * Startup script for Discord Trading Bot with Process Supervisor
- * Use this instead of npm run dev to get auto-restart functionality
+ * Enhanced startup script with Workspace Guardian
+ * This will keep the green button ON even if the server crashes
  */
 
+const { spawn } = require('child_process');
+
+console.log('🛡️ Starting Enhanced Workspace Protection...');
+
+// Start the workspace guardian in the background
+const guardian = spawn('node', ['workspace-guardian.js'], {
+  stdio: 'inherit',
+  detached: false
+});
+
+// Start the main supervisor
 require('./server/supervisor.js');
