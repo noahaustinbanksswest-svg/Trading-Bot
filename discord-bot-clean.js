@@ -135,6 +135,7 @@ async function updatePortfolioEmbed() {
         totalValue: portfolioValue.toFixed(2),
         holdings: [{ currency: 'SOL', amount: actualSolAmount, value: portfolioValue, price: currentSolPrice }],
         solPrice: currentSolPrice,
+        currentSolPrice: currentSolPrice, // Add this for embed access
         realData: true
       };
       
@@ -142,8 +143,10 @@ async function updatePortfolioEmbed() {
     } catch (error) {
       console.log('⚠️ Using your baseline data:', error.message);
       portfolioData = {
-        totalValue: lastPortfolioValue || 281.64, 
-        holdings: [{ currency: 'SOL', amount: 1.364, value: 281.64, price: 206.35 }],
+        totalValue: (lastPortfolioValue || 281.41).toFixed(2), 
+        holdings: [{ currency: 'SOL', amount: 1.365349, value: 281.41, price: 206.33 }],
+        solPrice: 206.33,
+        currentSolPrice: 206.33, // Add for embed access
         realData: false
       };
     }
@@ -172,12 +175,12 @@ async function updatePortfolioEmbed() {
         },
         {
           name: '📊 SOL Holdings',
-          value: `${portfolioData.holdings[0]?.amount?.toFixed(6) || actualSolAmount.toFixed(6)} SOL`,
+          value: `${portfolioData.holdings[0]?.amount?.toFixed(6) || '1.365349'} SOL`,
           inline: true
         },
         {
           name: '💵 SOL Price',
-          value: `$${(portfolioData.solPrice || 206.33).toFixed(2)}`,
+          value: `$${(portfolioData.currentSolPrice || portfolioData.solPrice || portfolioData.holdings[0]?.price || 206.33).toFixed(2)}`,
           inline: true
         },
         {
