@@ -2508,14 +2508,13 @@ class DiscordTradingBot {
               return false;
             }
             
-            // Lock trading to prevent multiple simultaneous orders
-            this.tradingLock = true;
+            // DON'T set lock here - let executeAutoTrade handle it
             // Clear any existing reset timer since we're starting a new trade
             if (this.lockResetTimer) {
               clearTimeout(this.lockResetTimer);
               this.lockResetTimer = null;
             }
-            console.log(`🔒 TRADING LOCKED - Executing single trade`);
+            console.log(`🚨 TRIGGER CONFIRMED - Preparing to execute trade`);
             
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
