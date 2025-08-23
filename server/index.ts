@@ -76,7 +76,7 @@ app.use((req, res, next) => {
     let restartCount = 0;
     let lastPingTime = Date.now();
     const MAX_RESTARTS = 25; // Increased restart attempts
-    const PING_TIMEOUT = 300000; // 5 minutes without ping = restart (much more reasonable)
+    const PING_TIMEOUT = 999999000; // Effectively disabled - bot handles its own monitoring now
     
     function startBot() {
       if (botProcess) {
