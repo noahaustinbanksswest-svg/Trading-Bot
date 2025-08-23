@@ -177,38 +177,38 @@ app.use((req, res, next) => {
     if (process.env.REPLIT_DOMAINS) {
       log('🔄 Setting up Replit keep-alive system...');
       
-      // Self-ping every 2 minutes to keep reserved VM active  
+      // Self-ping every 2 minutes to keep web server awake on reserved VM
       setInterval(async () => {
         try {
           const domain = process.env.REPLIT_DOMAINS.split(',')[0];
           const response = await fetch(`https://${domain}/api/health`);
           if (response.ok) {
-            log('💚 Reserved VM keep-alive ping successful');
+            log('💚 Web server keep-alive ping successful');
           } else {
-            log('⚠️ Reserved VM ping failed:', response.status);
-            // Try alternative ping
+            log('⚠️ Web server ping failed:', response.status);
+            // Try alternative ping to keep server active
             try {
-              const altResponse = await fetch(`https://${domain}/api/ping`);
+              const altResponse = await fetch(`https://${domain}/ping`);
               if (altResponse.ok) {
-                log('💚 Alternative ping successful');
+                log('💚 Alternative web server ping successful');
               }
             } catch (altError) {
-              log('❌ All ping methods failed:', altError.message);
+              log('❌ Web server ping methods failing:', altError.message);
             }
           }
         } catch (error) {
-          log('❌ Primary ping error, trying localhost:', error.message);
-          // Fallback to localhost ping
+          log('❌ External ping failed, trying localhost to keep server alive:', error.message);
+          // Fallback to localhost ping to maintain server activity
           try {
             const localResponse = await fetch(`http://localhost:${port}/api/health`);
             if (localResponse.ok) {
-              log('💚 Localhost ping successful');
+              log('💚 Localhost web server ping successful');
             }
           } catch (localError) {
-            log('❌ All ping methods failed:', localError.message);
+            log('❌ Critical: All web server pings failed:', localError.message);
           }
         }
-      }, 2 * 60 * 1000); // Every 2 minutes for reserved VM
+      }, 2 * 60 * 1000); // Every 2 minutes to keep web server alive
       
       // Enhanced system monitor for reserved VM
       setInterval(() => {
@@ -238,13 +238,51 @@ app.use((req, res, next) => {
       }, 3 * 60 * 1000); // Every 3 minutes
     }
     
+    // Auto-restart mechanism for web server crashes
+    process.on('uncaughtException', (error) => {
+      log('💥 Web Server Uncaught Exception:', error);
+      log('🔄 Attempting to restart web server in 3 seconds...');
+      
+      if (botProcess && !botProcess.killed) {
+        log('🔄 Stopping Discord bot before restart...');
+        botProcess.kill('SIGTERM');
+      }
+      
+      setTimeout(() => {
+        log('🚀 Restarting web server process...');
+        process.exit(1); // Exit to trigger auto-restart
+      }, 3000);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      log('💥 Web Server Unhandled Rejection:', reason);
+      log('🔄 Attempting to restart web server in 3 seconds...');
+      
+      setTimeout(() => {
+        log('🚀 Restarting web server process...');
+        process.exit(1); // Exit to trigger auto-restart
+      }, 3000);
+    });
+
     // Graceful shutdown
     process.on('SIGINT', () => {
-      log('🛑 Shutting down gracefully...');
+      log('🛑 Shutting down web server gracefully...');
       if (botProcess) {
         botProcess.kill('SIGTERM');
       }
       process.exit(0);
     });
+
+    // Health check for web server process
+    setInterval(() => {
+      const memUsage = process.memoryUsage();
+      const memoryMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+      
+      if (memoryMB > 500) { // If memory usage exceeds 500MB
+        log(`⚠️ High memory usage detected: ${memoryMB}MB - Web server may need restart`);
+      }
+      
+      log(`🔋 Web Server Health Check - Memory: ${memoryMB}MB, PID: ${process.pid}`);
+    }, 10 * 60 * 1000); // Every 10 minutes
   });
 })();
