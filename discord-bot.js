@@ -2440,18 +2440,18 @@ class DiscordTradingBot {
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
-          const triggerValue = this.baselineValue + 1.00;
+          let triggerValue = this.baselineValue + 1.00;
           
           console.log(`📈 SWING TRADE CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
           console.log(`   Trigger at: $${triggerValue.toFixed(2)} (baseline + $1.00)`);
           
-          // BASELINE RESET LOGIC: Update baseline if portfolio drops below it
-          if (currentPortfolioValue < this.baselineValue) {
+          // BASELINE RESET LOGIC: Update baseline ONLY if portfolio drops below TRIGGER
+          if (currentPortfolioValue < triggerValue) {
             this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
             await this.saveTriggerToFile();
-            console.log(`📉 BASELINE RESET: Portfolio dropped to $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
+            console.log(`📉 BASELINE RESET: Portfolio dropped below trigger to $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
             triggerValue = this.baselineValue + 1.00; // Recalculate trigger with new baseline
           }
           
