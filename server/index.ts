@@ -238,29 +238,30 @@ app.use((req, res, next) => {
       }, 3 * 60 * 1000); // Every 3 minutes
     }
     
-    // Auto-restart mechanism for web server crashes
+    // Enhanced auto-restart mechanism with guardian protection
     process.on('uncaughtException', (error) => {
       log('💥 Web Server Uncaught Exception:', error);
-      log('🔄 Attempting to restart web server in 3 seconds...');
+      log('🛡️ Guardian Protection: Auto-restarting server...');
       
       if (botProcess && !botProcess.killed) {
         log('🔄 Stopping Discord bot before restart...');
         botProcess.kill('SIGTERM');
       }
       
+      // Guardian restart mechanism
       setTimeout(() => {
-        log('🚀 Restarting web server process...');
-        process.exit(1); // Exit to trigger auto-restart
+        log('🚀 Guardian: Attempting server restart...');
+        startServerWithGuardian();
       }, 3000);
     });
 
     process.on('unhandledRejection', (reason, promise) => {
       log('💥 Web Server Unhandled Rejection:', reason);
-      log('🔄 Attempting to restart web server in 3 seconds...');
+      log('🛡️ Guardian Protection: Auto-restarting server...');
       
       setTimeout(() => {
-        log('🚀 Restarting web server process...');
-        process.exit(1); // Exit to trigger auto-restart
+        log('🚀 Guardian: Attempting server restart...');
+        startServerWithGuardian();
       }, 3000);
     });
 
@@ -273,16 +274,50 @@ app.use((req, res, next) => {
       process.exit(0);
     });
 
-    // Health check for web server process
+    // Enhanced health check with guardian protection
     setInterval(() => {
       const memUsage = process.memoryUsage();
       const memoryMB = Math.round(memUsage.heapUsed / 1024 / 1024);
       
       if (memoryMB > 500) { // If memory usage exceeds 500MB
-        log(`⚠️ High memory usage detected: ${memoryMB}MB - Web server may need restart`);
+        log(`⚠️ High memory usage detected: ${memoryMB}MB - Guardian may restart server`);
       }
       
-      log(`🔋 Web Server Health Check - Memory: ${memoryMB}MB, PID: ${process.pid}`);
+      log(`🛡️ Guardian Health Check - Memory: ${memoryMB}MB, PID: ${process.pid}, Uptime: ${Math.floor(process.uptime() / 60)}min`);
     }, 10 * 60 * 1000); // Every 10 minutes
+
+    // Guardian protection status
+    log('🛡️ WORKSPACE GUARDIAN ACTIVE - Green button protection enabled');
+    log('🎯 Auto-restart mechanism ready for any crashes');
   });
+
+  // Guardian restart function
+  function startServerWithGuardian() {
+    try {
+      log('🛡️ Guardian: Attempting to spawn new server process...');
+      
+      // Try to restart the main process
+      const { spawn } = require('child_process');
+      const newProcess = spawn('node', [process.argv[1]], {
+        stdio: 'inherit',
+        detached: true,
+        cwd: process.cwd()
+      });
+      
+      newProcess.on('error', (error) => {
+        log('❌ Guardian restart failed:', error.message);
+        // Fallback: exit and let Replit handle restart
+        setTimeout(() => process.exit(1), 5000);
+      });
+      
+      // Disconnect from parent and exit current process
+      newProcess.unref();
+      setTimeout(() => process.exit(0), 2000);
+      
+    } catch (error) {
+      log('❌ Guardian protection failed:', error.message);
+      log('🔄 Falling back to process exit...');
+      setTimeout(() => process.exit(1), 3000);
+    }
+  }
 })();
