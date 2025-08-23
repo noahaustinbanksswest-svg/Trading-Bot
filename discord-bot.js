@@ -1391,11 +1391,12 @@ class DiscordTradingBot {
         };
       }
 
+      // CRITICAL: Use unified embed format with ALL required data (prevents format switching)
       const embed = this.createPortfolioEmbed({
         totalValue,
         usdBalance,
         holdings,
-        dailyBuyData
+        dailyBuyData // ENSURE daily buy data is included for consistent format
       });
 
       const buttons = this.createPortfolioButtons();
@@ -1408,6 +1409,9 @@ class DiscordTradingBot {
       // Store dashboard message for auto-updating (only one main message)
       this.dashboardMessageId = message.id;
       this.dashboardChannelId = dashboardChannel.id;
+      
+      // CRITICAL: Save tracking immediately to prevent format switching
+      await this.saveDashboardTracking();
 
       console.log(`✅ Portfolio dashboard sent to #${dashboardChannel.name}`);
       console.log(`🔧 Dashboard tracking enabled: Message ID ${this.dashboardMessageId} in Channel ID ${this.dashboardChannelId}`);
