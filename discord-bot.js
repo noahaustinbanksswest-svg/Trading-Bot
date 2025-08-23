@@ -2914,6 +2914,14 @@ class DiscordTradingBot {
     } catch (error) {
       console.error('❌ Failed to start Discord bot:', error);
       console.error('❌ Error details:', error.message);
+      
+      // Check if it's a rate limiting error
+      if (error.message.includes('sessions remaining') || error.message.includes('shards')) {
+        console.log('🔄 Discord rate limited - trading continues independently without Discord notifications');
+        // Exit gracefully instead of crashing to prevent restart loops
+        process.exit(1);
+      }
+      
       console.error('❌ Error stack:', error.stack);
     }
   }
