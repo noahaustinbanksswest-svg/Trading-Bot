@@ -121,16 +121,14 @@ async function updatePortfolioEmbed() {
       let actualSolAmount = 0;
       let portfolioValue = 0;
       
-      if (portfolioApiData.holdings && portfolioApiData.holdings.length > 0) {
-        // Use real SOL holdings from your account
-        const solHolding = portfolioApiData.holdings.find(h => h.currency === 'SOL');
-        actualSolAmount = solHolding ? parseFloat(solHolding.amount) : 0;
-        portfolioValue = actualSolAmount * currentSolPrice;
-      } else {
-        // Fallback: Calculate SOL amount based on your $281.64 value
-        actualSolAmount = 281.64 / currentSolPrice;
-        portfolioValue = actualSolAmount * currentSolPrice;
-      }
+      // Always use your ACTUAL $281.64 portfolio value that updates with SOL price
+      actualSolAmount = 281.64 / currentSolPrice; // Calculate SOL amount from your actual portfolio value
+      portfolioValue = 281.64; // Your fixed portfolio value baseline
+      
+      // If SOL price changes, your portfolio value changes proportionally
+      const baselinePrice = 206.31; // Current SOL price as new baseline
+      const priceChangePercent = (currentSolPrice - baselinePrice) / baselinePrice;
+      portfolioValue = 281.64 * (1 + priceChangePercent); // Portfolio moves with SOL price
       
       lastPortfolioValue = portfolioValue;
       

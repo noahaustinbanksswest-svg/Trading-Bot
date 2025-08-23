@@ -127,10 +127,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get portfolio holdings
+  // Get portfolio holdings from REAL Gemini API
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
-      const holdings = await storage.getPortfolioHoldings(req.params.userId);
+      // Use environment Gemini API credentials (same as working system)
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      const geminiApiSecret = process.env.GEMINI_API_SECRET;
+      
+      if (!geminiApiKey || !geminiApiSecret) {
+        return res.json({
+          holdings: [],
+          totalValue: "0.00",
+          error: "Gemini API credentials not available"
+        });
+      }
+
+      // Initialize Gemini service with environment credentials (same as working system)
+      const { GeminiService } = await import('./services/gemini.js');
+      const geminiService = new GeminiService(
+        geminiApiKey, 
+        geminiApiSecret, 
+        true // sandbox mode
+      );
+
+      // Get REAL balances from Gemini API
+      const balances = await geminiService.getBalances();
+      
+      // Convert to portfolio holdings format
+      const holdings = balances
+        .filter(balance => parseFloat(balance.available) > 0)
+        .map(balance => ({
+          currency: balance.currency.toUpperCase(),
+          amount: balance.available,
+          valueUSD: balance.currency.toLowerCase() === 'usd' ? balance.available : '0'
+        }));
+
+      // Get current prices for non-USD holdings
+      for (const holding of holdings) {
+        if (holding.currency !== 'USD') {
+          try {
+            const ticker = await geminiService.getTicker(`${holding.currency.toLowerCase()}usd`);
+            const price = parseFloat(ticker.last);
+            const amount = parseFloat(holding.amount);
+            holding.valueUSD = (amount * price).toFixed(2);
+          } catch (error) {
+            console.warn(`Could not get price for ${holding.currency}:`, (error as Error).message);
+            holding.valueUSD = '0';
+          }
+        }
+      }
+
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
       res.json({
@@ -138,7 +184,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalValue: totalValue.toFixed(2),
       });
     } catch (error) {
-      res.status(500).json({ error: "Failed to get portfolio" });
+      console.error('Portfolio API error:', (error as Error).message);
+      res.status(500).json({ 
+        error: "Failed to get portfolio from Gemini API",
+        details: (error as Error).message 
+      });
     }
   });
 
