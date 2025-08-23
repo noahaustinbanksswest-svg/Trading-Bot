@@ -2447,7 +2447,14 @@ class DiscordTradingBot {
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
           console.log(`   Trigger at: $${triggerValue.toFixed(2)} (baseline + $1.00)`);
           
-          // BASELINE COMPLETELY LOCKED - NO RESETS except after trades
+          // BASELINE RESET LOGIC: Update baseline if portfolio drops below it
+          if (currentPortfolioValue < this.baselineValue) {
+            this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
+            await this.saveTriggerToFile();
+            console.log(`📉 BASELINE RESET: Portfolio dropped to $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
+            triggerValue = this.baselineValue + 1.00; // Recalculate trigger with new baseline
+          }
+          
           // Execute trade if portfolio hits trigger (baseline + $1.00)
           if (currentPortfolioValue >= triggerValue) {
             console.log(`🚨 TRIGGER HIT! $${currentPortfolioValue.toFixed(2)} >= $${triggerValue.toFixed(2)}`);
