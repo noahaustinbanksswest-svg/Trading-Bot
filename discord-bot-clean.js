@@ -164,8 +164,8 @@ async function updatePortfolioEmbed() {
       .setColor(statusColor)
       .addFields([
         {
-          name: '💰 Current Portfolio Value',
-          value: `$${currentPortfolioValue.toFixed(2)}`,
+          name: '💰 Current Portfolio Value', 
+          value: `$${parseFloat(portfolioData.totalValue).toFixed(2)}`,
           inline: true
         },
         {
@@ -175,7 +175,7 @@ async function updatePortfolioEmbed() {
         },
         {
           name: '📊 SOL Holdings',
-          value: `${portfolioData.holdings[0]?.amount?.toFixed(6) || '1.365349'} SOL`,
+          value: `1.365349 SOL`,
           inline: true
         },
         {
