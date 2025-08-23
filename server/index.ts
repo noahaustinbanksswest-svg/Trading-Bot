@@ -274,8 +274,10 @@ app.use((req, res, next) => {
       process.exit(0);
     });
 
-    // Enhanced health check with guardian protection
+    // INSTANT Guardian - Ultra-fast internal monitoring
+    let healthyPings = 0;
     setInterval(() => {
+      healthyPings++;
       const memUsage = process.memoryUsage();
       const memoryMB = Math.round(memUsage.heapUsed / 1024 / 1024);
       
@@ -283,12 +285,33 @@ app.use((req, res, next) => {
         log(`⚠️ High memory usage detected: ${memoryMB}MB - Guardian may restart server`);
       }
       
-      log(`🛡️ Guardian Health Check - Memory: ${memoryMB}MB, PID: ${process.pid}, Uptime: ${Math.floor(process.uptime() / 60)}min`);
-    }, 10 * 60 * 1000); // Every 10 minutes
+      if (healthyPings % 120 === 0) { // Log every 10 minutes (120 * 5 seconds)
+        log(`🛡️ Guardian Health Check - Memory: ${memoryMB}MB, PID: ${process.pid}, Uptime: ${Math.floor(process.uptime() / 60)}min, Pings: ${healthyPings}`);
+      }
+    }, 5 * 1000); // Every 5 seconds for ultra-fast detection
+    
+    // Self-monitoring for instant restart
+    setInterval(() => {
+      try {
+        // If this interval can't run, the process is hung
+        const startTime = Date.now();
+        setTimeout(() => {
+          const delay = Date.now() - startTime;
+          if (delay > 2000) { // If more than 2 second delay
+            log('🚨 Process lag detected - forcing restart');
+            startServerWithGuardian();
+          }
+        }, 100);
+      } catch (error) {
+        log('💥 Self-monitoring error - forcing restart');
+        startServerWithGuardian();
+      }
+    }, 3 * 1000); // Check every 3 seconds
 
     // Guardian protection status
     log('🛡️ WORKSPACE GUARDIAN ACTIVE - Green button protection enabled');
     log('🎯 Auto-restart mechanism ready for any crashes');
+    log('⚡ Instant Guardian provides 5-second failure detection');
   });
 
   // Guardian restart function
