@@ -11,7 +11,7 @@ import fs from 'fs';
 
 class UltimateUptimeGuardian {
   constructor() {
-    this.embedCheckInterval = 30000; // Check embed updates every 30 seconds
+    this.embedCheckInterval = 1000; // Check embed updates every 1 second
     this.aggressiveRestartInterval = 20 * 60 * 1000; // Restart every 20 minutes (more aggressive)
     this.healthCheckInterval = 2 * 60 * 1000; // Health check every 2 minutes
     this.lastEmbedUpdate = Date.now();
@@ -34,7 +34,7 @@ class UltimateUptimeGuardian {
   }
 
   startEmbedMonitoring() {
-    console.log('👁️ Starting Discord embed update monitoring...');
+    console.log('👁️ Starting Discord embed update monitoring EVERY SECOND...');
     
     setInterval(() => {
       this.checkEmbedFreshness();
@@ -48,7 +48,7 @@ class UltimateUptimeGuardian {
         const pingData = JSON.parse(fs.readFileSync('last-bot-ping.json', 'utf8'));
         const timeSinceLastPing = Date.now() - (pingData.timestamp || 0);
         
-        if (timeSinceLastPing > 90000) { // 1.5 minutes without ping = bot sleeping
+        if (timeSinceLastPing > 5000) { // 5 seconds without ping = bot sleeping
           console.log(`🚨 EMBED UPDATE STOPPED - Last bot ping ${Math.floor(timeSinceLastPing/1000)}s ago`);
           console.log('💤 BOT WENT TO SLEEP - EMERGENCY RESTART!');
           this.emergencyRestart('bot stopped pinging - embed updates ceased');
