@@ -135,7 +135,7 @@ async function updatePortfolioEmbed() {
       lastPortfolioValue = portfolioValue;
       
       portfolioData = {
-        totalValue: portfolioValue,
+        totalValue: portfolioValue.toFixed(2),
         holdings: [{ currency: 'SOL', amount: actualSolAmount, value: portfolioValue, price: currentSolPrice }],
         solPrice: currentSolPrice,
         realData: true
@@ -161,7 +161,7 @@ async function updatePortfolioEmbed() {
       .addFields([
         {
           name: '💰 Current Portfolio Value',
-          value: `$${portfolioData.totalValue.toFixed(2)}`,
+          value: `$${parseFloat(portfolioData.totalValue).toFixed(2)}`,
           inline: true
         },
         {
