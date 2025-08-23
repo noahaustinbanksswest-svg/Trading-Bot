@@ -889,7 +889,8 @@ class DiscordTradingBot {
         // FIXED DISPLAY: Use saved trigger value to prevent bouncing
         const displayTrigger = this.savedTriggerValue || (this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00));
         const displayBaseline = this.baselineValue || (solHolding.value - 1.00);
-        const needsAmount = displayTrigger - solHolding.value;
+        // Fix precision: Round to cents to avoid floating-point errors
+        const needsAmount = Math.round((displayTrigger - solHolding.value) * 100) / 100;
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
                        `🎯 **Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
