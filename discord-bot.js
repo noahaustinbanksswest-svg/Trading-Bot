@@ -2492,17 +2492,22 @@ class DiscordTradingBot {
       } else {
         console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
-
+      
+      // All orphaned trading logic cleaned up
     } catch (error) {
       console.error('Error checking auto trade conditions:', error.message);
     }
   }
 
-  // REMOVED: Trading execution moved to independent Gemini API system 
+  // ✅ CLEAN: All trading moved to TradingEngine API - Discord handles only visuals
   async executeAutoTrade_DISABLED(reason) {
     console.log('📱 Discord: Trade execution handled by independent Gemini system');
     return false;
   }
+
+  // REMOVED: All remaining orphaned trading code to fix syntax errors
+  // This allows Discord bot to start and resume 24/7 embed updates
+  /*
   
   async executeAutoTrade_OLD_DISABLED(reason) {
     try {
@@ -2901,6 +2906,7 @@ class DiscordTradingBot {
       console.error('❌ Error stack:', error.stack);
     }
   }
+  */
 }
 
 // Start the bot
