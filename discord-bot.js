@@ -2315,7 +2315,8 @@ class DiscordTradingBot {
     try {
       const { writeFileSync } = await import('fs');
       const triggerData = {
-        trigger: this.baselineValue,
+        baseline: this.baselineValue,
+        trigger: this.baselineValue + 1.00,
         timestamp: Date.now()
       };
       writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
@@ -2419,20 +2420,25 @@ class DiscordTradingBot {
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
           // INITIALIZE BASELINE ONCE - LOAD FROM FILE OR SET INITIAL  
-          if (!this.triggerIsInitialized) {
+          if (!this.triggerIsInitialized || !this.savedTriggerValue) {
             try {
               const triggerData = await this.loadTriggerFromFile();
-              if (triggerData && triggerData.trigger) {
-                this.baselineValue = triggerData.trigger;
-                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} (loaded from file)`);
+              console.log(`🔍 DEBUG: Loaded trigger data:`, triggerData);
+              if (triggerData && triggerData.baseline && triggerData.trigger) {
+                this.baselineValue = triggerData.baseline;
+                this.savedTriggerValue = triggerData.trigger;
+                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)}, TRIGGER LOCKED: $${this.savedTriggerValue.toFixed(2)} (loaded from file)`);
               } else {
+                console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
                 this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)} (initial baseline)`);
+                this.savedTriggerValue = this.baselineValue + 1.00;
+                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (initial setup)`);
                 await this.saveTriggerToFile();
               }
             } catch (error) {
               this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}`);
+              this.savedTriggerValue = this.baselineValue + 1.00;
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)}`);
               await this.saveTriggerToFile();
             }
             this.triggerIsInitialized = true;
@@ -2440,19 +2446,30 @@ class DiscordTradingBot {
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
           
-          let triggerValue = this.baselineValue + 1.00;
+          // ONLY proceed with trigger logic if we have valid saved trigger
+          if (!this.savedTriggerValue) {
+            console.log(`⚠️ No saved trigger value - skipping trigger check this cycle`);
+            return false;
+          }
+          
+          let triggerValue = this.savedTriggerValue;
           
           console.log(`📈 SWING TRADE CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
-          console.log(`   Trigger at: $${triggerValue.toFixed(2)} (baseline + $1.00)`);
+          console.log(`   Trigger at: $${triggerValue.toFixed(2)} (LOCKED)`);
           
-          // BASELINE RESET LOGIC: Update baseline ONLY if portfolio drops below TRIGGER
-          if (currentPortfolioValue < triggerValue) {
+          // BASELINE RESET LOGIC: Only reset if portfolio drops SIGNIFICANTLY below trigger (not just $0.01)
+          const dropThreshold = 0.50; // Must drop at least 50 cents below trigger to reset
+          const resetThreshold = this.savedTriggerValue - dropThreshold;
+          console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $${dropThreshold}) = ${currentPortfolioValue < resetThreshold}`);
+          
+          if (currentPortfolioValue < resetThreshold) {
             this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
+            this.savedTriggerValue = this.baselineValue + 1.00;
             await this.saveTriggerToFile();
-            console.log(`📉 BASELINE RESET: Portfolio ($${currentPortfolioValue.toFixed(2)}) dropped below trigger ($${(triggerValue).toFixed(2)}) → New baseline: $${this.baselineValue.toFixed(2)} → New trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
-            triggerValue = this.baselineValue + 1.00; // Recalculate trigger with new baseline
+            console.log(`📉 BASELINE RESET: Portfolio ($${currentPortfolioValue.toFixed(2)}) dropped significantly below trigger ($${triggerValue.toFixed(2)}) → New baseline: $${this.baselineValue.toFixed(2)} → New trigger: $${this.savedTriggerValue.toFixed(2)}`);
+            triggerValue = this.savedTriggerValue; // Use the new trigger value
           }
           
           // Execute trade if portfolio hits trigger (baseline + $1.00)
