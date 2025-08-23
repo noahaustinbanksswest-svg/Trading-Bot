@@ -2419,8 +2419,12 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // INITIALIZE BASELINE ONCE - LOAD FROM FILE OR SET INITIAL  
-          if (!this.triggerIsInitialized || !this.savedTriggerValue) {
+          // FORCE CLEAR VALUES AND LOAD FROM FILE ON EVERY SESSION
+          console.log(`🔍 DEBUG: Before init - savedTriggerValue: ${this.savedTriggerValue}, baselineValue: ${this.baselineValue}`);
+          if (!this.triggerInitializedThisSession) {
+            // Clear values to force proper initialization
+            this.savedTriggerValue = null;
+            this.baselineValue = null;
             try {
               const triggerData = await this.loadTriggerFromFile();
               console.log(`🔍 DEBUG: Loaded trigger data:`, triggerData);
@@ -2430,18 +2434,21 @@ class DiscordTradingBot {
                 console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)}, TRIGGER LOCKED: $${this.savedTriggerValue.toFixed(2)} (loaded from file)`);
               } else {
                 console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
-                this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-                this.savedTriggerValue = this.baselineValue + 1.00;
-                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (initial setup)`);
+                // Set trigger to current portfolio (ready to trigger) and baseline $1 below
+                this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
+                this.baselineValue = this.savedTriggerValue - 1.00;
+                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
                 await this.saveTriggerToFile();
               }
             } catch (error) {
-              this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-              this.savedTriggerValue = this.baselineValue + 1.00;
-              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)}`);
+              console.log(`🔍 DEBUG: Error loading trigger data:`, error.message);
+              // Set trigger to current portfolio (ready to trigger) and baseline $1 below
+              this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
+              this.baselineValue = this.savedTriggerValue - 1.00;
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
               await this.saveTriggerToFile();
             }
-            this.triggerIsInitialized = true;
+            this.triggerInitializedThisSession = true;
           }
           
           // TRIGGER CHANGES ONLY AFTER TRADES OR MAJOR DROPS
@@ -2459,17 +2466,20 @@ class DiscordTradingBot {
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
           console.log(`   Trigger at: $${triggerValue.toFixed(2)} (LOCKED)`);
           
-          // BASELINE RESET LOGIC: Only reset if portfolio drops SIGNIFICANTLY below trigger (not just $0.01)
-          const dropThreshold = 0.50; // Must drop at least 50 cents below trigger to reset
-          const resetThreshold = this.savedTriggerValue - dropThreshold;
-          console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $${dropThreshold}) = ${currentPortfolioValue < resetThreshold}`);
+          // BASELINE RESET LOGIC: Only reset if portfolio drops below the original baseline (trigger - $1.00)
+          const resetThreshold = this.savedTriggerValue - 1.00; // Reset when portfolio drops below original baseline
+          console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $1.00) = ${currentPortfolioValue < resetThreshold}`);
           
           if (currentPortfolioValue < resetThreshold) {
+            // Only reset if there's a GENUINE drop below the locked trigger
             this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
             this.savedTriggerValue = this.baselineValue + 1.00;
             await this.saveTriggerToFile();
             console.log(`📉 BASELINE RESET: Portfolio ($${currentPortfolioValue.toFixed(2)}) dropped significantly below trigger ($${triggerValue.toFixed(2)}) → New baseline: $${this.baselineValue.toFixed(2)} → New trigger: $${this.savedTriggerValue.toFixed(2)}`);
             triggerValue = this.savedTriggerValue; // Use the new trigger value
+          } else {
+            // KEEP TRIGGER LOCKED - don't reset just because baseline equals portfolio
+            console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above reset threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue.toFixed(2)}`);
           }
           
           // Execute trade if portfolio hits trigger (baseline + $1.00)
