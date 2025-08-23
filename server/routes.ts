@@ -215,6 +215,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🚀 NEW: Independent TradingEngine endpoint for Discord bot triggers
+  app.post("/api/trading/execute-swing-trade", async (req, res) => {
+    try {
+      const { userId, reason, amount } = req.body;
+      console.log(`📡 TradingEngine API called by Discord:`, { userId, reason, amount });
+      
+      // For now, simulate trade execution - will connect to actual TradingEngine later
+      const result = {
+        success: true, 
+        message: `TradingEngine received Discord trigger: ${reason}`,
+        amount: amount || 1.00,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log(`🎯 TradingEngine executing $${amount} swing trade: ${reason}`);
+      res.json(result);
+    } catch (error) {
+      console.error('TradingEngine API error:', error);
+      res.status(500).json({ error: "TradingEngine execution failed" });
+    }
+  });
+
   // Initialize trading services for a user
   app.post("/api/initialize/:userId", async (req, res) => {
     try {

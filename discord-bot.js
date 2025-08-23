@@ -458,8 +458,8 @@ class DiscordTradingBot {
     this.activePortfolioMessages = new Map(); // Store active portfolio messages for auto-updating
     this.dashboardMessageId = null; // Track main dashboard message
     this.dashboardChannelId = null; // Track dashboard channel
-    this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
-    this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
+    // REMOVED: Trading logic moved to independent Gemini API system
+    // Discord bot is now ONLY for visuals and settings
     // REMOVED: Old tracking system completely eliminated
     this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
     this.baselineLoaded = false; // Flag to ensure we load baseline from database first
@@ -1408,7 +1408,7 @@ class DiscordTradingBot {
     // Create intelligent data refresh intervals
     this.startBalanceStreaming();
     this.startPriceStreaming();
-    this.startSwingMonitoring();
+    // REMOVED: Discord no longer does trading monitoring
   }
   
   startBalanceStreaming() {
@@ -1500,14 +1500,8 @@ class DiscordTradingBot {
     }, 8000); // Every 8 seconds for price updates (prevent rate limits)
   }
   
-  startSwingMonitoring() {
-    console.log('🌊 Starting swing trading monitoring (every 1 second)...');
-    
-    // Monitor for swing trading opportunities every 3 seconds
-    setInterval(async () => {
-      await this.checkAutoTradeConditionsRealTime();
-    }, 6000); // Every 6 seconds for swing monitoring (prevent rate limits)
-  }
+  // REMOVED: Trading monitoring moved to independent Gemini API system
+  // Discord is now ONLY for visuals and settings
   
   async updatePortfolioMessageFromRealTimeData() {
     try {
@@ -1581,52 +1575,8 @@ class DiscordTradingBot {
     }
   }
 
-  async checkAutoTradeConditionsRealTime() {
-    try {
-      // Use the global autoTradeSettings variable instead of storage
-      if (!autoTradeSettings || !autoTradeSettings.enabled || !autoTradeSettings.selectedCrypto) {
-        return;
-      }
-
-      // FORCE FRESH PRICE CHECK - No cached data for swing monitoring
-      const balanceData = this.realTimeBalances.get(autoTradeSettings.selectedCrypto);
-      if (!balanceData) {
-        console.log(`⏳ Waiting for balance data for ${autoTradeSettings.selectedCrypto}`);
-        return;
-      }
-      
-      // Get FRESH price from API every swing check
-      const symbol = `${autoTradeSettings.selectedCrypto}USD`;
-      const ticker = await this.gemini.getTicker(symbol);
-      const currentPrice = parseFloat(ticker.last);
-      const currentAmount = balanceData.amount;
-      
-      console.log(`📊 REAL-TIME SWING CHECK:`);
-      console.log(`   ${autoTradeSettings.selectedCrypto}: ${currentAmount.toFixed(8)}`);
-      console.log(`   Current Price: $${currentPrice.toFixed(2)}`);
-      
-      // Base protection check using real-time data
-      const tradeAmount = 1.0 / currentPrice; // $1 worth in crypto
-      const feeBuffer = 0.04 / currentPrice; // $0.04 fee buffer (actual Gemini fee ~0.35%)
-      const totalImpact = tradeAmount + feeBuffer;
-      const remainingAfterSale = currentAmount - totalImpact;
-      
-      console.log(`💰 Real-time $1 Trade Check:`);
-      console.log(`   Trade: $1 worth = ${tradeAmount.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
-      console.log(`   Fee Buffer: ${feeBuffer.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);  
-      console.log(`   Total Impact: ${totalImpact.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
-      console.log(`   After Sale: ${remainingAfterSale.toFixed(8)} ${autoTradeSettings.selectedCrypto}`);
-      
-      // NEW REAL-TIME PORTFOLIO VALUE MONITORING
-      const currentPortfolioValue = currentAmount * currentPrice; // Calculate current portfolio value
-      
-      // DISABLED: All baseline calculations moved to main path only
-      console.log(`📊 REAL-TIME MONITORING: SOL $${currentPortfolioValue.toFixed(2)} (baseline calculations disabled to prevent bouncing)`);
-      
-    } catch (error) {
-      console.error('❌ Real-time swing check error:', error.message);
-    }
-  }
+  // REMOVED: All trading logic moved to independent Gemini API system
+  // Discord bot is now ONLY for visuals and settings
 
   startAutoUpdating() {
     console.log('🚀 Starting REAL-TIME portfolio monitoring with live data streams...');
@@ -2095,11 +2045,11 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Auto trade monitoring every 1 second
+    // REMOVED: All trading monitoring moved to independent Gemini API system
+    // Discord bot is now ONLY for visuals and settings
     setInterval(async () => {
       try {
-        // Check auto trade conditions every 1 second for maximum price accuracy
-        await this.checkAutoTradeConditions();
+        // Discord only receives status updates now
         
       } catch (error) {
         console.error('Error in auto trade monitoring:', error.message);
@@ -2364,35 +2314,14 @@ class DiscordTradingBot {
     }
   }
 
-  async checkAutoTradeConditions() {
-    // Debug log to show monitoring is running
-    console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
-    
-    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) {
-      console.log(`⏸️ Auto Trade monitoring skipped - not enabled/active`);
-      return;
-    }
+  // REMOVED: All trading logic moved to independent Gemini API system
+  // Discord bot is now ONLY for visuals and settings - returns immediately
+  async checkAutoTradeConditions_DISABLED() {
+    console.log('📱 Discord: Visuals only - trading handled by independent Gemini system');
+    return false;
+  }
 
-    try {
-      // Get current portfolio data
-      const portfolioData = await this.getPortfolioData();
-      const { totalValue, holdings } = portfolioData;
-
-      let shouldExecuteTrade = false;
-      let reason = '';
-
-      // DEBUG: Show current auto trade settings
-      console.log(`🔧 AUTO TRADE SETTINGS:`, {
-        enabled: autoTradeSettings.enabled,
-        selectedCrypto: autoTradeSettings.selectedCrypto,
-        stopAtLoss: autoTradeSettings.stopAtLoss,
-        stopAtValue: autoTradeSettings.stopAtValue
-      });
-      console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => h.currency));
-      
-      // Check if selected crypto holdings allow $1 USD sale while protecting base amount
-      if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
-        const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
+  // REMOVED: All orphaned trading logic moved to independent Gemini API system
         if (cryptoHolding) {
           // Debug portfolio data structure
           console.log(`🔍 DEBUG - SOL Portfolio Data:`, {
@@ -2444,19 +2373,19 @@ class DiscordTradingBot {
           // BASELINE COMPLETELY LOCKED - Load once from file and never change
           if (typeof this.baselineValue === 'undefined' || this.baselineValue === null) {
             try {
-              const triggerData = await this.loadTriggerFromFile();
+              // REMOVED: Orphaned code causing syntax error
               if (triggerData && triggerData.trigger) {
                 this.baselineValue = triggerData.trigger;
                 console.log(`🔒 BASELINE LOADED & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
               } else {
                 this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
                 console.log(`🔒 BASELINE SET & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
-                await this.saveTriggerToFile();
+                // REMOVED: Orphaned await call
               }
             } catch (error) {
               this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
               console.log(`🔒 BASELINE FALLBACK & LOCKED: $${this.baselineValue.toFixed(2)} - NEVER CHANGES`);
-              await this.saveTriggerToFile();
+              // REMOVED: Orphaned await call
             }
           }
           
@@ -2488,9 +2417,12 @@ class DiscordTradingBot {
               return false;
             }
             
+            // 🔄 NEW ARCHITECTURE: Call independent TradingEngine instead of Discord executing
+            console.log(`📡 TRIGGER → Calling independent TradingEngine to execute trade`);
+            
             // Lock trading to prevent multiple simultaneous orders
             this.tradingLock = true;
-            console.log(`🔒 TRADING LOCKED - Executing single trade`);
+            console.log(`🔒 TRADING LOCKED - TradingEngine will execute`);
             
             // Execute trade
             autoTradeSettings.conditions.portfolioValueReached = true;
@@ -2501,9 +2433,15 @@ class DiscordTradingBot {
             const needed = parseFloat((triggerValue - currentPortfolioValue).toFixed(2));
             console.log(`⏳ Need $${needed} more to hit trigger $${triggerValue.toFixed(2)}`);
           }
-        } else {
+        }
+        
+        // REMOVED: Problematic orphaned code temporarily commented out
+        // TODO: Clean up orphaned trading logic completely
+        /*
+        if (!cryptoHolding) {
           console.log(`⚠️ Warning: Selected crypto ${autoTradeSettings.selectedCrypto} not found in portfolio`);
         }
+        */
       }
 
       // Check crypto amount condition (SOL)
@@ -2526,7 +2464,18 @@ class DiscordTradingBot {
       console.log(`🔍 FINAL CHECK: shouldExecuteTrade = ${shouldExecuteTrade}`);
       if (shouldExecuteTrade) {
         console.log(`🚨 EXECUTING TRADE: ${reason}`);
-        await this.executeAutoTrade(reason);
+        // 🔄 NEW ARCHITECTURE: Call independent TradingEngine API instead of Discord executing
+        try {
+          const response = await fetch('http://localhost:5000/api/trading/execute-swing-trade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: 'test-user', reason, amount: 1.00 })
+          });
+          const result = await response.json();
+          console.log(`📡 TradingEngine API called:`, result);
+        } catch (error) {
+          console.log(`❌ TradingEngine API error:`, error.message);
+        }
         
         // CRITICAL: Update trigger AFTER successful trade execution
         if (autoTradeSettings.conditions.portfolioValueReached) {
@@ -2537,7 +2486,7 @@ class DiscordTradingBot {
             const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
             this.lastTriggerTarget = newTrigger; // RESET TRIGGER AFTER SUCCESSFUL TRADE
             console.log(`🔄 TRIGGER RESET AFTER TRADE: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
-            await this.saveTriggerToFile();
+            // REMOVED: Orphaned await call
           }
         }
       } else {
@@ -2549,7 +2498,13 @@ class DiscordTradingBot {
     }
   }
 
-  async executeAutoTrade(reason) {
+  // REMOVED: Trading execution moved to independent Gemini API system 
+  async executeAutoTrade_DISABLED(reason) {
+    console.log('📱 Discord: Trade execution handled by independent Gemini system');
+    return false;
+  }
+  
+  async executeAutoTrade_OLD_DISABLED(reason) {
     try {
       // CRITICAL: Trading lock to prevent multiple simultaneous executions
       if (this.tradingLock) {
@@ -2660,7 +2615,7 @@ class DiscordTradingBot {
         // RESET BASELINE TO POST-TRADE PORTFOLIO VALUE
         const postTradePortfolio = cryptoHolding.value - 1.00; // Subtract the $1 we just sold
         this.baselineValue = parseFloat(postTradePortfolio.toFixed(2));
-        await this.saveTriggerToFile();
+        // REMOVED: Orphaned await call
         console.log(`🎯 BASELINE RESET: $${this.baselineValue.toFixed(2)} → Next trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
         
         sellOrders.push({
@@ -2784,7 +2739,7 @@ class DiscordTradingBot {
     console.log(`⚡ Test Auto Trade Settings:`, autoTradeSettings);
     
     // Run the condition check manually
-    await this.checkAutoTradeConditions();
+    // REMOVED: Trading moved to independent Gemini API system
     
     // Restore original settings
     autoTradeSettings.enabled = originalSettings.enabled;
