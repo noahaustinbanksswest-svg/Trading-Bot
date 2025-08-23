@@ -1433,7 +1433,7 @@ class DiscordTradingBot {
   startBalanceStreaming() {
     console.log('💰 Starting balance streaming (every 5 seconds to prevent embed bouncing)...');
     
-    // Fetch fresh balance data every 5 seconds - balance between speed and visual stability
+    // Fetch fresh balance data every 10 seconds (reduced from 5s to prevent rate limits)
     setInterval(async () => {
       try {
         const balances = await this.gemini.getBalances();
@@ -1472,7 +1472,7 @@ class DiscordTradingBot {
           console.error('❌ Balance streaming error:', error.message);
         }
       }
-    }, 5000); // Every 5 seconds to prevent embed bouncing
+    }, 10000); // Every 10 seconds to prevent rate limits and embed bouncing
   }
   
   startPriceStreaming() {
@@ -1522,7 +1522,7 @@ class DiscordTradingBot {
           console.error('❌ Price streaming error:', error.message);
         }
       }
-    }, 8000); // Every 8 seconds for price updates (prevent rate limits)
+    }, 15000); // Every 15 seconds for price updates (prevent rate limits)
   }
   
   startSwingMonitoring() {
@@ -1531,7 +1531,7 @@ class DiscordTradingBot {
     // Monitor for swing trading opportunities every 3 seconds
     setInterval(async () => {
       await this.checkAutoTradeConditionsRealTime();
-    }, 6000); // Every 6 seconds for swing monitoring (prevent rate limits)
+    }, 12000); // Every 12 seconds for swing monitoring (prevent rate limits)
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -1701,7 +1701,7 @@ class DiscordTradingBot {
     // Initial ping
     sendKeepAlivePing('running');
     
-    // Additional heartbeat every 5 seconds with status update
+    // Heartbeat every 30 seconds (reduced from 5s to prevent rate limits)
     setInterval(async () => {
       try {
         await sendKeepAlivePing('running', null);
@@ -1709,7 +1709,7 @@ class DiscordTradingBot {
       } catch (error) {
         console.error('💔 Keep-alive heartbeat failed:', error.message);
       }
-    }, 5000);
+    }, 30000); // 30 seconds instead of 5
   }
 
   async showActiveOrders(interaction) {
