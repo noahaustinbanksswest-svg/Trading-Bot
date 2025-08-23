@@ -68,7 +68,9 @@ export class GeminiService {
   }
 
   private generateHeaders(endpoint: string, payload: any = {}): { [key: string]: string } {
-    const nonce = Date.now(); // Fix: Use milliseconds, not microseconds
+    // Generate nonce as timestamp in seconds + counter to match Gemini server time
+    const baseTime = Math.floor(Date.now() / 1000);  // Get current time in seconds
+    const nonce = baseTime;  // Use just the seconds timestamp
     const payloadWithDefaults = {
       request: endpoint,
       nonce: nonce.toString(),
@@ -100,19 +102,85 @@ export class GeminiService {
     }
   }
 
-  async getBalances(): Promise<GeminiBalance[]> {
+  async getAccounts(): Promise<string[]> {
     try {
-      const endpoint = '/v1/balances';
+      const endpoint = '/v1/accounts';
       const headers = this.generateHeaders(endpoint);
       
-      const response: AxiosResponse<GeminiBalance[]> = await axios.post(
+      console.log('🔐 Getting Gemini accounts list...');
+      
+      const response = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
         { headers }
       );
       
-      return response.data;
-    } catch (error) {
+      console.log('📋 Available accounts:', response.data);
+      return response.data.map((acc: any) => acc.name || acc.account || acc);
+    } catch (error: any) {
+      console.log('❌ Failed to get accounts:', error.response?.data);
+      return ["Primary"]; // Fallback to Primary
+    }
+  }
+
+  async getBalances(): Promise<GeminiBalance[]> {
+    try {
+      const endpoint = '/v1/balances';
+      
+      // Try without accounts parameter first (for account-level keys)
+      console.log('🔐 Trying balances WITHOUT accounts parameter...');
+      let headers = this.generateHeaders(endpoint);
+      
+      console.log('🔐 Gemini API Request (No Accounts):', {
+        url: `${this.baseUrl}${endpoint}`,
+        headers: { ...headers, 'X-GEMINI-SIGNATURE': '[HIDDEN]' }
+      });
+      
+      try {
+        const response: AxiosResponse<GeminiBalance[]> = await axios.post(
+          `${this.baseUrl}${endpoint}`,
+          {},
+          { headers }
+        );
+        
+        console.log('✅ SUCCESS! Got balances without accounts parameter');
+        return response.data;
+      } catch (firstError: any) {
+        console.log('❌ Failed without accounts parameter:', firstError.response?.data);
+        
+        // If that fails, try with different common account names
+        console.log('🔐 Trying balances WITH different account names...');
+        const commonAccountNames = ["Primary", "primary", "default", "main", "trading", "exchange"];
+        
+        for (const accountName of commonAccountNames) {
+          try {
+            console.log(`🔍 Trying account name: "${accountName}"`);
+            const payload = { accounts: [accountName] };
+            headers = this.generateHeaders(endpoint, payload);
+            
+            const response: AxiosResponse<GeminiBalance[]> = await axios.post(
+              `${this.baseUrl}${endpoint}`,
+              {},
+              { headers }
+            );
+            
+            console.log(`✅ SUCCESS! Account name "${accountName}" worked!`);
+            return response.data;
+          } catch (accountError: any) {
+            console.log(`❌ Account "${accountName}" failed:`, accountError.response?.data?.reason || accountError.response?.data?.message);
+          }
+        }
+        
+        // If all account names fail, throw the original error
+        throw new Error('All account names failed');
+      }
+    } catch (error: any) {
+      console.log('❌ Gemini API Error Details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: `${this.baseUrl}/v1/balances`
+      });
       throw new Error(`Failed to get balances: ${error}`);
     }
   }
