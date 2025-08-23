@@ -1241,7 +1241,9 @@ class DiscordTradingBot {
           const symbol = `${balance.currency.toUpperCase()}USD`;
           console.log(`🔍 Trying uppercase symbol: ${symbol}`);
           const ticker = await this.gemini.getTicker(symbol);
-          const currentPrice = parseFloat(ticker.last);
+          // STABILIZE PRICE: Round to prevent micro-fluctuation bouncing
+          const rawPrice = parseFloat(ticker.last);
+          const currentPrice = Math.round(rawPrice * 100) / 100; // Round to nearest cent
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
           const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
@@ -1659,7 +1661,9 @@ class DiscordTradingBot {
         if (currency !== 'USD' && balanceData.amount > 0) {
           const priceData = this.realTimePrices.get(currency);
           if (priceData) {
-            const value = balanceData.amount * priceData.price;
+            // STABILIZE PRICE: Round to prevent micro-fluctuation bouncing
+            const stablePrice = Math.round(priceData.price * 100) / 100; // Round to nearest cent
+            const value = balanceData.amount * stablePrice;
             totalValue += value;
             
             holdings.push({
@@ -2163,7 +2167,9 @@ class DiscordTradingBot {
           const symbol = `${balance.currency.toUpperCase()}USD`;
           console.log(`🔍 Trying uppercase symbol: ${symbol}`);
           const ticker = await this.gemini.getTicker(symbol);
-          const currentPrice = parseFloat(ticker.last);
+          // STABILIZE PRICE: Round to prevent micro-fluctuation bouncing
+          const rawPrice = parseFloat(ticker.last);
+          const currentPrice = Math.round(rawPrice * 100) / 100; // Round to nearest cent
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
           const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
