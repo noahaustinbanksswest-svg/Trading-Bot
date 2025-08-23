@@ -147,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const geminiService = new GeminiService(
         geminiApiKey, 
         geminiApiSecret, 
-        true // sandbox mode
+        false // Use production mode for real balances
       );
 
       // Get REAL balances from Gemini API

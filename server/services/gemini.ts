@@ -68,7 +68,7 @@ export class GeminiService {
   }
 
   private generateHeaders(endpoint: string, payload: any = {}): { [key: string]: string } {
-    const nonce = Date.now() * 1000;
+    const nonce = Date.now(); // Fix: Use milliseconds, not microseconds
     const payloadWithDefaults = {
       request: endpoint,
       nonce: nonce.toString(),

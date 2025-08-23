@@ -121,13 +121,23 @@ async function updatePortfolioEmbed() {
       let actualSolAmount = 0;
       let portfolioValue = 0;
       
-      // SMART LOGIC: Use your ACTUAL portfolio value $282.1
-      const actualPortfolioValue = 282.10; // Your actual current portfolio value
-      actualSolAmount = actualPortfolioValue / currentSolPrice; // Calculate SOL amount from your actual value
-      portfolioValue = actualPortfolioValue; // Use your real portfolio value
+      // SMART LOGIC: Get your ACTUAL SOL holdings from Gemini and calculate portfolio value
       
-      // Portfolio value stays at your actual amount, SOL amount adjusts with price
-      console.log(`🧠 SMART CALC: $${portfolioValue.toFixed(2)} ÷ $${currentSolPrice.toFixed(2)} = ${actualSolAmount.toFixed(6)} SOL`);
+      // If Gemini API returns SOL balance, use it
+      const solHolding = portfolioApiData.holdings?.find(h => h.currency === 'SOL');
+      if (solHolding && parseFloat(solHolding.amount) > 0) {
+        actualSolAmount = parseFloat(solHolding.amount); // Your actual SOL from Gemini
+        portfolioValue = actualSolAmount * currentSolPrice; // Calculate value: SOL_amount × price
+        console.log(`🎯 REAL GEMINI DATA: ${actualSolAmount.toFixed(6)} SOL × $${currentSolPrice.toFixed(2)} = $${portfolioValue.toFixed(2)}`);
+      } else {
+        // Fallback: Use your approximate SOL amount if Gemini API fails
+        actualSolAmount = 282.10 / currentSolPrice; // Approximate calculation
+        portfolioValue = 282.10; // Use baseline value
+        console.log(`⚠️ FALLBACK CALC: $282.10 ÷ $${currentSolPrice.toFixed(2)} = ${actualSolAmount.toFixed(6)} SOL`);
+      }
+      
+      // Portfolio value calculated from real SOL amount × current price
+      console.log(`💰 PORTFOLIO CALC: ${actualSolAmount.toFixed(6)} SOL × $${currentSolPrice.toFixed(2)} = $${portfolioValue.toFixed(2)}`);
       
       lastPortfolioValue = portfolioValue;
       
@@ -136,6 +146,7 @@ async function updatePortfolioEmbed() {
         holdings: [{ currency: 'SOL', amount: actualSolAmount, value: portfolioValue, price: currentSolPrice }],
         solPrice: currentSolPrice,
         currentSolPrice: currentSolPrice, // Add this for embed access
+        realSolAmount: actualSolAmount, // Add real SOL amount for embed access
         realData: true
       };
       
@@ -165,7 +176,7 @@ async function updatePortfolioEmbed() {
       .addFields([
         {
           name: '💰 Current Portfolio Value', 
-          value: `$282.10`,
+          value: `$${portfolioData.realData ? parseFloat(portfolioData.totalValue).toFixed(2) : '282.10'}`,
           inline: true
         },
         {
@@ -175,7 +186,7 @@ async function updatePortfolioEmbed() {
         },
         {
           name: '📊 SOL Holdings',
-          value: `${(282.10 / (portfolioData.currentSolPrice || portfolioData.solPrice || 206.79)).toFixed(6)} SOL`,
+          value: `${(portfolioData.realSolAmount || (282.10 / (portfolioData.currentSolPrice || portfolioData.solPrice || 206.79))).toFixed(6)} SOL`,
           inline: true
         },
         {
