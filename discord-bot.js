@@ -452,6 +452,9 @@ class DiscordTradingBot {
       intents: [
         GatewayIntentBits.Guilds,
       ],
+      retryLimit: 3,
+      failIfNotExists: false,
+      restTimeOffset: 0
     });
 
     this.gemini = new GeminiAPI();
@@ -611,6 +614,51 @@ class DiscordTradingBot {
       this.startKeepAlive();
     });
 
+    // BULLETPROOF CONNECTION HANDLING
+    this.client.on('disconnect', (event) => {
+      console.log('🚨 Discord DISCONNECTED:', event);
+      this.handleReconnection('disconnect');
+    });
+
+    this.client.on('reconnecting', () => {
+      console.log('🔄 Discord RECONNECTING...');
+    });
+
+    this.client.on('resume', () => {
+      console.log('✅ Discord CONNECTION RESUMED');
+    });
+
+    this.client.on('error', (error) => {
+      console.error('🚨 Discord ERROR:', error);
+      this.handleReconnection('error');
+    });
+
+    this.client.on('warn', (warning) => {
+      console.warn('⚠️ Discord WARNING:', warning);
+    });
+
+    this.client.on('shardDisconnect', (event, shardId) => {
+      console.log(`🚨 Discord SHARD ${shardId} DISCONNECTED:`, event);
+      this.handleReconnection('shard_disconnect');
+    });
+
+    this.client.on('shardError', (error, shardId) => {
+      console.error(`🚨 Discord SHARD ${shardId} ERROR:`, error);
+      this.handleReconnection('shard_error');
+    });
+
+    this.client.on('shardReconnecting', (shardId) => {
+      console.log(`🔄 Discord SHARD ${shardId} RECONNECTING...`);
+    });
+
+    this.client.on('shardReady', (shardId) => {
+      console.log(`✅ Discord SHARD ${shardId} READY`);
+    });
+
+    this.client.on('shardResume', (shardId) => {
+      console.log(`✅ Discord SHARD ${shardId} RESUMED`);
+    });
+
     this.client.on('interactionCreate', async (interaction) => {
       if (interaction.isChatInputCommand()) {
         await this.handleSlashCommand(interaction);
@@ -620,6 +668,58 @@ class DiscordTradingBot {
         await this.handleModalSubmit(interaction);
       }
     });
+  }
+
+  async handleReconnection(reason) {
+    console.log(`🛡️ HANDLING DISCORD RECONNECTION - Reason: ${reason}`);
+    
+    // Don't spam reconnection attempts
+    if (this.reconnectionInProgress) {
+      console.log('🔄 Reconnection already in progress, skipping...');
+      return;
+    }
+    
+    this.reconnectionInProgress = true;
+    
+    try {
+      // Wait a bit before attempting reconnection
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Check if client is still connected
+      if (this.client.isReady()) {
+        console.log('✅ Discord connection is healthy, no reconnection needed');
+        this.reconnectionInProgress = false;
+        return;
+      }
+      
+      console.log('🔄 Attempting Discord reconnection...');
+      
+      // Destroy and recreate client connection
+      this.client.destroy();
+      
+      // Wait before reconnecting
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Reconnect
+      await this.client.login(BOT_TOKEN);
+      console.log('✅ Discord reconnection successful!');
+      
+    } catch (error) {
+      console.error('❌ Discord reconnection failed:', error.message);
+      
+      // Try again in 30 seconds
+      setTimeout(() => {
+        console.log('🔄 Retrying Discord reconnection in 30 seconds...');
+        this.reconnectionInProgress = false;
+        this.handleReconnection('retry');
+      }, 30000);
+      
+    } finally {
+      // Reset flag after some time even if we failed
+      setTimeout(() => {
+        this.reconnectionInProgress = false;
+      }, 60000);
+    }
   }
 
   async registerCommands() {
@@ -1700,8 +1800,29 @@ class DiscordTradingBot {
     
     // Send keep-alive ping every 1 second for maximum uptime
     setInterval(async () => {
-      await sendKeepAlivePing('running');
+      try {
+        // Check Discord connection health
+        if (!this.client.isReady()) {
+          console.log('🚨 Discord connection down - triggering reconnection');
+          this.handleReconnection('keep_alive_check');
+          await sendKeepAlivePing('reconnecting', 'Discord connection lost');
+        } else {
+          await sendKeepAlivePing('running');
+        }
+      } catch (error) {
+        console.log('Keep-alive ping failed:', error.message);
+      }
     }, 1000); // 1 second intervals
+    
+    // Additional connection health check every 30 seconds
+    setInterval(() => {
+      if (this.client.isReady()) {
+        console.log('💚 Discord connection healthy');
+      } else {
+        console.log('🚨 Discord connection unhealthy - forcing reconnection');
+        this.handleReconnection('health_check');
+      }
+    }, 30000);
     
     // Initial ping
     sendKeepAlivePing('running');
