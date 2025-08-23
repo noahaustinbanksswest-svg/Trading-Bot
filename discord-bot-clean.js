@@ -14,9 +14,10 @@ const client = new Client({
 // Bot configuration
 const CONFIG = {
   embedChannelId: '1293662883025752156',
-  embedMessageId: null,
+  embedMessageId: null, // Will be set on first message creation
   updateInterval: 1000, // 1 second for 24/7 updates
-  tradingEngineUrl: 'http://localhost:5000/api/trading/execute-swing-trade'
+  tradingEngineUrl: 'http://localhost:5000/api/trading/execute-swing-trade',
+  apiBaseUrl: 'http://localhost:5000/api'
 };
 
 // Portfolio tracking with real-time updates
@@ -234,20 +235,41 @@ async function updatePortfolioEmbed() {
       }
     }
 
-    // Update or create embed with buttons
+    // ALWAYS update existing embed, never create new ones on restart
     if (CONFIG.embedMessageId) {
       try {
         const message = await channel.messages.fetch(CONFIG.embedMessageId);
         await message.edit({ embeds: [embed], components: [buttonRow] });
+        // Successfully updated existing embed
+        return;
       } catch (error) {
-        // Message not found, create new one
-        const newMessage = await channel.send({ embeds: [embed], components: [buttonRow] });
-        CONFIG.embedMessageId = newMessage.id;
+        console.log(`⚠️ Embed message ${CONFIG.embedMessageId} not found, will search for existing`);
       }
-    } else {
-      const newMessage = await channel.send({ embeds: [embed], components: [buttonRow] });
-      CONFIG.embedMessageId = newMessage.id;
     }
+    
+    // Search for existing embed instead of creating new ones
+    try {
+      const messages = await channel.messages.fetch({ limit: 50 });
+      const existingEmbed = messages.find(msg => 
+        msg.author.id === client.user.id && 
+        msg.embeds.length > 0 && 
+        msg.embeds[0].title?.includes('SOL Trading Bot')
+      );
+      
+      if (existingEmbed) {
+        CONFIG.embedMessageId = existingEmbed.id;
+        await existingEmbed.edit({ embeds: [embed], components: [buttonRow] });
+        console.log(`🔄 Updated existing embed: ${CONFIG.embedMessageId}`);
+        return;
+      }
+    } catch (searchError) {
+      console.log('⚠️ Could not search for existing embeds');
+    }
+    
+    // Only create new embed if absolutely none exists
+    const newMessage = await channel.send({ embeds: [embed], components: [buttonRow] });
+    CONFIG.embedMessageId = newMessage.id;
+    console.log(`✨ Created new embed (none existed): ${CONFIG.embedMessageId}`);
 
   } catch (error) {
     console.error('❌ Error in updatePortfolioEmbed:', error.message);
@@ -388,69 +410,121 @@ async function handleAutoTradeModal(interaction) {
   const stopAtValue = interaction.fields.getTextInputValue('stop_at_value');
   const stopDailyBuys = interaction.fields.getTextInputValue('stop_daily_buys');
 
-  console.log('🔧 Processing Auto Trade Modal:', { amount, stopAtLoss, cryptoSelection, stopAtValue, stopDailyBuys });
+  console.log('🔧 Calling API to update trading settings:', { amount, stopAtLoss, cryptoSelection, stopAtValue, stopDailyBuys });
 
-  // Update settings
-  if (amount) {
-    const cleanAmount = amount.replace(/[$,]/g, '');
-    autoTradeSettings.amount = parseFloat(cleanAmount);
-  }
-  if (cryptoSelection) {
-    const cleanCrypto = cryptoSelection.toUpperCase().replace(/USD$/, '');
-    autoTradeSettings.selectedCrypto = cleanCrypto;
-  }
-  if (stopAtLoss) {
-    autoTradeSettings.stopAtLoss = parseFloat(stopAtLoss);
-  }
-  if (stopAtValue) {
-    const cleanValue = stopAtValue.replace(/[$,]/g, '');
-    autoTradeSettings.stopAtValue = parseFloat(cleanValue);
-  }
-  if (stopDailyBuys) {
-    const cleanDaily = stopDailyBuys.replace(/[$,]/g, '');
-    autoTradeSettings.stopOnDailyBuys = parseFloat(cleanDaily);
-  }
+  try {
+    // Prepare API request body
+    const updateData = {};
+    
+    if (amount) {
+      const cleanAmount = amount.replace(/[$,]/g, '');
+      updateData.tradeAmount = parseFloat(cleanAmount);
+    }
+    if (cryptoSelection) {
+      const cleanCrypto = cryptoSelection.toUpperCase().replace(/USD$/, '');
+      updateData.selectedCrypto = cleanCrypto;
+    }
+    if (stopAtLoss) {
+      updateData.stopLossAmount = parseFloat(stopAtLoss);
+    }
+    if (stopAtValue) {
+      const cleanValue = stopAtValue.replace(/[$,]/g, '');
+      updateData.stopTargetAmount = parseFloat(cleanValue);
+    }
+    if (stopDailyBuys) {
+      const cleanDaily = stopDailyBuys.replace(/[$,]/g, '');
+      updateData.dailyBuyLimit = parseFloat(cleanDaily);
+    }
+    
+    // Call actual API to update trading settings (using user-1 as the main user)
+    const response = await fetch(`${CONFIG.apiBaseUrl}/trading-settings/user-1`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updateData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    
+    const updatedSettings = await response.json();
+    console.log('✅ Trading settings updated via API:', updatedSettings);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🤖 Auto Trade Configuration Updated')
+      .setColor(0x4CAF50)
+      .setTimestamp();
 
-  // Auto Trade is always enabled - all conditions are optional
-  autoTradeSettings.enabled = true;
-  autoTradeSettings.isActive = true;
-  autoTradeSettings.startTime = new Date();
-  console.log('🤖 AUTO TRADE SETTINGS UPDATED! (All conditions optional)');
+    embed.setDescription('✅ Trading settings updated via API! All conditions are **optional**.')
+      .addFields(
+        { name: '💰 Trade Amount', value: updatedSettings.tradeAmount ? `$${updatedSettings.tradeAmount}` : 'Default', inline: true },
+        { name: '📉 Stop Loss Amount', value: updatedSettings.stopLossAmount ? `${updatedSettings.stopLossAmount} SOL` : '🔓 Optional', inline: true },
+        { name: '🪙 Stop Target Amount', value: updatedSettings.stopTargetAmount ? `${updatedSettings.stopTargetAmount} SOL` : '🔓 Optional', inline: true },
+        { name: '🛒 Daily Buy Limit', value: updatedSettings.dailyBuyLimit ? `$${updatedSettings.dailyBuyLimit}` : '🔓 Optional', inline: true },
+        { name: '🎯 Status', value: '🟢 **API CONNECTED** - Settings saved to database', inline: false }
+      );
 
-  const embed = new EmbedBuilder()
-    .setTitle('🤖 Auto Trade Configuration')
-    .setColor(hasConditions ? 0x4CAF50 : 0xFF9800)
-    .setTimestamp();
-
-  embed.setDescription('✅ Auto Trade configuration updated! All conditions are **optional**.')
-    .addFields(
-      { name: '💰 Trade Amount', value: `$${autoTradeSettings.amount}`, inline: true },
-      { name: '📉 Stop Selling at Base', value: autoTradeSettings.stopAtLoss ? `${autoTradeSettings.stopAtLoss} SOL` : '🔓 Optional - Not set', inline: true },
-      { name: '🪙 Stop at Crypto Amount', value: autoTradeSettings.stopAtValue ? `${autoTradeSettings.stopAtValue} SOL` : '🔓 Optional - Not set', inline: true },
-      { name: '🛒 Stop on Daily Buys', value: autoTradeSettings.stopOnDailyBuys ? `$${autoTradeSettings.stopOnDailyBuys}` : '🔓 Optional - Not set', inline: true },
-      { name: '🎯 Trading Status', value: '🟢 **ACTIVE** - Ready for $1.00 swing trades', inline: false }
-    );
-
-  await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('❌ API Error updating trading settings:', error.message);
+    
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Trading Settings Error')
+      .setColor(0xF44336)
+      .setDescription('Failed to update trading settings via API. Please try again.')
+      .addFields({ name: 'Error Details', value: error.message, inline: false })
+      .setTimestamp();
+      
+    await interaction.editReply({ embeds: [errorEmbed] });
+  }
 }
 
 async function stopAutoTrade(interaction) {
   const { EmbedBuilder } = await import('discord.js');
   
-  autoTradeSettings.enabled = false;
-  autoTradeSettings.isActive = false;
-  autoTradeSettings.startTime = null;
-  tradingActive = false;
+  await interaction.deferReply({ ephemeral: true });
+  
+  try {
+    // Call API to disable trading (using user-1 as the main user)  
+    const response = await fetch(`${CONFIG.apiBaseUrl}/trading-settings/user-1`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ enableTrading: false })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    
+    console.log('🛑 Auto Trade stopped via API');
 
-  console.log('🛑 Auto Trade stopped by user');
+    const embed = new EmbedBuilder()
+      .setTitle('🛑 Auto Trade Stopped')
+      .setDescription('Auto Trade has been disabled via API.')
+      .addFields(
+        { name: '🔄 Status', value: '🔴 **DISABLED** - No new trades will be executed', inline: false },
+        { name: '💾 Database', value: 'Settings updated in database', inline: false }
+      )
+      .setColor(0xF44336)
+      .setTimestamp();
 
-  const embed = new EmbedBuilder()
-    .setTitle('🛑 Auto Trade Stopped')
-    .setDescription('Auto Trade has been successfully stopped.')
-    .setColor(0xF44336)
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('❌ API Error stopping trading:', error.message);
+    
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Stop Trading Error')
+      .setColor(0xF44336)
+      .setDescription('Failed to stop trading via API.')
+      .addFields({ name: 'Error Details', value: error.message, inline: false })
+      .setTimestamp();
+      
+    await interaction.editReply({ embeds: [errorEmbed] });
+  }
 }
 
 async function showTradingStatus(interaction) {
@@ -458,25 +532,49 @@ async function showTradingStatus(interaction) {
   
   await interaction.deferReply({ ephemeral: true });
 
-  const embed = new EmbedBuilder()
-    .setTitle('📊 Trading Status Overview')
-    .setColor(autoTradeSettings.enabled ? 0x4CAF50 : 0xF44336)
-    .addFields(
-      { name: '🤖 Auto Trade Status', value: autoTradeSettings.enabled ? '🟢 Active' : '🔴 Inactive', inline: true },
-      { name: '💰 Current Portfolio', value: `$${lastPortfolioValue.toFixed(2)}`, inline: true },
-      { name: '🎯 Next Trigger', value: `$${triggerTarget.toFixed(2)}`, inline: true },
-      { name: '⚙️ Settings', value: 
-        `**Trade Amount**: $${autoTradeSettings.amount}\n` +
-        `**Selected Crypto**: ${autoTradeSettings.selectedCrypto}\n` +
-        `**Stop at Loss**: ${autoTradeSettings.stopAtLoss || 'Not set'}\n` +
-        `**Stop at Value**: ${autoTradeSettings.stopAtValue || 'Not set'}\n` +
-        `**Daily Limit**: ${autoTradeSettings.stopOnDailyBuys || 'Not set'}`,
-        inline: false
-      }
-    )
-    .setTimestamp();
+  try {
+    // Call API to get real trading settings (using user-1 as the main user)
+    const response = await fetch(`${CONFIG.apiBaseUrl}/trading-settings/user-1`);
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    
+    const settings = await response.json();
+    console.log('📊 Retrieved trading status from API:', settings);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('📊 Trading Status Overview (Live API Data)')
+      .setColor(0x4CAF50)
+      .addFields(
+        { name: '🤖 API Status', value: '🟢 Connected', inline: true },
+        { name: '💰 Current Portfolio', value: `$${lastPortfolioValue.toFixed(2)}`, inline: true },
+        { name: '🎯 Next Trigger', value: `$${triggerTarget.toFixed(2)}`, inline: true },
+        { name: '⚙️ Live Settings from Database', value: 
+          `**Trade Amount**: $${settings.tradeAmount || '1.00'}\n` +
+          `**Selected Crypto**: ${settings.selectedCrypto || 'SOL'}\n` +
+          `**Stop Loss**: ${settings.stopLossAmount || 'Not set'}\n` +
+          `**Stop Target**: ${settings.stopTargetAmount || 'Not set'}\n` +
+          `**Daily Limit**: $${settings.dailyBuyLimit || 'Not set'}`,
+          inline: false
+        },
+        { name: '🔄 Last Updated', value: new Date(settings.updatedAt).toLocaleString(), inline: false }
+      )
+      .setTimestamp();
 
-  await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('❌ API Error getting trading status:', error.message);
+    
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Trading Status Error')
+      .setColor(0xF44336)
+      .setDescription('Failed to retrieve trading status from API.')
+      .addFields({ name: 'Error Details', value: error.message, inline: false })
+      .setTimestamp();
+      
+    await interaction.editReply({ embeds: [errorEmbed] });
+  }
 }
 
 async function showLimits(interaction) {
