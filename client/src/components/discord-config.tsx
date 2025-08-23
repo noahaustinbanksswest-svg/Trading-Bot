@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,16 +53,18 @@ export default function DiscordConfig({ userId, compact = false }: DiscordConfig
   });
 
   // Update form when user data loads
-  if (user && !form.formState.isDirty) {
-    form.reset({
-      discordBotToken: (user as any).discordBotToken || '',
-      discordGuildId: (user as any).discordGuildId || '',
-      discordChannelId: (user as any).discordChannelId || '',
-      updateFrequency: 30,
-      enableNotifications: true,
-      enablePnLUpdates: true,
-    });
-  }
+  useEffect(() => {
+    if (user && !form.formState.isDirty) {
+      form.reset({
+        discordBotToken: (user as any).discordBotToken || '',
+        discordGuildId: (user as any).discordGuildId || '',
+        discordChannelId: (user as any).discordChannelId || '',
+        updateFrequency: 30,
+        enableNotifications: true,
+        enablePnLUpdates: true,
+      });
+    }
+  }, [user]);
 
   const updateCredentialsMutation = useMutation({
     mutationFn: async (data: DiscordConfigForm) => {

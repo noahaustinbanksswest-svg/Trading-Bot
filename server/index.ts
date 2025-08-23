@@ -173,6 +173,32 @@ app.use((req, res, next) => {
       next();
     });
     
+    // Add Replit-specific keep-alive mechanism for 24/7 uptime
+    if (process.env.REPLIT_DOMAINS) {
+      log('🔄 Setting up Replit keep-alive system...');
+      
+      // Self-ping every 5 minutes to prevent Repl from sleeping
+      setInterval(async () => {
+        try {
+          const domain = process.env.REPLIT_DOMAINS.split(',')[0];
+          const response = await fetch(`https://${domain}/api/health`);
+          if (response.ok) {
+            log('💚 Replit keep-alive ping successful');
+          } else {
+            log('⚠️ Replit keep-alive ping failed:', response.status);
+          }
+        } catch (error) {
+          log('❌ Replit keep-alive error:', error.message);
+        }
+      }, 5 * 60 * 1000); // Every 5 minutes
+      
+      // System monitor for continuous operation
+      setInterval(() => {
+        const memUsage = process.memoryUsage();
+        log(`🔋 System alive - Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+      }, 10 * 60 * 1000); // Every 10 minutes
+    }
+    
     // Graceful shutdown
     process.on('SIGINT', () => {
       log('🛑 Shutting down gracefully...');

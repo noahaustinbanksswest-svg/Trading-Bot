@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -59,17 +60,19 @@ export default function TradingSettings({ userId, compact = false }: TradingSett
   });
 
   // Update form when settings load
-  if (settings && !form.formState.isDirty) {
-    form.reset({
-      dailyBuyLimit: (settings as any).dailyBuyLimit || '1000',
-      stopLossPercent: (settings as any).stopLossPercent || '5',
-      takeProfitPercent: (settings as any).takeProfitPercent || '10',
-      enableStopLoss: (settings as any).enableStopLoss ?? true,
-      enableProfitTaking: (settings as any).enableProfitTaking ?? true,
-      profitStrategy: (settings as any).profitStrategy || 'Fixed Percentage',
-      enabledPairs: (settings as any).enabledPairs || ['btcusd', 'ethusd'],
-    });
-  }
+  useEffect(() => {
+    if (settings && !form.formState.isDirty) {
+      form.reset({
+        dailyBuyLimit: (settings as any).dailyBuyLimit || '1000',
+        stopLossPercent: (settings as any).stopLossPercent || '5',
+        takeProfitPercent: (settings as any).takeProfitPercent || '10',
+        enableStopLoss: (settings as any).enableStopLoss ?? true,
+        enableProfitTaking: (settings as any).enableProfitTaking ?? true,
+        profitStrategy: (settings as any).profitStrategy || 'Fixed Percentage',
+        enabledPairs: (settings as any).enabledPairs || ['btcusd', 'ethusd'],
+      });
+    }
+  }, [settings]);
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: TradingSettingsForm) => {

@@ -886,12 +886,16 @@ class DiscordTradingBot {
       // SOL-specific info (simplified for trading bot)
       const solHolding = data.holdings.find(h => h.currency === 'SOL');
       if (solHolding) {
-        // DISPLAY-ONLY: Use actual dynamic trigger value from trading logic
-        const displayTrigger = this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00);
+        // FIXED DISPLAY: Use saved trigger value to prevent bouncing
+        const displayTrigger = this.savedTriggerValue || (this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00));
+        const displayBaseline = this.baselineValue || (solHolding.value - 1.00);
+        const needsAmount = displayTrigger - solHolding.value;
         const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
                        `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
-                       `🎯 **Next Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
-                       `💲 **Current Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
+                       `🎯 **Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
+                       `📊 **Baseline**: $${this.truncateToFixed(displayBaseline, 2)}\n` +
+                       `⏳ **Need**: $${this.truncateToFixed(needsAmount, 2)} more\n` +
+                       `💲 **Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
         
         embed.addFields({ 
           name: '⚡ SOL Trading Monitor', 
@@ -2547,12 +2551,9 @@ class DiscordTradingBot {
           console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $1.00) = ${currentPortfolioValue < resetThreshold}`);
           
           if (currentPortfolioValue < resetThreshold) {
-            // Only reset if there's a GENUINE drop below the locked trigger
-            this.baselineValue = parseFloat(currentPortfolioValue.toFixed(2));
-            this.savedTriggerValue = this.baselineValue + 1.00;
-            await this.saveTriggerToFile();
-            console.log(`📉 BASELINE RESET: Portfolio ($${currentPortfolioValue.toFixed(2)}) dropped significantly below trigger ($${triggerValue.toFixed(2)}) → New baseline: $${this.baselineValue.toFixed(2)} → New trigger: $${this.savedTriggerValue.toFixed(2)}`);
-            triggerValue = this.savedTriggerValue; // Use the new trigger value
+            // STABLE MODE: Never auto-reset to prevent bouncing (user can manually reset if needed)
+            console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} but keeping baseline STABLE at $${this.baselineValue.toFixed(2)} to prevent bouncing`);
+            // Do NOT reset baseline or trigger values to keep embed stable
           } else {
             // KEEP TRIGGER LOCKED - don't reset just because baseline equals portfolio
             console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above reset threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue.toFixed(2)}`);
@@ -2751,11 +2752,8 @@ class DiscordTradingBot {
         // CRITICAL: Record trade time for cooldown 
         this.lastTradeTime = Date.now();
         
-        // RESET BASELINE TO POST-TRADE PORTFOLIO VALUE
-        const postTradePortfolio = cryptoHolding.value - 1.00; // Subtract the $1 we just sold
-        this.baselineValue = parseFloat(postTradePortfolio.toFixed(2));
-        await this.saveTriggerToFile();
-        console.log(`🎯 BASELINE RESET: $${this.baselineValue.toFixed(2)} → Next trigger: $${(this.baselineValue + 1.00).toFixed(2)}`);
+        // KEEP TRIGGER STABLE: Do NOT reset baseline after trades to prevent bouncing
+        console.log(`🎯 TRADE COMPLETED: Keeping baseline at $${this.baselineValue.toFixed(2)} and trigger at $${this.savedTriggerValue.toFixed(2)} (NO RESET TO PREVENT BOUNCING)`);
         
         sellOrders.push({
           currency: autoTradeSettings.selectedCrypto,
