@@ -1241,6 +1241,20 @@ class DiscordTradingBot {
         return;
       }
 
+      // PRIORITY: Use saved embed ID first (prevents flashing)
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        try {
+          const savedMessage = await dashboardChannel.messages.fetch(this.dashboardMessageId);
+          if (savedMessage) {
+            console.log(`📌 USING SAVED EMBED: ${this.dashboardMessageId} (NO FLASHING)`);
+            await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
+            return;
+          }
+        } catch (error) {
+          console.log(`🔍 Saved embed ${this.dashboardMessageId} no longer exists, searching...`);
+        }
+      }
+
       // Try to find existing dashboard embed
       console.log(`🔍 Searching for existing dashboard embed in #${dashboardChannel.name}`);
       
@@ -1254,12 +1268,16 @@ class DiscordTradingBot {
         );
 
         if (existingDashboard) {
-          console.log(`✅ Found existing dashboard message: ${existingDashboard.id}`);
+          console.log(`✅ Found existing dashboard message: ${existingDashboard.id} (NO FLASHING)`);
           this.dashboardMessageId = existingDashboard.id;
           this.dashboardChannelId = dashboardChannel.id;
           
+          // CRITICAL: Save tracking immediately to prevent future searches and flashing
+          await this.saveDashboardTracking();
+          
           // Update the existing embed with current data
           await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
+          console.log(`🔄 Existing dashboard updated - ID preserved: ${existingDashboard.id}`);
           return;
         }
       } catch (fetchError) {
