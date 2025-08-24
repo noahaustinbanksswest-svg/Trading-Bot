@@ -135,6 +135,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get portfolio holdings
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
+      // Get live portfolio data from Gemini
+      const services = userServices.get(req.params.userId);
+      console.log(`🔍 Services available for ${req.params.userId}:`, !!services?.gemini, !!services?.trading);
+      if (services?.gemini) {
+        try {
+          const geminiBalances = await services.gemini.getBalances();
+          
+          // Get current SOL price
+          const ticker = await services.gemini.getTicker('solusd');
+          const solPrice = parseFloat(ticker.last);
+          
+          // Find SOL balance
+          const solBalance = geminiBalances.find(b => b.currency.toLowerCase() === 'sol');
+          const solAmount = solBalance ? parseFloat(solBalance.available) : 0;
+          const solValue = solAmount * solPrice;
+          
+          console.log(`📊 LIVE PORTFOLIO: ${solAmount.toFixed(8)} SOL @ $${solPrice.toFixed(2)} = $${solValue.toFixed(2)}`);
+          
+          const holdings = solAmount > 0 ? [{
+            symbol: 'SOL',
+            amount: solAmount.toFixed(8),
+            valueUSD: solValue.toFixed(2),
+            price: solPrice.toFixed(2)
+          }] : [];
+          
+          res.json({
+            holdings,
+            totalValue: solValue.toFixed(2),
+          });
+          return;
+        } catch (geminiError) {
+          console.log('⚠️ Gemini API error, falling back to local data:', geminiError instanceof Error ? geminiError.message : geminiError);
+        }
+      }
+      
+      // Fallback to local storage if Gemini fails
       const holdings = await storage.getPortfolioHoldings(req.params.userId);
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
