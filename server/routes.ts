@@ -22,6 +22,52 @@ const userServices = new Map<string, {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
+  // Auto-initialize trading services for web dashboard on startup
+  async function autoInitializeServices() {
+    try {
+      console.log('🚀 Auto-initializing trading services for web dashboard...');
+      
+      const user = await storage.getUser('user-1');
+      if (user && user.geminiApiKey && user.geminiApiSecret) {
+        console.log('✅ Found user-1 with API credentials, initializing services...');
+        
+        // Initialize Gemini service
+        const geminiService = new GeminiService(
+          user.geminiApiKey,
+          user.geminiApiSecret,
+          false // Use production API
+        );
+
+        // Initialize independent trading engine for continuous operation
+        const independentTradingEngine = new IndependentTradingEngine(user.id, geminiService);
+
+        // Store services for web dashboard
+        userServices.set(user.id, {
+          gemini: geminiService,
+          discord: undefined, // Discord may be down, engine works independently
+          trading: { 
+            start: async () => {}, 
+            stop: async () => {},
+            placeOrder: async () => { throw new Error("Trading disabled for security"); },
+            cancelOrder: async () => { throw new Error("Trading disabled for security"); },
+            userId: user.id,
+            geminiService: geminiService,
+            isRunning: false
+          } as any,
+          independentTrading: independentTradingEngine,
+        });
+
+        console.log('✅ Trading services auto-initialized for web dashboard');
+        console.log('🌐 Web interface will now show live updates even when Discord is down');
+      } else {
+        console.log('⚠️ User-1 not found or missing API credentials - web dashboard will show initialization needed');
+      }
+    } catch (error) {
+      console.error('❌ Auto-initialization failed:', error instanceof Error ? error.message : error);
+      console.log('⚠️ Web dashboard will show manual initialization required');
+    }
+  }
+
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
@@ -51,6 +97,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   };
+
+  // Auto-initialize services on startup for continuous web dashboard operation
+  setTimeout(() => {
+    autoInitializeServices();
+  }, 2000); // Wait 2 seconds for server to fully start
 
   // API Routes
 
