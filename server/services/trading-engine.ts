@@ -353,7 +353,7 @@ export class TradingEngine {
     });
   }
 
-  // CORRECTED: TRIGGER ON USD VALUE INCREASES (PRICE OR BALANCE)
+  // CORRECTED: ONLY TRIGGER ON SOL AMOUNT INCREASES (PURCHASES)
   private async checkSwingTradingConditions(): Promise<void> {
     try {
       const settings = await storage.getTradingSettings(this.userId);
@@ -388,40 +388,44 @@ export class TradingEngine {
         return;
       }
 
-      // 🔑 CORRECTED LOGIC: Track USD value of SOL holdings
-      // Example: SOL worth $181.62 → Next sale at $182.62
-      const nextSaleTrigger = this.baselineValue + 1.00;
+      // 🔑 CORRECT LOGIC: Track SOL AMOUNT increases (purchases only)
+      // SOL holdings only increase when user buys more SOL
+      console.log(`🪙 SOL AMOUNT TRACKING: Current ${currentSOLAmount.toFixed(8)} SOL | Last known ${this.lastKnownSOLAmount.toFixed(8)} SOL | Value $${currentPortfolioValue.toFixed(2)}`);
       
-      console.log(`💰 SOL VALUE MONITORING: Current $${currentPortfolioValue.toFixed(2)} | Baseline $${this.baselineValue.toFixed(2)} | Next sale at $${nextSaleTrigger.toFixed(2)}`);
-      
-      // Check if SOL value increased by $1+
-      if (currentPortfolioValue >= nextSaleTrigger) {
-        console.log(`🚨 SOL VALUE +$1: $${currentPortfolioValue.toFixed(2)} >= $${nextSaleTrigger.toFixed(2)} - EXECUTING $1 SALE`);
+      // Check if SOL amount increased (user bought more SOL)
+      if (this.lastKnownSOLAmount > 0 && currentSOLAmount > this.lastKnownSOLAmount) {
+        const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
+        const valueIncrease = solIncrease * currentPrice;
         
-        // Execute $1 sell
-        await this.executeSwingTrade(currentSOLAmount, currentPrice);
+        console.log(`🛒 SOL PURCHASE DETECTED: +${solIncrease.toFixed(8)} SOL (+$${valueIncrease.toFixed(2)} value)`);
         
-        // Set new baseline to current value after sale (approximately -$1)
-        this.baselineValue = currentPortfolioValue - 1.00;
-        this.savedTriggerValue = this.baselineValue + 1.00;
-        await this.saveTriggerToFile();
-        console.log(`✅ SALE COMPLETE: New baseline $${this.baselineValue.toFixed(2)}, Next sale at $${this.savedTriggerValue.toFixed(2)}`);
+        // Only trigger if purchase adds $1+ in value
+        if (valueIncrease >= 1.00) {
+          console.log(`🚨 $1+ SOL PURCHASE: +$${valueIncrease.toFixed(2)} - EXECUTING $1 SALE`);
+          
+          // Execute $1 sell
+          await this.executeSwingTrade(currentSOLAmount, currentPrice);
+          
+          // Update baseline after sale
+          this.baselineValue = currentPortfolioValue - 1.00;
+          this.savedTriggerValue = this.baselineValue + 1.00;
+          await this.saveTriggerToFile();
+          console.log(`✅ SALE COMPLETE: Baseline reset to $${this.baselineValue.toFixed(2)}`);
+        } else {
+          console.log(`⚠️ SOL purchase too small: +$${valueIncrease.toFixed(2)} (need $1+)`);
+          // Update baseline to current value since we detected a purchase
+          this.baselineValue = currentPortfolioValue;
+          this.savedTriggerValue = currentPortfolioValue + 1.00;
+          await this.saveTriggerToFile();
+        }
         
         this.lastKnownSOLAmount = currentSOLAmount;
         return;
       }
       
-      // Handle significant drops (sales or price drops) - adjust baseline down
-      if (currentPortfolioValue < this.baselineValue - 5.00) {
-        console.log(`📉 SIGNIFICANT DROP DETECTED: $${currentPortfolioValue.toFixed(2)} < $${(this.baselineValue - 5.00).toFixed(2)}`);
-        
-        // Reset baseline to current value to avoid missing future $1 gains
-        this.baselineValue = currentPortfolioValue;
-        this.savedTriggerValue = currentPortfolioValue + 1.00;
-        await this.saveTriggerToFile();
-        console.log(`🔄 BASELINE RESET: New baseline $${this.baselineValue.toFixed(2)}, Next sale at $${this.savedTriggerValue.toFixed(2)}`);
-        
-        this.lastKnownSOLAmount = currentSOLAmount;
+      // 🚫 IGNORE PRICE FLUCTUATIONS - Only care about SOL amount changes
+      if (this.lastKnownSOLAmount === currentSOLAmount) {
+        console.log(`📊 PRICE MONITORING: SOL unchanged at ${currentSOLAmount.toFixed(8)}, value now $${currentPortfolioValue.toFixed(2)} (no action)`);
         return;
       }
 
