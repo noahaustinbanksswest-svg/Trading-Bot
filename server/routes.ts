@@ -245,23 +245,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🚫 Discord bot disabled - Server trading engine handles all trades');
       let discordService: DiscordBotService | undefined = undefined;
 
-      // Initialize trading engine
-      const tradingEngine = new TradingEngine({
-        userId: user.id,
-        geminiService,
-        discordService,
-      });
+      // 🚫 TRADING COMPLETELY DISABLED FOR SAFETY
+      console.log('🚫 TRADING DISABLED - Preventing multiple sales until fix verified');
+      // const tradingEngine = new TradingEngine({
+      //   userId: user.id,
+      //   geminiService,
+      //   discordService,
+      // });
 
-      await tradingEngine.start();
+      // await tradingEngine.start();
 
-      // Store services
+      // Store services (trading engine disabled)
       userServices.set(user.id, {
         gemini: geminiService,
         discord: discordService,
-        trading: tradingEngine,
+        trading: undefined, // Disabled for safety
       });
 
-      res.json({ message: "Trading services initialized successfully" });
+      res.json({ message: "⚠️ TRADING DISABLED - Services initialized but trading engine stopped for safety" });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to initialize services" });
     }
