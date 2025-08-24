@@ -83,7 +83,7 @@ export class IndependentTradingEngine {
   private startSwingTradingMonitoring(): void {
     console.log('📊 Starting swing trading monitoring (server-side)...');
     
-    // Monitor every 30 seconds (same as Discord bot swing monitoring)
+    // Monitor every 1 second for immediate response
     this.monitoringInterval = setInterval(async () => {
       if (!this.isRunning) return;
       
@@ -92,7 +92,7 @@ export class IndependentTradingEngine {
       } catch (error) {
         console.error('Error in swing trading check:', error.message);
       }
-    }, 30000); // 30 seconds
+    }, 1000); // 1 second
   }
 
   /**
