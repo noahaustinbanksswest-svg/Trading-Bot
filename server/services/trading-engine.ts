@@ -16,6 +16,12 @@ export class TradingEngine {
   private discordService?: DiscordBotService;
   private isRunning: boolean = false;
   private monitoringInterval?: NodeJS.Timeout;
+  
+  // Discord-style swing trading variables
+  private baselineValue: number = 0;
+  private savedTriggerValue: number = 0;
+  private lastKnownSOLAmount: number = 0;
+  private triggerInitialized: boolean = false;
 
   constructor(config: TradingEngineConfig) {
     this.userId = config.userId;
@@ -276,6 +282,9 @@ export class TradingEngine {
     const settings = await storage.getTradingSettings(this.userId);
     if (!settings) return;
 
+    // PRIORITY: Check swing trading first (Discord logic)
+    await this.checkSwingTradingConditions();
+
     const holdings = await storage.getPortfolioHoldings(this.userId);
 
     for (const holding of holdings) {
@@ -348,5 +357,144 @@ export class TradingEngine {
       console.log('Performing daily reset tasks...');
       // Add any daily reset logic here
     });
+  }
+
+  // DISCORD'S EXACT SWING TRADING LOGIC
+  private async checkSwingTradingConditions(): Promise<void> {
+    try {
+      const settings = await storage.getTradingSettings(this.userId);
+      if (!settings) return;
+
+      const balances = await this.geminiService.getBalances();
+      const solBalance = balances.find(b => b.currency === 'SOL');
+      
+      if (!solBalance || parseFloat(solBalance.amount) === 0) {
+        console.log('⚠️ No SOL balance found');
+        return;
+      }
+
+      const currentSOLAmount = parseFloat(solBalance.amount);
+      const ticker = await this.geminiService.getTicker('solusd');
+      const currentPrice = parseFloat(ticker.last);
+      const currentPortfolioValue = currentSOLAmount * currentPrice;
+
+      console.log(`📊 SOL MONITORING: ${currentSOLAmount.toFixed(8)} SOL @ $${currentPrice.toFixed(2)} = $${currentPortfolioValue.toFixed(2)}`);
+
+      // CRITICAL: Detect buy orders to prevent false triggers
+      if (this.lastKnownSOLAmount > 0 && currentSOLAmount > this.lastKnownSOLAmount) {
+        const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
+        console.log(`🛒 BUY ORDER DETECTED: SOL increased by ${solIncrease.toFixed(8)} (${this.lastKnownSOLAmount.toFixed(8)} → ${currentSOLAmount.toFixed(8)})`);
+        
+        // Update baseline to current portfolio value to prevent false sell
+        this.baselineValue = currentPortfolioValue;
+        this.savedTriggerValue = currentPortfolioValue + 1.00;
+        await this.saveTriggerToFile();
+        console.log(`🔄 BASELINE UPDATED DUE TO PURCHASE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+        
+        this.lastKnownSOLAmount = currentSOLAmount;
+        return;
+      }
+
+      // Store current SOL amount for buy detection
+      this.lastKnownSOLAmount = currentSOLAmount;
+
+      // Initialize trigger if not done
+      if (!this.triggerInitialized) {
+        await this.loadTriggerFromFile();
+        if (this.baselineValue === 0) {
+          this.baselineValue = currentPortfolioValue;
+          this.savedTriggerValue = currentPortfolioValue + 1.00;
+          await this.saveTriggerToFile();
+          console.log(`🎯 TRIGGER INITIALIZED: Baseline $${this.baselineValue.toFixed(2)}, Trigger $${this.savedTriggerValue.toFixed(2)}`);
+        }
+        this.triggerInitialized = true;
+      }
+
+      console.log(`📈 SWING TRADE CHECK: Portfolio $${currentPortfolioValue.toFixed(2)}, Baseline $${this.baselineValue.toFixed(2)}, Trigger $${this.savedTriggerValue.toFixed(2)}`);
+
+      // Check if portfolio dropped below reset threshold
+      const resetThreshold = this.savedTriggerValue - 1.00;
+      if (currentPortfolioValue < resetThreshold) {
+        console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
+        this.baselineValue = currentPortfolioValue;
+        this.savedTriggerValue = currentPortfolioValue + 1.00;
+        await this.saveTriggerToFile();
+        console.log(`🔄 NEW BASELINE: $${this.baselineValue.toFixed(2)}, NEW TRIGGER: $${this.savedTriggerValue.toFixed(2)}`);
+        return;
+      }
+
+      // Check if trigger hit
+      if (currentPortfolioValue >= this.savedTriggerValue) {
+        console.log(`🚨 TRIGGER HIT: Portfolio $${currentPortfolioValue.toFixed(2)} >= Trigger $${this.savedTriggerValue.toFixed(2)}`);
+        
+        // Execute $1 USD sell
+        await this.executeSwingTrade(currentSOLAmount, currentPrice);
+        
+        // Update baseline and trigger after successful trade
+        this.baselineValue = currentPortfolioValue - 1.00; // Account for the $1 we just sold
+        this.savedTriggerValue = this.baselineValue + 1.00;
+        await this.saveTriggerToFile();
+        console.log(`🔄 POST-TRADE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+      } else {
+        const needed = this.savedTriggerValue - currentPortfolioValue;
+        console.log(`⏳ Need $${needed.toFixed(2)} more to hit trigger $${this.savedTriggerValue.toFixed(2)}`);
+      }
+
+    } catch (error) {
+      console.error('Error in swing trading check:', error);
+    }
+  }
+
+  private async executeSwingTrade(currentSOLAmount: number, currentPrice: number): Promise<void> {
+    try {
+      const usdToSell = 1.00;
+      const solToSell = usdToSell / currentPrice;
+      
+      console.log(`💰 EXECUTING SWING TRADE: Selling $${usdToSell} worth (${solToSell.toFixed(8)} SOL)`);
+
+      const orderRequest: GeminiOrderRequest = {
+        symbol: 'solusd',
+        amount: solToSell.toFixed(8),
+        side: 'sell',
+        type: 'exchange market',
+      };
+
+      await this.placeOrder(orderRequest);
+      console.log(`✅ Swing trade executed successfully`);
+
+    } catch (error) {
+      console.error('Error executing swing trade:', error);
+      throw error;
+    }
+  }
+
+  private async loadTriggerFromFile(): Promise<void> {
+    try {
+      const fs = await import('fs/promises');
+      const data = await fs.readFile('trigger.json', 'utf8');
+      const trigger = JSON.parse(data);
+      this.baselineValue = trigger.baseline || 0;
+      this.savedTriggerValue = trigger.trigger || 0;
+      console.log(`📁 Loaded trigger: baseline $${this.baselineValue.toFixed(2)}, trigger $${this.savedTriggerValue.toFixed(2)}`);
+    } catch (error) {
+      console.log(`📁 No trigger file found, will initialize new one`);
+      this.baselineValue = 0;
+      this.savedTriggerValue = 0;
+    }
+  }
+
+  private async saveTriggerToFile(): Promise<void> {
+    try {
+      const fs = await import('fs/promises');
+      const trigger = {
+        baseline: this.baselineValue,
+        trigger: this.savedTriggerValue,
+        timestamp: Date.now()
+      };
+      await fs.writeFile('trigger.json', JSON.stringify(trigger, null, 2));
+      console.log(`💾 Saved trigger: baseline $${this.baselineValue.toFixed(2)}, trigger $${this.savedTriggerValue.toFixed(2)}`);
+    } catch (error) {
+      console.error('Error saving trigger file:', error);
+    }
   }
 }
