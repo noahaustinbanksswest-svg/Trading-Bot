@@ -200,18 +200,20 @@ export class GeminiService {
 
   async heartbeat(): Promise<{ result: string }> {
     try {
-      const endpoint = '/v1/heartbeat';
+      // Use balances endpoint as heartbeat - it validates API credentials
+      const endpoint = '/v1/balances';
       const headers = this.generateHeaders(endpoint);
       
-      const response: AxiosResponse<{ result: string }> = await axios.post(
+      const response: AxiosResponse<any[]> = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
         { headers }
       );
       
-      return response.data;
+      // If we get here, credentials are valid
+      return { result: "ok" };
     } catch (error) {
-      throw new Error(`Failed to send heartbeat: ${error}`);
+      throw new Error(`Failed to validate API credentials: ${error}`);
     }
   }
 }
