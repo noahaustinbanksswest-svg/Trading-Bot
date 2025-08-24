@@ -2486,6 +2486,7 @@ class DiscordTradingBot {
       return;
     }
 
+    // Update settings
     autoTradeSettings.enabled = false;
     autoTradeSettings.isActive = false;
     autoTradeSettings.startTime = null;
@@ -2497,9 +2498,17 @@ class DiscordTradingBot {
 
     console.log('🛑 Auto Trade stopped by user');
 
+    // CRITICAL: Save settings to database so they persist after restart
+    try {
+      await saveSettings();
+      console.log('💾 Auto Trade settings saved - stop command will persist');
+    } catch (error) {
+      console.error('❌ Failed to save stop command:', error);
+    }
+
     const embed = new EmbedBuilder()
       .setTitle('🛑 Auto Trade Stopped')
-      .setDescription('Auto Trade has been successfully stopped.')
+      .setDescription('✅ Auto Trade has been successfully stopped and saved.\n🔄 This change will persist even after bot restarts.')
       .setColor(0xF44336)
       .setTimestamp();
 
