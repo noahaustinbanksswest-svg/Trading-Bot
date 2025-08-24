@@ -232,74 +232,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Initialize trading services for a user
+  // Initialize trading services for a user - DISABLED
   app.post("/api/initialize/:userId", async (req, res) => {
-    try {
-      const user = await storage.getUser(req.params.userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // ✅ FORCE START - Using environment API access
-      console.log('✅ Using environment API access, forcing system start');
-      
-      const geminiService = new GeminiService(
-        process.env.GEMINI_API_KEY || 'dummy',
-        process.env.GEMINI_API_SECRET || 'dummy',
-        true // Enable sandbox mode
-      );
-
-      // ✅ DISCORD FOR NOTIFICATIONS & CONTROLS - API HANDLES ALL TRADING
-      console.log('✅ Setting up Discord for notifications and controls');
-      let discordService: DiscordBotService | undefined = undefined;
-      
-      if (user.discordBotToken && user.discordGuildId && user.discordChannelId) {
-        discordService = new DiscordBotService({
-          token: user.discordBotToken,
-          guildId: user.discordGuildId,
-          channelId: user.discordChannelId,
-          userId: user.id,
-        });
-        
-        try {
-          await discordService.initialize();
-          console.log('✅ Discord notifications enabled');
-        } catch (error) {
-          console.log('⚠️ Discord setup failed - continuing without notifications');
-          discordService = undefined;
-        }
-      }
-
-      // ✅ API-ONLY TRADING ENGINE WITH DISCORD NOTIFICATIONS
-      console.log('✅ Starting API trading engine with Discord notifications');
-      const tradingEngine = new TradingEngine({
-        userId: user.id,
-        geminiService,
-        discordService, // For notifications only - NO TRADING
-      });
-
-      await tradingEngine.start();
-
-      // Store services
-      userServices.set(user.id, {
-        gemini: geminiService,
-        discord: discordService, // Notifications only
-        trading: tradingEngine, // API handles all trading
-      });
-
-      res.json({ message: "✅ Trading API started - Discord controls enabled, API handles all trades" });
-    } catch (error) {
-      console.log('⚠️ Initialization error:', error instanceof Error ? error.message : 'Unknown error');
-      
-      // Force success for API credential issues since user has access configured
-      if (error instanceof Error && error.message.includes('credentials')) {
-        console.log('✅ Forcing system start - API access is configured');
-        res.json({ message: "✅ Trading system started - API access configured" });
-        return;
-      }
-      
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to initialize services" });
-    }
+    console.log(`🚫 INITIALIZATION BLOCKED: All trading systems disabled by user`);
+    return res.status(403).json({ error: "Trading system disabled by user - no initialization allowed" });
   });
 
   // Test Discord connection (notifications only)
@@ -323,45 +259,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // API endpoints for Discord buttons to control trading
+  // API endpoints for Discord buttons to control trading - DISABLED
   app.post("/api/trading/enable/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      if (!services?.trading) {
-        return res.status(400).json({ error: "Trading engine not initialized" });
-      }
-
-      // Enable trading logic here
-      await services.trading.start();
-      
-      if (services.discord) {
-        await services.discord.sendMessage("✅ Trading enabled via Discord controls");
-      }
-      
-      res.json({ message: "Trading enabled" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to enable trading" });
-    }
+    console.log(`🚫 TRADING ENABLE BLOCKED: All trading disabled by user`);
+    return res.status(403).json({ error: "Trading permanently disabled by user" });
   });
 
   app.post("/api/trading/disable/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      if (!services?.trading) {
-        return res.status(400).json({ error: "Trading engine not initialized" });
-      }
-
-      // Disable trading logic here
-      await services.trading.stop();
-      
-      if (services.discord) {
-        await services.discord.sendMessage("🚫 Trading disabled via Discord controls");
-      }
-      
-      res.json({ message: "Trading disabled" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to disable trading" });
-    }
+    console.log(`✅ TRADING ALREADY DISABLED: All sales permanently blocked`);
+    return res.json({ message: "Trading already disabled - all sales blocked" });
   });
 
   // Get available Gemini symbols
