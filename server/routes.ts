@@ -236,7 +236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const geminiService = new GeminiService(
         user.geminiApiKey,
         user.geminiApiSecret,
-        process.env.NODE_ENV === 'development' // Use sandbox in development
+        true // Enable sandbox mode for testing
       );
 
       // Test Gemini connection
