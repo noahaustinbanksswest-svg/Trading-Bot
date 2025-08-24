@@ -394,30 +394,41 @@ export class TradingEngine {
         return;
       }
 
-      // 🔑 KEY FIX: Only trigger on SOL BALANCE increases (purchases), not price increases
+      // 🔑 FIXED LOGIC: Current portfolio + $1.00 = next trigger
+      // Example: Portfolio $213.22 → Next sale at $214.22
+      const targetTrigger = this.baselineValue + 1.00;
+      
+      console.log(`💰 MONITORING: Portfolio $${currentPortfolioValue.toFixed(2)} | Baseline $${this.baselineValue.toFixed(2)} | Trigger at $${targetTrigger.toFixed(2)}`);
+      
+      // Check if we hit the $1 gain threshold
+      if (currentPortfolioValue >= targetTrigger) {
+        console.log(`🚨 $1 GAIN ACHIEVED: $${currentPortfolioValue.toFixed(2)} >= $${targetTrigger.toFixed(2)} - EXECUTING TRADE`);
+        
+        // Execute $1 sell
+        await this.executeSwingTrade(currentSOLAmount, currentPrice);
+        
+        // Update baseline to current value minus $1 (what we just sold)
+        this.baselineValue = currentPortfolioValue - 1.00;
+        this.savedTriggerValue = this.baselineValue + 1.00;
+        await this.saveTriggerToFile();
+        console.log(`✅ TRADE COMPLETE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+        
+        this.lastKnownSOLAmount = currentSOLAmount;
+        return;
+      }
+      
+      // 🔑 KEY FIX: Handle SOL balance increases (purchases) - reset baseline
       if (this.lastKnownSOLAmount > 0 && currentSOLAmount > this.lastKnownSOLAmount) {
         const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
         const valueIncrease = solIncrease * currentPrice;
         
-        console.log(`🛒 SOL BALANCE INCREASED: +${solIncrease.toFixed(8)} SOL (+$${valueIncrease.toFixed(2)} value)`);
+        console.log(`🛒 SOL PURCHASE DETECTED: +${solIncrease.toFixed(8)} SOL (+$${valueIncrease.toFixed(2)} value)`);
         
-        // 🎯 TRADE TRIGGER: If balance increase is $1+ in value, execute trade
-        if (valueIncrease >= 1.00) {
-          console.log(`🚨 BALANCE INCREASE >= $1.00 - EXECUTING TRADE`);
-          await this.executeSwingTrade(currentSOLAmount, currentPrice);
-          
-          // Update baseline after trade (account for the $1 we just sold)
-          this.baselineValue = currentPortfolioValue - 1.00;
-          this.savedTriggerValue = this.baselineValue + 1.00;
-        } else {
-          // Update baseline to account for the new purchase (but no trade)
-          this.baselineValue = currentPortfolioValue;
-          this.savedTriggerValue = currentPortfolioValue + 1.00;
-          console.log(`📈 Small increase ($${valueIncrease.toFixed(2)}) - waiting for $1+ increase`);
-        }
-        
+        // Reset baseline to current portfolio value after purchase
+        this.baselineValue = currentPortfolioValue;
+        this.savedTriggerValue = currentPortfolioValue + 1.00;
         await this.saveTriggerToFile();
-        console.log(`🔄 BASELINE UPDATED: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+        console.log(`🔄 BASELINE RESET AFTER PURCHASE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
         
         this.lastKnownSOLAmount = currentSOLAmount;
         return;
