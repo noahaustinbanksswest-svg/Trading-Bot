@@ -1406,13 +1406,11 @@ class DiscordTradingBot {
         });
         
         if (validationResults.length > 0) {
-          console.log(`🔧 AUTO-CORRECTION DETECTED - ${validationResults.length} discrepancies found (tolerance: $0.50):`);
-          validationResults.forEach(result => {
-            console.log(`   ❌ ${result.field}: Expected ${result.expected}, Found ${result.actual} (diff: ${result.difference})`);
-          });
-          console.log(`🛠️ Self-correcting embed with accurate live data...`);
-        } else {
-          console.log(`✅ EMBED VALIDATION PASSED - All data within tolerance`);
+          // Calm validation - only log if major discrepancies (>$1.00)
+          const majorIssues = validationResults.filter(r => parseFloat(r.difference.replace('$', '')) > 1.0);
+          if (majorIssues.length > 0) {
+            console.log(`🔧 Major discrepancy correction - ${majorIssues.length} significant issues fixed`);
+          }
         }
       }
       
@@ -1440,10 +1438,10 @@ class DiscordTradingBot {
         components: buttons,
       });
 
-      if (validationResults.length > 0) {
-        console.log(`✅ EMBED AUTO-CORRECTED - Fixed ${validationResults.length} errors at ${new Date().toLocaleTimeString()}`);
-      } else {
-        console.log(`🔄 Portfolio embed auto-updated at ${new Date().toLocaleTimeString()}`);
+      // Quiet updates - no spam logging
+      const majorIssues = validationResults.filter(r => parseFloat(r.difference.replace('$', '')) > 1.0);
+      if (majorIssues.length > 0) {
+        console.log(`✅ EMBED CORRECTED - Fixed ${majorIssues.length} major errors at ${new Date().toLocaleTimeString()}`);
       }
     } catch (error) {
       console.error(`❌ Failed to auto-update portfolio embed:`, error.message);
@@ -1685,11 +1683,11 @@ class DiscordTradingBot {
         
         // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Update for significant changes (>$0.25) or periodically every 5 minutes
+          // Update on any meaningful Gemini change (>$0.01) but with calm validation
           const newPortfolioValue = this.calculateCurrentPortfolioValue();
           const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
-          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.25;
-          const shouldUpdateForTime = timeSinceLastUpdate > 300000; // Force update every 5 minutes
+          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.01;
+          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every minute
           
           if (shouldUpdateForChange || shouldUpdateForTime) {
             await this.updatePortfolioMessageFromRealTimeData();
