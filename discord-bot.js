@@ -33,6 +33,81 @@ let tradingSettings = {};
 let dailyBuyData = {};
 let autoTradeSettings = {};
 
+// Recent Purchase Protection System
+let recentPurchases = {
+  SOL: {
+    lastKnownAmount: 0,
+    purchases: [], // Array of {amount, timestamp, protected}
+    protectionPeriod: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+  }
+};
+
+// Function to detect and track recent purchases
+function detectRecentPurchases(currentAmount, currency = 'SOL') {
+  const now = Date.now();
+  const tracking = recentPurchases[currency];
+  
+  if (!tracking) return;
+  
+  // If current amount is significantly higher than last known amount, it's likely a purchase
+  const amountIncrease = currentAmount - tracking.lastKnownAmount;
+  const minPurchaseThreshold = 0.01; // Minimum 0.01 SOL to consider as purchase
+  
+  if (amountIncrease > minPurchaseThreshold) {
+    console.log(`🛒 PURCHASE DETECTED: ${currency} increased by ${amountIncrease.toFixed(8)} (${tracking.lastKnownAmount.toFixed(8)} → ${currentAmount.toFixed(8)})`);
+    
+    // Add to recent purchases tracking
+    tracking.purchases.push({
+      amount: amountIncrease,
+      timestamp: now,
+      protected: true
+    });
+    
+    // Clean up old purchases (older than protection period)
+    tracking.purchases = tracking.purchases.filter(p => 
+      (now - p.timestamp) < tracking.protectionPeriod
+    );
+    
+    console.log(`🛡️ PROTECTING: ${amountIncrease.toFixed(8)} ${currency} for ${tracking.protectionPeriod / (60 * 60 * 1000)} hours`);
+    console.log(`📊 PROTECTED PURCHASES: ${tracking.purchases.length} recent purchases totaling ${tracking.purchases.reduce((sum, p) => sum + p.amount, 0).toFixed(8)} ${currency}`);
+  }
+  
+  // Update last known amount
+  tracking.lastKnownAmount = currentAmount;
+}
+
+// Function to check if trade would violate recent purchase protection
+function isTradeProtectedByRecentPurchases(sellAmount, currency = 'SOL') {
+  const tracking = recentPurchases[currency];
+  if (!tracking) return false;
+  
+  // Clean up expired purchases
+  const now = Date.now();
+  tracking.purchases = tracking.purchases.filter(p => 
+    (now - p.timestamp) < tracking.protectionPeriod && p.protected
+  );
+  
+  // Calculate total protected amount
+  const totalProtectedAmount = tracking.purchases.reduce((sum, p) => sum + p.amount, 0);
+  
+  if (totalProtectedAmount > 0) {
+    console.log(`🛡️ RECENT PURCHASE PROTECTION CHECK:`);
+    console.log(`   Protected Amount: ${totalProtectedAmount.toFixed(8)} ${currency}`);
+    console.log(`   Attempted Sale: ${sellAmount.toFixed(8)} ${currency}`);
+    console.log(`   Protected Purchases: ${tracking.purchases.length}`);
+    
+    // For now, block ANY trade if there are recent purchases
+    // This ensures recently bought crypto is never sold
+    if (totalProtectedAmount > 0) {
+      console.log(`🚫 TRADE BLOCKED: Cannot sell any ${currency} while recent purchases are protected`);
+      console.log(`⏰ Protection expires: ${Math.ceil((tracking.protectionPeriod - (now - Math.min(...tracking.purchases.map(p => p.timestamp)))) / (60 * 60 * 1000))} hours`);
+      return true; // Block the trade
+    }
+  }
+  
+  return false; // Allow the trade
+}
+
 // Function to load settings from database
 async function loadSettings() {
   try {
@@ -2600,6 +2675,9 @@ class DiscordTradingBot {
             change: cryptoHolding.change
           });
           
+          // CRITICAL: Detect recent purchases to protect them
+          detectRecentPurchases(cryptoHolding.amount, cryptoHolding.currency);
+          
           // Get current price for the crypto (fix property name)
           const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
           
@@ -2759,6 +2837,22 @@ class DiscordTradingBot {
         autoTradeSettings.conditions.dailyBuyLimitReached = true;
         shouldExecuteTrade = true;
         reason = `Daily buys reached $${dailyBuyData.totalBought.toFixed(2)} (trigger: $${autoTradeSettings.stopOnDailyBuys})`;
+      }
+
+      // CRITICAL: Check recent purchase protection before executing trade
+      if (shouldExecuteTrade && autoTradeSettings.selectedCrypto) {
+        const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
+        if (cryptoHolding) {
+          const currentPrice = cryptoHolding.price;
+          const solAmountFor1USD = 1.00 / currentPrice;
+          
+          // Check if this trade would violate recent purchase protection
+          if (isTradeProtectedByRecentPurchases(solAmountFor1USD, autoTradeSettings.selectedCrypto)) {
+            console.log(`🛡️ TRADE BLOCKED: Recent purchase protection active`);
+            shouldExecuteTrade = false;
+            reason = `Recent purchase protection: Cannot sell ${autoTradeSettings.selectedCrypto} for 24 hours after purchase`;
+          }
+        }
       }
 
       console.log(`🔍 FINAL CHECK: shouldExecuteTrade = ${shouldExecuteTrade}`);
