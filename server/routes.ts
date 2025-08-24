@@ -155,55 +155,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Place new order
+  // 🛑 DISABLED: This endpoint used the dangerous TradingEngine
+  // All trading now handled exclusively by IndependentTradingEngine
   app.post("/api/orders", async (req, res) => {
-    try {
-      const validatedData = insertTradeOrderSchema.parse(req.body);
-      const services = userServices.get(validatedData.userId);
-      
-      if (!services) {
-        return res.status(400).json({ error: "Trading services not initialized for user" });
-      }
-
-      const order = await services.trading.placeOrder({
-        symbol: validatedData.symbol,
-        amount: validatedData.amount,
-        price: validatedData.price || undefined,
-        side: validatedData.side as 'buy' | 'sell',
-        type: validatedData.orderType as any,
-      });
-
-      // Broadcast real-time update
-      broadcast({ type: 'new_order', data: order });
-      
-      res.json(order);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid data", details: error.errors });
-      }
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to place order" });
-    }
+    res.status(403).json({ 
+      error: "Manual order placement disabled for security", 
+      message: "All trades handled automatically by IndependentTradingEngine only" 
+    });
   });
 
-  // Cancel order
+  // 🛑 DISABLED: This endpoint used the dangerous TradingEngine
   app.delete("/api/orders/:orderId", async (req, res) => {
-    try {
-      const { userId } = req.body;
-      const services = userServices.get(userId);
-      
-      if (!services) {
-        return res.status(400).json({ error: "Trading services not initialized for user" });
-      }
-
-      await services.trading.cancelOrder(req.params.orderId);
-      
-      // Broadcast real-time update
-      broadcast({ type: 'order_cancelled', data: { orderId: req.params.orderId } });
-      
-      res.json({ message: "Order cancelled successfully" });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to cancel order" });
-    }
+    res.status(403).json({ 
+      error: "Manual order cancellation disabled for security", 
+      message: "All trading handled automatically by IndependentTradingEngine only" 
+    });
   });
 
   // Get trading history
