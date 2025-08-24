@@ -23,7 +23,7 @@ export class IndependentTradingEngine {
   // Trading settings (loaded from autoTradeSettings)
   private selectedCrypto: string = 'SOL';
   private stopAtLoss: number = 1.5; // Base protection amount
-  private enabled: boolean = true;
+  private enabled: boolean = false; // DISABLED until Gemini credentials fixed
 
   constructor(userId: string, geminiService: GeminiService) {
     this.userId = userId;
@@ -34,6 +34,10 @@ export class IndependentTradingEngine {
   async start(): Promise<void> {
     if (this.isRunning) {
       throw new Error('Independent trading engine is already running');
+    }
+
+    if (!this.enabled) {
+      throw new Error('Independent trading engine is DISABLED until Gemini API credentials are fixed');
     }
 
     console.log('🚀 Starting Independent Trading Engine (server-side, Discord-independent)');
