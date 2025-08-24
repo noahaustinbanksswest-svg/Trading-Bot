@@ -38,7 +38,7 @@ let recentPurchases = {
   SOL: {
     lastKnownAmount: 0,
     purchases: [], // Array of {amount, timestamp, protected}
-    protectionPeriod: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+    protectionPeriod: 10 * 60 * 1000 // 10 minutes in milliseconds
   }
 };
 
@@ -68,7 +68,7 @@ function detectRecentPurchases(currentAmount, currency = 'SOL') {
       (now - p.timestamp) < tracking.protectionPeriod
     );
     
-    console.log(`🛡️ PROTECTING: ${amountIncrease.toFixed(8)} ${currency} for ${tracking.protectionPeriod / (60 * 60 * 1000)} hours`);
+    console.log(`🛡️ PROTECTING: ${amountIncrease.toFixed(8)} ${currency} for ${tracking.protectionPeriod / (60 * 1000)} minutes`);
     console.log(`📊 PROTECTED PURCHASES: ${tracking.purchases.length} recent purchases totaling ${tracking.purchases.reduce((sum, p) => sum + p.amount, 0).toFixed(8)} ${currency}`);
   }
   
@@ -100,7 +100,7 @@ function isTradeProtectedByRecentPurchases(sellAmount, currency = 'SOL') {
     // This ensures recently bought crypto is never sold
     if (totalProtectedAmount > 0) {
       console.log(`🚫 TRADE BLOCKED: Cannot sell any ${currency} while recent purchases are protected`);
-      console.log(`⏰ Protection expires: ${Math.ceil((tracking.protectionPeriod - (now - Math.min(...tracking.purchases.map(p => p.timestamp)))) / (60 * 60 * 1000))} hours`);
+      console.log(`⏰ Protection expires: ${Math.ceil((tracking.protectionPeriod - (now - Math.min(...tracking.purchases.map(p => p.timestamp)))) / (60 * 1000))} minutes`);
       return true; // Block the trade
     }
   }
@@ -2850,7 +2850,7 @@ class DiscordTradingBot {
           if (isTradeProtectedByRecentPurchases(solAmountFor1USD, autoTradeSettings.selectedCrypto)) {
             console.log(`🛡️ TRADE BLOCKED: Recent purchase protection active`);
             shouldExecuteTrade = false;
-            reason = `Recent purchase protection: Cannot sell ${autoTradeSettings.selectedCrypto} for 24 hours after purchase`;
+            reason = `Recent purchase protection: Cannot sell ${autoTradeSettings.selectedCrypto} for 10 minutes after purchase`;
           }
         }
       }
