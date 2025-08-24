@@ -1531,10 +1531,11 @@ class DiscordTradingBot {
   startSwingMonitoring() {
     console.log('🌊 Starting swing trading monitoring (every 1 second)...');
     
-    // Monitor for swing trading opportunities every 3 seconds
-    setInterval(async () => {
-      await this.checkAutoTradeConditionsRealTime();
-    }, 30000); // Every 30 seconds for swing monitoring (prevent rate limits and restarts)
+    // 🛑 DISABLED: Was executing unauthorized trades
+    // setInterval(async () => {
+    //   await this.checkAutoTradeConditionsRealTime();
+    // }, 30000); // DISABLED FOR SECURITY
+    console.log('🛑 SWING MONITORING DISABLED - All trading handled by IndependentTradingEngine only');
   }
   
   async updatePortfolioMessageFromRealTimeData() {
@@ -1606,6 +1607,10 @@ class DiscordTradingBot {
   }
 
   async checkAutoTradeConditionsRealTime() {
+    // 🛑 DISABLED: This was executing unauthorized trades
+    console.log('🛑 DISCORD TRADING DISABLED: checkAutoTradeConditionsRealTime() blocked for security');
+    return;
+    /*
     try {
       // Use the global autoTradeSettings variable instead of storage
       if (!autoTradeSettings || !autoTradeSettings.enabled || !autoTradeSettings.selectedCrypto) {
@@ -2143,16 +2148,17 @@ class DiscordTradingBot {
   startDailyTracking() {
     console.log('📊 Starting daily buy tracking and monitoring...');
     
-    // Auto trade monitoring every 1 second
-    setInterval(async () => {
-      try {
-        // Check auto trade conditions every 1 second for maximum price accuracy
-        await this.checkAutoTradeConditions();
-        
-      } catch (error) {
-        console.error('Error in auto trade monitoring:', error.message);
-      }
-    }, 1000);
+    // 🛑 DISABLED: Was executing unauthorized trades every 1 second!
+    // setInterval(async () => {
+    //   try {
+    //     // Check auto trade conditions every 1 second for maximum price accuracy
+    //     await this.checkAutoTradeConditions();
+    //     
+    //   } catch (error) {
+    //     console.error('Error in auto trade monitoring:', error.message);
+    //   }
+    // }, 1000); // DISABLED FOR SECURITY
+    console.log('🛑 AUTO TRADE MONITORING DISABLED - All trading handled by IndependentTradingEngine only');
     
     // Daily tracking every 60 seconds
     setInterval(async () => {
@@ -2454,6 +2460,10 @@ class DiscordTradingBot {
   }
 
   async checkAutoTradeConditions() {
+    // 🛑 DISABLED: This was executing unauthorized trades every 1 second!
+    console.log('🛑 DISCORD TRADING DISABLED: checkAutoTradeConditions() blocked for security');
+    return;
+    /*
     // Debug log to show monitoring is running
     console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
     
