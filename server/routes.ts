@@ -257,14 +257,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Initialize trading engine
-      const tradingEngine = new TradingEngine({
-        userId: user.id,
-        geminiService,
-        discordService,
-      });
-
-      await tradingEngine.start();
+      // 🛑 DISABLED: TradingEngine was executing unauthorized trades
+      // Only use IndependentTradingEngine for all trading operations
+      // const tradingEngine = new TradingEngine({
+      //   userId: user.id,
+      //   geminiService,
+      //   discordService,
+      // });
+      // await tradingEngine.start();
+      
+      // Create dummy disabled trading engine for compatibility
+      const tradingEngine = { start: async () => {}, stop: async () => {} };
 
       // 🛡️ CRITICAL FIX: Stop any existing independent trading engine first
       const existingServices = userServices.get(user.id);
