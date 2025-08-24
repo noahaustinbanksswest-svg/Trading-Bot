@@ -245,24 +245,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🚫 Discord bot disabled - Server trading engine handles all trades');
       let discordService: DiscordBotService | undefined = undefined;
 
-      // 🚫 TRADING COMPLETELY DISABLED FOR SAFETY
-      console.log('🚫 TRADING DISABLED - Preventing multiple sales until fix verified');
-      // const tradingEngine = new TradingEngine({
-      //   userId: user.id,
-      //   geminiService,
-      //   discordService,
-      // });
+      // ✅ TRADING RE-ENABLED WITH FIXED LOGIC (only triggers on balance increases)
+      console.log('✅ TRADING RE-ENABLED - Fixed to only trigger on SOL balance increases');
+      const tradingEngine = new TradingEngine({
+        userId: user.id,
+        geminiService,
+        discordService,
+      });
 
-      // await tradingEngine.start();
+      await tradingEngine.start();
 
-      // Store services (trading engine disabled)
+      // Store services (trading engine re-enabled with fix)
       userServices.set(user.id, {
         gemini: geminiService,
         discord: discordService,
-        trading: undefined, // Disabled for safety
+        trading: tradingEngine,
       });
 
-      res.json({ message: "⚠️ TRADING DISABLED - Services initialized but trading engine stopped for safety" });
+      res.json({ message: "✅ TRADING ENABLED - Fixed to only trade on SOL balance increases of $1+" });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to initialize services" });
     }
