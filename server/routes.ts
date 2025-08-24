@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { GeminiService } from "./services/gemini";
 import { DiscordBotService } from "./services/discord-bot";
 import { TradingEngine } from "./services/trading-engine";
+import { IndependentTradingEngine } from "./services/independent-trading-engine";
 import { insertTradingSettingsSchema, insertTradeOrderSchema, botSettings, botStatus } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
@@ -15,6 +16,7 @@ const userServices = new Map<string, {
   gemini: GeminiService;
   discord?: DiscordBotService;
   trading: TradingEngine;
+  independentTrading?: IndependentTradingEngine;
 }>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -269,11 +271,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await tradingEngine.start();
 
+      // Initialize independent trading engine (server-side, Discord-independent)
+      const independentTradingEngine = new IndependentTradingEngine(user.id, geminiService);
+
       // Store services
       userServices.set(user.id, {
         gemini: geminiService,
         discord: discordService,
         trading: tradingEngine,
+        independentTrading: independentTradingEngine,
       });
 
       res.json({ message: "Trading services initialized successfully" });
@@ -332,6 +338,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ticker);
     } catch (error) {
       res.status(500).json({ error: "Failed to get ticker data" });
+    }
+  });
+
+  // Independent Trading Engine endpoints (server-side, Discord-independent)
+  app.post("/api/independent-trading/start/:userId", async (req, res) => {
+    try {
+      const services = userServices.get(req.params.userId);
+      
+      if (!services?.independentTrading) {
+        return res.status(400).json({ error: "Independent trading engine not initialized" });
+      }
+
+      if (services.independentTrading.isEngineRunning()) {
+        return res.status(400).json({ error: "Independent trading engine is already running" });
+      }
+
+      await services.independentTrading.start();
+      console.log(`🚀 Independent trading engine started for user ${req.params.userId}`);
+      
+      res.json({ 
+        message: "Independent trading engine started successfully",
+        status: "running",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to start independent trading engine" 
+      });
+    }
+  });
+
+  app.post("/api/independent-trading/stop/:userId", async (req, res) => {
+    try {
+      const services = userServices.get(req.params.userId);
+      
+      if (!services?.independentTrading) {
+        return res.status(400).json({ error: "Independent trading engine not initialized" });
+      }
+
+      if (!services.independentTrading.isEngineRunning()) {
+        return res.status(400).json({ error: "Independent trading engine is not running" });
+      }
+
+      await services.independentTrading.stop();
+      console.log(`🛑 Independent trading engine stopped for user ${req.params.userId}`);
+      
+      res.json({ 
+        message: "Independent trading engine stopped successfully",
+        status: "stopped",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to stop independent trading engine" 
+      });
+    }
+  });
+
+  app.get("/api/independent-trading/status/:userId", async (req, res) => {
+    try {
+      const services = userServices.get(req.params.userId);
+      
+      if (!services?.independentTrading) {
+        return res.status(400).json({ error: "Independent trading engine not initialized" });
+      }
+
+      const status = {
+        running: services.independentTrading.isEngineRunning(),
+        triggerInfo: services.independentTrading.getCurrentTriggerInfo(),
+        timestamp: new Date().toISOString()
+      };
+      
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to get independent trading engine status" 
+      });
+    }
+  });
+
+  app.get("/api/independent-trading/trigger/:userId", async (req, res) => {
+    try {
+      const services = userServices.get(req.params.userId);
+      
+      if (!services?.independentTrading) {
+        return res.status(400).json({ error: "Independent trading engine not initialized" });
+      }
+
+      const triggerInfo = services.independentTrading.getCurrentTriggerInfo();
+      
+      res.json({
+        baseline: triggerInfo.baseline,
+        trigger: triggerInfo.trigger,
+        initialized: triggerInfo.initialized,
+        locked: triggerInfo.locked,
+        lastTrade: triggerInfo.lastTrade ? new Date(triggerInfo.lastTrade).toISOString() : null,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to get trigger information" 
+      });
     }
   });
 
