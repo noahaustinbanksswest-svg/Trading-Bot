@@ -310,9 +310,9 @@ app.use((req, res, next) => {
     }, 3 * 1000); // Check every 3 seconds
 
     // Guardian protection status
-    log('🛡️ WORKSPACE GUARDIAN ACTIVE - Green button protection enabled');
-    log('🎯 Auto-restart mechanism ready for any crashes');
-    log('⚡ Instant Guardian provides 5-second failure detection');
+    log('🚫 ALL GUARDIANS DISABLED - No automated trading systems active');
+    log('🚫 Auto-restart mechanism DISABLED');
+    log('🚫 All trading and monitoring systems STOPPED');
   });
 
   // Guardian restart function
