@@ -951,6 +951,9 @@ class DiscordTradingBot {
         case 'stop_auto_trade':
           await this.stopAutoTrade(interaction);
           break;
+        case 'resume_auto_trade':
+          await this.resumeAutoTrade(interaction);
+          break;
         default:
           await this.replyWithError(interaction, 'Unknown button action');
       }
@@ -1172,7 +1175,12 @@ class DiscordTradingBot {
             .setCustomId('stop_auto_trade')
             .setLabel('Stop Auto Trade')
             .setStyle(ButtonStyle.Danger)
-            .setEmoji('⏹️')
+            .setEmoji('⏹️'),
+          new ButtonBuilder()
+            .setCustomId('resume_auto_trade')
+            .setLabel('Resume Auto Trade')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('▶️')
         )
     ];
   }
@@ -2510,6 +2518,44 @@ class DiscordTradingBot {
       .setTitle('🛑 Auto Trade Stopped')
       .setDescription('✅ Auto Trade has been successfully stopped and saved.\n🔄 This change will persist even after bot restarts.')
       .setColor(0xF44336)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  async resumeAutoTrade(interaction) {
+    if (autoTradeSettings.enabled) {
+      await interaction.reply({ 
+        content: '✅ Auto Trade is already running.', 
+        ephemeral: true 
+      });
+      return;
+    }
+
+    // Enable auto trading
+    autoTradeSettings.enabled = true;
+    autoTradeSettings.isActive = true;
+    autoTradeSettings.startTime = new Date();
+    autoTradeSettings.conditions = {
+      portfolioValueReached: false,
+      cryptoValueReached: false,
+      dailyBuyLimitReached: false
+    };
+
+    console.log('▶️ Auto Trade resumed by user');
+
+    // CRITICAL: Save settings to database so they persist after restart
+    try {
+      await saveSettings();
+      console.log('💾 Auto Trade resume command saved - will persist');
+    } catch (error) {
+      console.error('❌ Failed to save resume command:', error);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('▶️ Auto Trade Resumed')
+      .setDescription('✅ Auto Trade has been successfully resumed and saved.\n🔄 Trading will continue with your current settings.\n📊 This change will persist even after bot restarts.')
+      .setColor(0x4CAF50)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
