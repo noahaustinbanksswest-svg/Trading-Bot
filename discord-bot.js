@@ -3003,6 +3003,9 @@ class DiscordTradingBot {
             this.lastTriggerTarget = this.savedTriggerValue;
             console.log(`🔄 TRIGGER RESET AFTER TRADE: New baseline $${this.baselineValue.toFixed(2)}, New trigger $${this.savedTriggerValue.toFixed(2)}`);
             await this.saveTriggerToFile();
+            
+            // FORCE RE-INITIALIZATION on next check to use new values
+            this.triggerInitializedThisSession = false;
           }
         }
       } else {
