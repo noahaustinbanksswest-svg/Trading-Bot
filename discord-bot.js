@@ -3408,12 +3408,15 @@ class DiscordTradingBot {
 // Start the bot
 const bot = new DiscordTradingBot();
 
-// CRITICAL: Start trading monitoring IMMEDIATELY, independent of Discord
-console.log('🚀 EMERGENCY: Starting trading engine independent of Discord...');
-bot.startDailyTracking(); // This starts the auto trade monitoring
-bot.initializeRealTimeMonitoring(); // This starts balance/price streaming
+// Only start if this file is run directly (not when imported by server)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // CRITICAL: Start trading monitoring IMMEDIATELY, independent of Discord
+  console.log('🚀 EMERGENCY: Starting trading engine independent of Discord...');
+  bot.startDailyTracking(); // This starts the auto trade monitoring
+  bot.initializeRealTimeMonitoring(); // This starts balance/price streaming
 
-// Start Discord (may fail due to rate limits, but trading continues)
-bot.start();
+  // Start Discord (may fail due to rate limits, but trading continues)
+  bot.start();
+}
 
 export default DiscordTradingBot;
