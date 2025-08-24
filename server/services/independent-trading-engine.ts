@@ -24,6 +24,10 @@ export class IndependentTradingEngine {
   private selectedCrypto: string = 'SOL';
   private stopAtLoss: number = 1.5; // Base protection amount
   private enabled: boolean = true; // ENABLED - Gemini credentials working
+  
+  // PURCHASE DETECTION - Monitor SOL amount to detect buys and update triggers
+  private lastKnownSOLAmount: number = 0;
+  private purchaseDetectionEnabled: boolean = true;
 
   constructor(userId: string, geminiService: GeminiService) {
     this.userId = userId;
@@ -124,6 +128,32 @@ export class IndependentTradingEngine {
       }
 
       const currentPortfolioValue = cryptoHolding.value;
+      const currentSOLAmount = cryptoHolding.amount;
+      
+      // PURCHASE DETECTION - Check if SOL amount increased (indicating buy order)
+      if (this.purchaseDetectionEnabled && this.lastKnownSOLAmount > 0) {
+        const solAmountIncrease = currentSOLAmount - this.lastKnownSOLAmount;
+        
+        if (solAmountIncrease > 0.001) { // Significant increase (more than 0.001 SOL)
+          console.log(`💰 PURCHASE DETECTED: SOL amount increased by ${solAmountIncrease.toFixed(8)} SOL`);
+          console.log(`   Previous: ${this.lastKnownSOLAmount.toFixed(8)} SOL`);
+          console.log(`   Current: ${currentSOLAmount.toFixed(8)} SOL`);
+          console.log(`   Portfolio value after purchase: $${currentPortfolioValue.toFixed(2)}`);
+          
+          // Reset baseline/trigger to current value after purchase
+          this.baselineValue = currentPortfolioValue;
+          this.savedTriggerValue = currentPortfolioValue + 1.00;
+          await this.saveTriggerToFile();
+          
+          console.log(`🔄 TRIGGERS UPDATED AFTER PURCHASE:`);
+          console.log(`   New Baseline: $${this.baselineValue.toFixed(2)}`);
+          console.log(`   New Trigger: $${this.savedTriggerValue.toFixed(2)}`);
+          console.log(`   Ready for next $1 gain from new balance`);
+        }
+      }
+      
+      // Update tracked SOL amount for next cycle
+      this.lastKnownSOLAmount = currentSOLAmount;
       
       // INITIALIZE TRIGGER SYSTEM (exact same logic as Discord bot)
       console.log(`🔍 DEBUG: Before init - savedTriggerValue: ${this.savedTriggerValue}, baselineValue: ${this.baselineValue}`);
