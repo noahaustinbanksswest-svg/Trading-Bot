@@ -57,6 +57,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           independentTrading: independentTradingEngine,
         });
 
+        // AUTO-START the trading engine for immediate baseline/trigger display
+        console.log('🚀 Auto-starting independent trading engine for continuous operation...');
+        await independentTradingEngine.start();
+        console.log('✅ Independent trading engine auto-started - baseline/trigger now active');
+
         console.log('✅ Trading services auto-initialized for web dashboard');
         console.log('🌐 Web interface will now show live updates even when Discord is down');
       } else {
