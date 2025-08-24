@@ -131,8 +131,12 @@ export class GeminiService {
       );
       
       return response.data;
-    } catch (error) {
-      throw new Error(`Failed to place order: ${error}`);
+    } catch (error: any) {
+      console.log('❌ Gemini Order Placement Error Details:');
+      console.log('Status:', error.response?.status);
+      console.log('Data:', error.response?.data);
+      console.log('Order Request:', orderRequest);
+      throw new Error(`Failed to place order: ${error.response?.data?.message || error.message}`);
     }
   }
 

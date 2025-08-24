@@ -298,13 +298,21 @@ export class IndependentTradingEngine {
         throw new Error(`${this.selectedCrypto} not found in portfolio`);
       }
 
-      // Calculate exact SOL amount for $1 USD
+      // Calculate SOL amount to sell (ensure minimum 0.005 SOL for Gemini requirements)
       const currentPrice = cryptoHolding.price;
-      const cryptoAmountFor1USD = 1.00 / currentPrice;
+      const minSolRequired = 0.005; // Gemini minimum SOL order size
+      const solAmountFor1USD = 1.00 / currentPrice;
+      
+      // Use larger amount if $1 worth is below minimum
+      const cryptoAmountFor1USD = Math.max(solAmountFor1USD, minSolRequired);
+      const actualUsdValue = cryptoAmountFor1USD * currentPrice;
 
-      console.log(`📊 $1 USD Trade Calculation:`);
+      console.log(`📊 Trade Calculation (Gemini-compliant):`);
       console.log(`   Current ${this.selectedCrypto} Price: $${currentPrice.toFixed(2)}`);
-      console.log(`   ${this.selectedCrypto} Amount for $1 USD: ${cryptoAmountFor1USD.toFixed(8)}`);
+      console.log(`   ${this.selectedCrypto} Amount for $1 USD: ${solAmountFor1USD.toFixed(8)}`);
+      console.log(`   Gemini Minimum Required: ${minSolRequired.toFixed(8)} ${this.selectedCrypto}`);
+      console.log(`   Actual Trade Amount: ${cryptoAmountFor1USD.toFixed(8)} ${this.selectedCrypto}`);
+      console.log(`   Actual USD Value: $${actualUsdValue.toFixed(2)}`);
       console.log(`   Current Holdings: ${cryptoHolding.amount.toFixed(8)} ${this.selectedCrypto}`);
 
       // Skip very small amounts
@@ -323,7 +331,7 @@ export class IndependentTradingEngine {
       const symbol = `${this.selectedCrypto.toLowerCase()}usd`;
       
       try {
-        console.log(`💰 Placing $1 USD sell order: ${cryptoAmountFor1USD.toFixed(8)} ${this.selectedCrypto} on ${symbol}`);
+        console.log(`💰 Placing ${actualUsdValue >= 1.00 ? '$' + actualUsdValue.toFixed(2) : '$1+'} sell order: ${cryptoAmountFor1USD.toFixed(8)} ${this.selectedCrypto} on ${symbol}`);
         
         const order = await this.geminiService.placeOrder({
           symbol: symbol,
