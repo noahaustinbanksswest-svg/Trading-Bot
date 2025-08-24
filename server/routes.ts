@@ -11,11 +11,16 @@ import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 
 // Store active services per user
+// 🚫 CLEAR ALL EXISTING TRADING SERVICES IMMEDIATELY
 const userServices = new Map<string, {
   gemini: GeminiService;
   discord?: DiscordBotService;
   trading: TradingEngine;
 }>();
+
+// 🚫 EMERGENCY: Clear any existing trading engines
+userServices.clear();
+console.log('🚫🚫🚫 ALL EXISTING TRADING ENGINES CLEARED 🚫🚫🚫');
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);

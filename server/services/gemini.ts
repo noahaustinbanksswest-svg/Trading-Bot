@@ -118,20 +118,24 @@ export class GeminiService {
   }
 
   async placeOrder(orderRequest: GeminiOrderRequest): Promise<GeminiOrder> {
-    try {
-      const endpoint = '/v1/order/new';
-      const headers = this.generateHeaders(endpoint, orderRequest);
-      
-      const response: AxiosResponse<GeminiOrder> = await axios.post(
-        `${this.baseUrl}${endpoint}`,
-        {},
-        { headers }
-      );
-      
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to place order: ${error}`);
-    }
+    // 🚫🚫🚫 ALL TRADING BLOCKED - NO ORDERS WILL BE PLACED 🚫🚫🚫
+    console.log(`🚫🚫🚫 ORDER BLOCKED: ${JSON.stringify(orderRequest)} 🚫🚫🚫`);
+    throw new Error('🚫 ALL TRADING DISABLED - Order placement blocked for safety');
+    
+    // try {
+    //   const endpoint = '/v1/order/new';
+    //   const headers = this.generateHeaders(endpoint, orderRequest);
+    //   
+    //   const response: AxiosResponse<GeminiOrder> = await axios.post(
+    //     `${this.baseUrl}${endpoint}`,
+    //     {},
+    //     { headers }
+    //   );
+    //   
+    //   return response.data;
+    // } catch (error) {
+    //   throw new Error(`Failed to place order: ${error}`);
+    // }
   }
 
   async cancelOrder(orderId: string): Promise<GeminiOrder> {

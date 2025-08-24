@@ -54,40 +54,44 @@ export class TradingEngine {
   }
 
   async placeOrder(orderRequest: GeminiOrderRequest): Promise<TradeOrder> {
-    try {
-      // Validate order against settings
-      await this.validateOrder(orderRequest);
+    // 🚫🚫🚫 ALL TRADING ENGINE ORDERS BLOCKED 🚫🚫🚫
+    console.log(`🚫🚫🚫 TRADING ENGINE ORDER BLOCKED: ${JSON.stringify(orderRequest)} 🚫🚫🚫`);
+    throw new Error('🚫 TRADING ENGINE DISABLED - No orders will be placed');
+    
+    // try {
+    //   // Validate order against settings
+    //   await this.validateOrder(orderRequest);
 
-      // Place order with Gemini
-      const geminiOrder = await this.geminiService.placeOrder(orderRequest);
+    //   // Place order with Gemini
+    //   const geminiOrder = await this.geminiService.placeOrder(orderRequest);
 
-      // Store order in database
-      const tradeOrder = await storage.createTradeOrder({
-        userId: this.userId,
-        geminiOrderId: geminiOrder.order_id,
-        symbol: orderRequest.symbol,
-        side: orderRequest.side,
-        orderType: orderRequest.type,
-        amount: orderRequest.amount,
-        price: orderRequest.price || '0',
-        status: 'pending',
-      });
+    //   // Store order in database
+    //   const tradeOrder = await storage.createTradeOrder({
+    //     userId: this.userId,
+    //     geminiOrderId: geminiOrder.order_id,
+    //     symbol: orderRequest.symbol,
+    //     side: orderRequest.side,
+    //     orderType: orderRequest.type,
+    //     amount: orderRequest.amount,
+    //     price: orderRequest.price || '0',
+    //     status: 'pending',
+    //   });
 
-      // Send Discord notification
-      if (this.discordService) {
-        await this.discordService.sendTradeNotification(
-          orderRequest.symbol,
-          orderRequest.side,
-          orderRequest.amount,
-          orderRequest.price || 'Market',
-          'pending'
-        );
-      }
+    //   // Send Discord notification
+    //   if (this.discordService) {
+    //     await this.discordService.sendTradeNotification(
+    //       orderRequest.symbol,
+    //       orderRequest.side,
+    //       orderRequest.amount,
+    //       orderRequest.price || 'Market',
+    //       'pending'
+    //     );
+    //   }
 
-      return tradeOrder;
-    } catch (error) {
-      throw new Error(`Failed to place order: ${error}`);
-    }
+    //   return tradeOrder;
+    // } catch (error) {
+    //   throw new Error(`Failed to place order: ${error}`);
+    // }
   }
 
   async cancelOrder(orderId: string): Promise<void> {
