@@ -43,6 +43,15 @@ let recentPurchases = {
   }
 };
 
+// IMMEDIATE FIX: Force enable auto trading to fix buttons
+console.log('🔧 EMERGENCY FIX: Force enabling auto trade settings');
+autoTradeSettings.enabled = true;
+autoTradeSettings.isActive = true;
+autoTradeSettings.amount = 1.00;
+autoTradeSettings.selectedCrypto = 'SOL';
+autoTradeSettings.stopAtLoss = 1.5;
+console.log('✅ Auto trade settings emergency override complete');
+
 // Function to detect and track recent purchases
 function detectRecentPurchases(currentAmount, currency = 'SOL', currentUSDBalance = 0, currentPrice = 0) {
   const now = Date.now();
@@ -139,6 +148,7 @@ async function loadSettings() {
     // Load trading settings
     const tradingResults = await pool.query('SELECT * FROM bot_settings WHERE key = $1', ['tradingSettings']);
     const tradingSetting = tradingResults.rows[0];
+    console.log('🔍 Trading settings from DB:', tradingSetting ? 'Found' : 'Not found');
     tradingSettings = tradingSetting ? tradingSetting.value : {
       dailyBuyLimit: 1000,
       stopLossPercent: 5,
@@ -162,6 +172,8 @@ async function loadSettings() {
     // Load auto trade settings
     const autoResults = await pool.query('SELECT * FROM bot_settings WHERE key = $1', ['autoTradeSettings']);
     const autoTradeSetting = autoResults.rows[0];
+    console.log('🔍 Auto trade settings from DB:', autoTradeSetting ? 'Found' : 'Not found');
+    console.log('🔍 Raw auto trade data:', autoTradeSetting ? autoTradeSetting.value : 'No data');
     autoTradeSettings = autoTradeSetting ? autoTradeSetting.value : {
       enabled: true,
       amount: 1.00,
@@ -179,7 +191,12 @@ async function loadSettings() {
     };
     
     console.log('✅ Bot settings loaded successfully');
-    console.log('📊 Auto Trade Settings:', autoTradeSettings);
+    console.log('📊 Final Auto Trade Settings:', {
+      enabled: autoTradeSettings.enabled,
+      isActive: autoTradeSettings.isActive,
+      selectedCrypto: autoTradeSettings.selectedCrypto,
+      stopAtLoss: autoTradeSettings.stopAtLoss
+    });
     
   } catch (error) {
     console.error('❌ Error loading settings from database:', error);
@@ -699,7 +716,9 @@ class DiscordTradingBot {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       
       // Load settings from database
+      console.log('🔄 Calling loadSettings() during bot startup...');
       await loadSettings();
+      console.log('✅ loadSettings() completed. Auto Trade enabled:', autoTradeSettings.enabled);
       
       // CRITICAL: Initialize price history immediately after login
       await this.initializePriceHistory();
@@ -2715,6 +2734,22 @@ class DiscordTradingBot {
   }
 
   async checkAutoTradeConditions() {
+    // EMERGENCY FIX: Force enable auto trading if it's false
+    if (!autoTradeSettings.enabled) {
+      console.log('🔧 FIXING: Auto trade was disabled, force enabling...');
+      autoTradeSettings.enabled = true;
+      autoTradeSettings.isActive = true;
+      autoTradeSettings.amount = 1.00;
+      autoTradeSettings.selectedCrypto = 'SOL';
+      autoTradeSettings.stopAtLoss = 1.5;
+      autoTradeSettings.conditions = {
+        portfolioValueReached: false,
+        cryptoValueReached: false,
+        dailyBuyLimitReached: false
+      };
+      console.log('✅ Auto trade settings fixed and enabled');
+    }
+    
     // Debug log to show monitoring is running
     console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
     
@@ -3336,6 +3371,10 @@ class DiscordTradingBot {
         return;
       }
       console.log(`🔑 Token exists: ${BOT_TOKEN.substring(0, 10)}...`);
+      
+      // CRITICAL: Setup event handlers before login
+      console.log('🔄 Setting up Discord bot event handlers...');
+      this.setupEventHandlers();
       
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
