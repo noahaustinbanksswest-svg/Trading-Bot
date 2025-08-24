@@ -126,7 +126,7 @@ export class GeminiService {
       
       const response: AxiosResponse<GeminiOrder> = await axios.post(
         `${this.baseUrl}${endpoint}`,
-        {},
+        orderRequest, // Send the order request as JSON body instead of empty object
         { headers }
       );
       
