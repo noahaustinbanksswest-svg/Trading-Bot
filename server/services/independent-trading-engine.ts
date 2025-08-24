@@ -164,19 +164,19 @@ export class IndependentTradingEngine {
       console.log(`   Baseline: $${this.baselineValue?.toFixed(2) || 'N/A'}`);
       console.log(`   Trigger at: $${triggerValue.toFixed(2)} (LOCKED)`);
 
-      // RESET LOGIC (exact same as Discord bot)
-      const resetThreshold = (this.savedTriggerValue || 0) - 1.00;
-      console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue?.toFixed(2) || 'N/A'} - $1.00) = ${currentPortfolioValue < resetThreshold}`);
+      // RESET LOGIC - 1 CENT DROP from baseline (exact same as Discord bot)
+      const resetThreshold = (this.baselineValue || 0) - 0.01;
+      console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Baseline $${this.baselineValue?.toFixed(2) || 'N/A'} - $0.01) = ${currentPortfolioValue < resetThreshold}`);
 
       if (currentPortfolioValue < resetThreshold) {
-        console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
+        console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below 1-cent threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
         this.baselineValue = currentPortfolioValue;
         this.savedTriggerValue = currentPortfolioValue + 1.00;
         triggerValue = this.savedTriggerValue;
         await this.saveTriggerToFile();
         console.log(`🔄 NEW BASELINE: $${this.baselineValue?.toFixed(2) || 'N/A'}, NEW TRIGGER: $${this.savedTriggerValue?.toFixed(2) || 'N/A'}`);
       } else {
-        console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above reset threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue?.toFixed(2) || 'N/A'}`);
+        console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above 1-cent threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue?.toFixed(2) || 'N/A'}`);
       }
 
       // Check if portfolio has reached trigger value
