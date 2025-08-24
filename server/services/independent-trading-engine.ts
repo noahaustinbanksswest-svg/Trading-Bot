@@ -22,6 +22,7 @@ export class IndependentTradingEngine {
   
   // Trading settings (loaded from autoTradeSettings)
   private selectedCrypto: string = 'SOL';
+  private actualTradeValue: number = 1.04; // Will be updated with actual trade amount
   private stopAtLoss: number = 1.5; // Base protection amount
   private enabled: boolean = true; // ENABLED - Gemini credentials working
   
@@ -173,14 +174,14 @@ export class IndependentTradingEngine {
           } else {
             console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
             this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
-            this.baselineValue = this.savedTriggerValue - 1.00;
+            this.baselineValue = this.savedTriggerValue - this.actualTradeValue;
             console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
             await this.saveTriggerToFile();
           }
         } catch (error) {
           console.log(`🔍 DEBUG: Error loading trigger data:`, error instanceof Error ? error.message : error);
           this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
-          this.baselineValue = this.savedTriggerValue - 1.00;
+          this.baselineValue = this.savedTriggerValue - this.actualTradeValue;
           console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
           await this.saveTriggerToFile();
         }
@@ -306,6 +307,9 @@ export class IndependentTradingEngine {
       // Use larger amount if $1 worth is below minimum
       const cryptoAmountFor1USD = Math.max(solAmountFor1USD, minSolRequired);
       const actualUsdValue = cryptoAmountFor1USD * currentPrice;
+      
+      // Store the actual trade value for trigger adjustments (will be ~$1.04 instead of $1.00)
+      this.actualTradeValue = actualUsdValue;
 
       console.log(`📊 Trade Calculation (Gemini-compliant):`);
       console.log(`   Current ${this.selectedCrypto} Price: $${currentPrice.toFixed(2)}`);
@@ -406,7 +410,7 @@ export class IndependentTradingEngine {
     try {
       const triggerData = {
         baseline: this.baselineValue,
-        trigger: (this.baselineValue || 0) + 1.00,
+        trigger: (this.baselineValue || 0) + this.actualTradeValue,
         timestamp: Date.now()
       };
       const triggerPath = path.join(process.cwd(), 'trigger.json');
