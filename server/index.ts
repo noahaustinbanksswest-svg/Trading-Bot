@@ -84,22 +84,23 @@ app.use((req, res, next) => {
         botProcess = null;
       }
       
-      log('🤖 Starting Discord bot...');
-      botProcess = spawn('node', ['discord-bot.js'], {
-        stdio: 'inherit',
-        cwd: process.cwd()
-      });
+      log('🚫 Discord bot DISABLED - Server trading engine handles all trades');
+      // botProcess = spawn('node', ['discord-bot.js'], {
+      //   stdio: 'inherit',
+      //   cwd: process.cwd()
+      // });
       
-      botProcess.on('error', (error) => {
-        console.error('Discord bot error:', error);
-        scheduleRestart();
-      });
+      // Event handlers disabled with Discord bot
+      // botProcess.on('error', (error) => {
+      //   console.error('Discord bot error:', error);
+      //   scheduleRestart();
+      // });
       
-      botProcess.on('exit', (code, signal) => {
-        console.log(`Discord bot exited with code ${code}, signal ${signal}`);
-        botProcess = null;
-        scheduleRestart();
-      });
+      // botProcess.on('exit', (code, signal) => {
+      //   console.log(`Discord bot exited with code ${code}, signal ${signal}`);
+      //   botProcess = null;
+      //   scheduleRestart();
+      // });
     }
     
     function scheduleRestart(reason = 'unknown') {
