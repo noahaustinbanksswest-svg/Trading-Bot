@@ -2690,6 +2690,11 @@ class DiscordTradingBot {
   }
 
   async executeAutoTrade(reason) {
+    // 🛑 DISABLED: This was executing unauthorized trades!
+    console.log('🛑 DISCORD TRADING DISABLED: executeAutoTrade() blocked for security');
+    console.log(`🚫 BLOCKED TRADE ATTEMPT: ${reason}`);
+    return;
+    /*
     try {
       // CRITICAL: Trading lock to prevent multiple simultaneous executions
       if (this.tradingLock) {
@@ -2936,6 +2941,7 @@ class DiscordTradingBot {
     autoTradeSettings.isActive = originalSettings.isActive;
     autoTradeSettings.selectedCrypto = originalSettings.selectedCrypto;
     autoTradeSettings.stopAtLoss = originalSettings.stopAtLoss;
+    */
     
     const embed = new EmbedBuilder()
       .setTitle('🧪 Auto Trade Test Results')
