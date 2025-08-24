@@ -2987,27 +2987,40 @@ class DiscordTradingBot {
       }
 
       console.log(`🔍 FINAL CHECK: shouldExecuteTrade = ${shouldExecuteTrade}`);
+      
+      // CRITICAL: Additional safety check - only trade if portfolio increased by EXACTLY $1
+      if (shouldExecuteTrade && autoTradeSettings.conditions.portfolioValueReached) {
+        const portfolioDifference = currentPortfolioValue - this.baselineValue;
+        console.log(`🔍 SAFETY CHECK: Portfolio difference $${portfolioDifference.toFixed(2)} from baseline $${this.baselineValue.toFixed(2)}`);
+        
+        // ONLY trade if increase is between $0.95 and $1.10 (tolerance for price fluctuations)
+        if (portfolioDifference < 0.95 || portfolioDifference > 1.10) {
+          console.log(`🚫 SAFETY ABORT: Portfolio increase $${portfolioDifference.toFixed(2)} is not a valid $1 increase`);
+          shouldExecuteTrade = false;
+        }
+      }
+      
       if (shouldExecuteTrade) {
         console.log(`🚨 EXECUTING TRADE: ${reason}`);
+        
+        // IMMEDIATE BASELINE UPDATE to prevent double trades
+        this.baselineValue = currentPortfolioValue;
+        this.savedTriggerValue = currentPortfolioValue + 1.00;
+        await this.saveTriggerToFile();
+        console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} to prevent duplicate trades`);
+        
         await this.executeAutoTrade(reason);
         
-        // CRITICAL: Update trigger AFTER successful trade execution
-        if (autoTradeSettings.conditions.portfolioValueReached) {
-          // Get fresh portfolio data after trade
-          const freshPortfolioData = await this.getPortfolioData();
-          const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
-          if (solHolding) {
-            // CRITICAL: Update both baseline and trigger after successful trade
-            this.baselineValue = parseFloat(solHolding.value.toFixed(2));
-            this.savedTriggerValue = parseFloat((solHolding.value + 1.00).toFixed(2));
-            this.lastTriggerTarget = this.savedTriggerValue;
-            console.log(`🔄 TRIGGER RESET AFTER TRADE: New baseline $${this.baselineValue.toFixed(2)}, New trigger $${this.savedTriggerValue.toFixed(2)}`);
-            await this.saveTriggerToFile();
-            
-            // FORCE RE-INITIALIZATION on next check to use new values
-            this.triggerInitializedThisSession = false;
-          }
+        // Update trigger AFTER successful trade execution
+        const freshPortfolioData = await this.getPortfolioData();
+        const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
+        if (solHolding) {
+          this.baselineValue = parseFloat(solHolding.value.toFixed(2));
+          this.savedTriggerValue = parseFloat((solHolding.value + 1.00).toFixed(2));
+          await this.saveTriggerToFile();
+          console.log(`🔄 FINAL BASELINE: $${this.baselineValue.toFixed(2)}, Next trigger: $${this.savedTriggerValue.toFixed(2)}`);
         }
+        
       } else {
         console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
