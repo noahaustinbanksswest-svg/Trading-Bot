@@ -37,43 +37,66 @@ let autoTradeSettings = {};
 let recentPurchases = {
   SOL: {
     lastKnownAmount: 0,
+    lastKnownUSDBalance: 0,
     purchases: [], // Array of {amount, timestamp, protected}
     protectionPeriod: 10 * 60 * 1000 // 10 minutes in milliseconds
   }
 };
 
 // Function to detect and track recent purchases
-function detectRecentPurchases(currentAmount, currency = 'SOL') {
+function detectRecentPurchases(currentAmount, currency = 'SOL', currentUSDBalance = 0, currentPrice = 0) {
   const now = Date.now();
   const tracking = recentPurchases[currency];
   
   if (!tracking) return;
   
-  // If current amount is significantly higher than last known amount, it's likely a purchase
-  const amountIncrease = currentAmount - tracking.lastKnownAmount;
-  const minPurchaseThreshold = 0.01; // Minimum 0.01 SOL to consider as purchase
-  
-  if (amountIncrease > minPurchaseThreshold) {
-    console.log(`🛒 PURCHASE DETECTED: ${currency} increased by ${amountIncrease.toFixed(8)} (${tracking.lastKnownAmount.toFixed(8)} → ${currentAmount.toFixed(8)})`);
-    
-    // Add to recent purchases tracking
-    tracking.purchases.push({
-      amount: amountIncrease,
-      timestamp: now,
-      protected: true
-    });
-    
-    // Clean up old purchases (older than protection period)
-    tracking.purchases = tracking.purchases.filter(p => 
-      (now - p.timestamp) < tracking.protectionPeriod
-    );
-    
-    console.log(`🛡️ PROTECTING: ${amountIncrease.toFixed(8)} ${currency} for ${tracking.protectionPeriod / (60 * 1000)} minutes`);
-    console.log(`📊 PROTECTED PURCHASES: ${tracking.purchases.length} recent purchases totaling ${tracking.purchases.reduce((sum, p) => sum + p.amount, 0).toFixed(8)} ${currency}`);
+  // If this is the first time, just set the baseline and return
+  if (tracking.lastKnownAmount === 0) {
+    tracking.lastKnownAmount = currentAmount;
+    tracking.lastKnownUSDBalance = currentUSDBalance;
+    console.log(`📊 BASELINE SET: ${currentAmount.toFixed(8)} ${currency}, USD: $${currentUSDBalance.toFixed(2)}`);
+    return;
   }
   
-  // Update last known amount
+  const amountIncrease = currentAmount - tracking.lastKnownAmount;
+  const usdDecrease = tracking.lastKnownUSDBalance - currentUSDBalance;
+  const minPurchaseThreshold = 0.01; // Minimum 0.01 SOL to consider as purchase
+  
+  // SMART DETECTION: Only detect purchases if SOL increases AND USD decreases significantly
+  // This indicates money was spent to buy SOL, not just price appreciation
+  if (amountIncrease > minPurchaseThreshold && usdDecrease > 5.00) {
+    const expectedSOLFromUSD = usdDecrease / currentPrice;
+    const actualSOLIncrease = amountIncrease;
+    
+    // Check if the SOL increase roughly matches the USD spent
+    if (Math.abs(expectedSOLFromUSD - actualSOLIncrease) < 0.02) {
+      console.log(`🛒 REAL PURCHASE DETECTED: ${currency} increased by ${amountIncrease.toFixed(8)}, USD decreased by $${usdDecrease.toFixed(2)}`);
+      console.log(`💰 Purchase Analysis: $${usdDecrease.toFixed(2)} USD → ${amountIncrease.toFixed(8)} ${currency} @ $${currentPrice.toFixed(2)}`);
+      
+      // Add to recent purchases tracking
+      tracking.purchases.push({
+        amount: amountIncrease,
+        timestamp: now,
+        protected: true
+      });
+      
+      // Clean up old purchases (older than protection period)
+      tracking.purchases = tracking.purchases.filter(p => 
+        (now - p.timestamp) < tracking.protectionPeriod
+      );
+      
+      console.log(`🛡️ PROTECTING: ${amountIncrease.toFixed(8)} ${currency} for ${tracking.protectionPeriod / (60 * 1000)} minutes`);
+      console.log(`📊 PROTECTED PURCHASES: ${tracking.purchases.length} recent purchases totaling ${tracking.purchases.reduce((sum, p) => sum + p.amount, 0).toFixed(8)} ${currency}`);
+    } else {
+      console.log(`📈 PRICE APPRECIATION DETECTED: ${currency} +${amountIncrease.toFixed(8)}, USD change: $${(currentUSDBalance - tracking.lastKnownUSDBalance).toFixed(2)} (not a purchase)`);
+    }
+  } else if (amountIncrease > minPurchaseThreshold) {
+    console.log(`📈 PRICE APPRECIATION: ${currency} +${amountIncrease.toFixed(8)} (USD stable, not a purchase)`);
+  }
+  
+  // Update last known amounts
   tracking.lastKnownAmount = currentAmount;
+  tracking.lastKnownUSDBalance = currentUSDBalance;
 }
 
 // Function to check if trade would violate recent purchase protection
@@ -2675,8 +2698,9 @@ class DiscordTradingBot {
             change: cryptoHolding.change
           });
           
-          // CRITICAL: Detect recent purchases to protect them
-          detectRecentPurchases(cryptoHolding.amount, cryptoHolding.currency);
+          // CRITICAL: Detect recent purchases to protect them (pass USD balance and price for smart detection)
+          const currentUSDBalance = portfolioData.usdBalance || 0;
+          detectRecentPurchases(cryptoHolding.amount, cryptoHolding.currency, currentUSDBalance, cryptoHolding.price);
           
           // Get current price for the crypto (fix property name)
           const currentPrice = cryptoHolding.price; // Use price directly instead of value/amount
