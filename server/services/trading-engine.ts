@@ -172,7 +172,7 @@ export class TradingEngine {
   }
 
   private async startMonitoring(): Promise<void> {
-    // Monitor orders and portfolio every 30 seconds
+    // Monitor orders and portfolio every 5 seconds for swing trading
     this.monitoringInterval = setInterval(async () => {
       try {
         await this.monitorOrders();
@@ -181,7 +181,7 @@ export class TradingEngine {
       } catch (error) {
         console.error('Error in monitoring cycle:', error);
       }
-    }, 30000);
+    }, 5000);
   }
 
   private async monitorOrders(): Promise<void> {

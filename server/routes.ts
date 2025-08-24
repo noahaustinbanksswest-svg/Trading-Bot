@@ -241,24 +241,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Gemini API credentials" });
       }
 
-      // Initialize Discord service if configured
-      let discordService: DiscordBotService | undefined;
-      if (user.discordBotToken && user.discordGuildId && user.discordChannelId) {
-        discordService = new DiscordBotService(
-          user.discordBotToken,
-          user.discordGuildId,
-          user.discordChannelId,
-          user.id
-        );
-        
-        try {
-          await discordService.connect();
-        } catch (error) {
-          console.error('Failed to connect Discord bot:', error);
-          // Continue without Discord service
-          discordService = undefined;
-        }
-      }
+      // 🚫 DISCORD SERVICE COMPLETELY DISABLED - Only server trading engine active
+      console.log('🚫 Discord bot disabled - Server trading engine handles all trades');
+      let discordService: DiscordBotService | undefined = undefined;
 
       // Initialize trading engine
       const tradingEngine = new TradingEngine({
