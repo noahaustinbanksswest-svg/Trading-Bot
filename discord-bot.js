@@ -326,123 +326,21 @@ class GeminiAPI {
   }
 
   async sellOrder(symbol, amount) {
-    try {
-      console.log(`🔄 Calling Gemini API sellOrder(${symbol}, ${amount})...`);
-      console.log(`📋 Simulating: Select ${symbol.toUpperCase().replace('USD', '')} → Sell → ${symbol.toUpperCase()} → Change to Instant → Amount: ${amount}`);
-      
-      // DIAGNOSTICS: Check symbol details for minimum requirements
-      console.log(`🔍 DIAGNOSTIC: Checking ${symbol.toUpperCase()} minimum requirements...`);
-      const symbolDetails = await this.getSymbolDetails(symbol);
-      
-      if (symbolDetails) {
-        console.log(`📊 DIAGNOSTIC: Symbol Details:`, {
-          symbol: symbol.toUpperCase(),
-          min_order_size: symbolDetails.min_order_size,
-          tick_size: symbolDetails.tick_size,
-          quote_increment: symbolDetails.quote_increment
-        });
-        
-        // Check if our amount meets the minimum and fix precision
-        const requestedAmount = parseFloat(amount);
-        const minOrderSize = parseFloat(symbolDetails.min_order_size);
-        const tickSize = parseFloat(symbolDetails.tick_size) || 0.00001;
-        
-        if (requestedAmount < minOrderSize) {
-          amount = symbolDetails.min_order_size;
-          console.log(`🔧 DIAGNOSTIC: Adjusting to minimum order size:`, {
-            requested: requestedAmount,
-            minimum_required: minOrderSize,
-            adjusted_to: amount
-          });
-        } else {
-          // Round to proper tick size precision (5 decimal places for SOL)
-          const roundedAmount = Math.floor(requestedAmount / tickSize) * tickSize;
-          amount = roundedAmount.toFixed(5);
-          console.log(`🔧 DIAGNOSTIC: Rounding to tick size:`, {
-            requested: requestedAmount,
-            tick_size: tickSize,
-            rounded_to: amount
-          });
-        }
-      }
-      
-      const endpoint = '/v1/order/new';
-      const nonce = Math.floor(Date.now() / 1000).toString();
-      
-      // Proper Gemini API payload format with required fields
-      const payload = {
-        request: endpoint,
-        nonce: nonce,
-        symbol: symbol.toLowerCase(), // Gemini expects lowercase symbols
-        amount: parseFloat(amount).toString(), // Ensure clean numeric string
-        price: '1', // For immediate-or-cancel, price is ignored - executes at market price
-        side: 'sell',
-        type: 'exchange limit',
-        account: 'primary', // REQUIRED for Master API keys - default trading account
-        options: ['immediate-or-cancel'] // This makes it an INSTANT market order
-      };
-      
-      console.log(`📤 API Payload:`, payload);
-      
-      // Proper Gemini authentication with Base64 encoding
-      const payloadBuffer = Buffer.from(JSON.stringify(payload));
-      const payloadBase64 = payloadBuffer.toString('base64');
-      
-      const crypto = await import('crypto');
-      const signature = crypto.createHmac('sha384', this.apiSecret)
-        .update(payloadBase64)
-        .digest('hex');
-      
-      const headers = {
-        'Content-Type': 'text/plain',
-        'Content-Length': '0',
-        'X-GEMINI-APIKEY': this.apiKey,
-        'X-GEMINI-PAYLOAD': payloadBase64,
-        'X-GEMINI-SIGNATURE': signature,
-        'Cache-Control': 'no-cache'
-      };
-      
-      // Add detailed logging for debugging
-      console.log(`🔐 Authentication Check:`, {
-        'API-KEY': this.apiKey ? this.apiKey.substring(0, 8) + '...' : 'MISSING',
-        'SECRET': this.apiSecret ? 'PRESENT' : 'MISSING',
-        'ENDPOINT': endpoint,
-        'SYMBOL': symbol,
-        'ACCOUNT': 'primary'
-      });
-      
-      const response = await axios.post(`${this.baseUrl}${endpoint}`, '', { 
-        headers,
-        timeout: 10000
-      });
-      
-      console.log(`✅ SELL ORDER EXECUTED SUCCESSFULLY!`);
-      console.log(`📊 Response:`, response.data);
-      
-      return response.data;
-    } catch (error) {
-      // Enhanced error logging for 403 debugging
-      console.error('❌ Sell order FAILED:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message,
-        symbol: symbol,
-        amount: amount
-      });
-      
-      // Specific 403 error handling
-      if (error.response?.status === 403) {
-        console.error('🚨 403 FORBIDDEN ERROR - POSSIBLE CAUSES:');
-        console.error('   1. API keys are READ-ONLY (need TRADING permissions)');
-        console.error('   2. Account not verified for trading on Gemini');
-        console.error('   3. Insufficient crypto balance to sell');
-        console.error('   4. Trading not enabled for this account type');
-        console.error('   💡 SOLUTION: Go to Gemini → Account Settings → API → Enable Trading');
-      }
-      
-      throw new Error(`Failed to place sell order: ${error.message}`);
-    }
+    // 🚫 DISCORD BOT = PURE VISUALS ONLY - NO REAL TRADING ALLOWED
+    console.log(`🎭 DISCORD VISUAL SIMULATION ONLY: sellOrder(${symbol}, ${amount})`);
+    console.log(`🚫 REAL TRADING DISABLED: Discord bot is for monitoring/notifications only`);
+    console.log(`🤖 All real trades handled by independent server-side engine`);
+    
+    // Return visual-only simulation data
+    return {
+      order_id: `discord-simulation-${Date.now()}`,
+      symbol: symbol.toLowerCase(),
+      amount: amount.toString(),
+      side: 'sell',
+      type: 'visual-simulation',
+      status: 'discord-visual-only',
+      note: 'This is a visual simulation only - real trades handled by independent engine'
+    };
   }
 }
 
