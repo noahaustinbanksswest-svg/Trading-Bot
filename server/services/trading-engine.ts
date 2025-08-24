@@ -1,5 +1,5 @@
 import { GeminiService, GeminiOrderRequest } from './gemini';
-// Discord service removed - clean API only
+import { DiscordBotService } from './discord-bot';
 import { storage } from '../storage';
 import { TradeOrder, TradingSettings, PortfolioHolding } from '@shared/schema';
 import cron from 'node-cron';
@@ -7,13 +7,13 @@ import cron from 'node-cron';
 export interface TradingEngineConfig {
   userId: string;
   geminiService: GeminiService;
-  // Discord removed - pure trading API
+  discordService?: DiscordBotService; // For notifications only - NO TRADING
 }
 
 export class TradingEngine {
   private userId: string;
   private geminiService: GeminiService;
-  // Discord service removed - clean trading API
+  private discordService?: DiscordBotService; // For notifications only - NO TRADING
   private isRunning: boolean = false;
   private monitoringInterval?: NodeJS.Timeout;
   
@@ -26,7 +26,7 @@ export class TradingEngine {
   constructor(config: TradingEngineConfig) {
     this.userId = config.userId;
     this.geminiService = config.geminiService;
-    // No Discord - clean API-only trading
+    this.discordService = config.discordService; // For notifications only
   }
 
   async start(): Promise<void> {
@@ -98,7 +98,16 @@ export class TradingEngine {
       // Update order status
       await storage.updateTradeOrder(orderId, { status: 'cancelled' });
 
-      // Discord removed - clean API only
+      // Send Discord notification (notifications only - no trading)
+      if (this.discordService) {
+        await this.discordService.sendTradeNotification(
+          order.symbol,
+          order.side,
+          order.amount,
+          order.price || 'Market',
+          'cancelled'
+        );
+      }
       console.log(`✅ Order cancelled: ${order.symbol} ${order.side} ${order.amount}`);
     } catch (error) {
       throw new Error(`Failed to cancel order: ${error}`);
@@ -203,7 +212,16 @@ export class TradingEngine {
             });
           }
 
-          // Discord removed - clean API only
+          // Send notification to Discord (no trading)
+          if (this.discordService) {
+            await this.discordService.sendTradeNotification(
+              order.symbol,
+              order.side,
+              geminiOrder.executed_amount || order.amount,
+              geminiOrder.avg_execution_price || order.price || 'Market',
+              newStatus
+            );
+          }
           console.log(`✅ Order status updated: ${order.symbol} ${order.side} ${newStatus}`);
         }
       } catch (error) {
@@ -305,9 +323,29 @@ export class TradingEngine {
   }
 
   private schedulePeriodicTasks(): void {
-    // Discord removed - clean API-only trading
-    console.log('📅 Trading monitoring active - no Discord notifications');
-    
+    // Send portfolio updates to Discord every hour (notifications only)
+    cron.schedule('0 * * * *', async () => {
+      if (!this.discordService) return;
+
+      try {
+        const holdings = await storage.getPortfolioHoldings(this.userId);
+        const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.valueUSD || '0'), 0);
+        const activeTrades = await storage.getTradeOrders(this.userId, 'pending').then(orders => orders.length);
+        
+        // Calculate daily P&L (simplified)
+        const dailyPnL = '0'; // TODO: Implement proper daily P&L calculation
+
+        await this.discordService.sendPortfolioUpdate({
+          totalValue: totalValue.toFixed(2),
+          dailyPnL,
+          holdings,
+          activeTrades,
+        });
+      } catch (error) {
+        console.error('Error sending scheduled portfolio update:', error);
+      }
+    });
+
     // Daily reset tasks at midnight
     cron.schedule('0 0 * * *', async () => {
       console.log('Performing daily reset tasks...');

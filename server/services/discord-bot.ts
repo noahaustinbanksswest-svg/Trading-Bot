@@ -16,11 +16,11 @@ export class DiscordBotService {
   private channelId: string;
   private userId: string;
 
-  constructor(token: string, guildId: string, channelId: string, userId: string) {
-    this.token = token;
-    this.guildId = guildId;
-    this.channelId = channelId;
-    this.userId = userId;
+  constructor(config: { token: string; guildId: string; channelId: string; userId?: string; }) {
+    this.token = config.token;
+    this.guildId = config.guildId;
+    this.channelId = config.channelId;
+    this.userId = config.userId || 'default';
     
     this.client = new Client({
       intents: [
@@ -64,11 +64,27 @@ export class DiscordBotService {
     });
   }
 
+  async initialize(): Promise<void> {
+    await this.connect();
+  }
+
   async connect(): Promise<void> {
     try {
       await this.client.login(this.token);
     } catch (error) {
       throw new Error(`Failed to connect Discord bot: ${error}`);
+    }
+  }
+
+  async sendMessage(content: string): Promise<void> {
+    try {
+      const channel = await this.client.channels.fetch(this.channelId) as TextChannel;
+      if (!channel) throw new Error('Channel not found');
+      
+      await channel.send(content);
+    } catch (error) {
+      console.error('Failed to send Discord message:', error);
+      throw error;
     }
   }
 
@@ -195,16 +211,14 @@ export class DiscordBotService {
     await interaction.deferReply({ ephemeral: true });
     
     try {
-      const settings = await storage.getTradingSettings(this.userId);
-      if (!settings) {
-        await interaction.editReply('No trading settings found');
-        return;
-      }
-
-      // Toggle some trading setting (this is a placeholder)
-      await interaction.editReply('Trading status toggled!');
+      // Call API endpoint to toggle trading (buttons call API)
+      const axios = require('axios');
+      const response = await axios.post(`http://localhost:5000/api/trading/enable/${this.userId}`);
+      
+      await interaction.editReply('✅ Trading toggled via API call');
     } catch (error) {
-      await interaction.editReply('Failed to toggle trading status');
+      console.error('Failed to call trading API:', error);
+      await interaction.editReply('❌ Failed to toggle trading via API');
     }
   }
 
@@ -232,6 +246,47 @@ export class DiscordBotService {
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       await interaction.editReply('Failed to load settings');
+    }
+  }
+
+  // Methods called by trading engine for notifications
+  async sendTradeNotification(symbol: string, side: string, amount: string, price: string, status: string): Promise<void> {
+    try {
+      const embed = new EmbedBuilder()
+        .setTitle('💰 Trade Notification')
+        .setColor(side === 'buy' ? 0x4CAF50 : 0xF44336)
+        .addFields(
+          { name: 'Symbol', value: symbol.toUpperCase(), inline: true },
+          { name: 'Side', value: side.toUpperCase(), inline: true },
+          { name: 'Amount', value: amount, inline: true },
+          { name: 'Price', value: price, inline: true },
+          { name: 'Status', value: status.toUpperCase(), inline: true },
+        )
+        .setTimestamp();
+
+      const channel = await this.client.channels.fetch(this.channelId) as TextChannel;
+      if (channel) {
+        await channel.send({ embeds: [embed] });
+      }
+    } catch (error) {
+      console.error('Failed to send trade notification:', error);
+    }
+  }
+
+  async sendPortfolioUpdate(data: DiscordPortfolioUpdate): Promise<void> {
+    try {
+      const embed = this.createPortfolioEmbed(data);
+      const buttons = this.createActionButtons();
+
+      const channel = await this.client.channels.fetch(this.channelId) as TextChannel;
+      if (channel) {
+        await channel.send({ 
+          embeds: [embed], 
+          components: [buttons] 
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send portfolio update:', error);
     }
   }
 }
