@@ -11,16 +11,11 @@ import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 
 // Store active services per user
-// 🚫 CLEAR ALL EXISTING TRADING SERVICES IMMEDIATELY
 const userServices = new Map<string, {
   gemini: GeminiService;
   discord?: DiscordBotService;
   trading: TradingEngine;
 }>();
-
-// 🚫 EMERGENCY: Clear any existing trading engines
-userServices.clear();
-console.log('🚫🚫🚫 ALL EXISTING TRADING ENGINES CLEARED 🚫🚫🚫');
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -135,42 +130,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get portfolio holdings
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
-      // Get live portfolio data from Gemini
-      const services = userServices.get(req.params.userId);
-      console.log(`🔍 Services available for ${req.params.userId}:`, !!services?.gemini, !!services?.trading);
-      if (services?.gemini) {
-        try {
-          const geminiBalances = await services.gemini.getBalances();
-          
-          // Get current SOL price
-          const ticker = await services.gemini.getTicker('solusd');
-          const solPrice = parseFloat(ticker.last);
-          
-          // Find SOL balance
-          const solBalance = geminiBalances.find(b => b.currency.toLowerCase() === 'sol');
-          const solAmount = solBalance ? parseFloat(solBalance.available) : 0;
-          const solValue = solAmount * solPrice;
-          
-          console.log(`📊 LIVE PORTFOLIO: ${solAmount.toFixed(8)} SOL @ $${solPrice.toFixed(2)} = $${solValue.toFixed(2)}`);
-          
-          const holdings = solAmount > 0 ? [{
-            symbol: 'SOL',
-            amount: solAmount.toFixed(8),
-            valueUSD: solValue.toFixed(2),
-            price: solPrice.toFixed(2)
-          }] : [];
-          
-          res.json({
-            holdings,
-            totalValue: solValue.toFixed(2),
-          });
-          return;
-        } catch (geminiError) {
-          console.log('⚠️ Gemini API error, falling back to local data:', geminiError instanceof Error ? geminiError.message : geminiError);
-        }
-      }
-      
-      // Fallback to local storage if Gemini fails
       const holdings = await storage.getPortfolioHoldings(req.params.userId);
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
@@ -196,8 +155,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Place new order
   app.post("/api/orders", async (req, res) => {
-    console.log(`🚫 API ORDER BLOCKED: Sales disabled by user`);
-    return res.status(403).json({ error: "Sales disabled by user - no trades allowed" });
+    try {
+      const validatedData = insertTradeOrderSchema.parse(req.body);
+      const services = userServices.get(validatedData.userId);
+      
+      if (!services) {
+        return res.status(400).json({ error: "Trading services not initialized for user" });
+      }
+
+      const order = await services.trading.placeOrder({
+        symbol: validatedData.symbol,
+        amount: validatedData.amount,
+        price: validatedData.price || undefined,
+        side: validatedData.side as 'buy' | 'sell',
+        type: validatedData.orderType as any,
+      });
+
+      // Broadcast real-time update
+      broadcast({ type: 'new_order', data: order });
+      
+      res.json(order);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to place order" });
+    }
   });
 
   // Cancel order
@@ -232,13 +215,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Initialize trading services for a user - DISABLED
+  // Initialize trading services for a user
   app.post("/api/initialize/:userId", async (req, res) => {
-    console.log(`🚫 INITIALIZATION BLOCKED: All trading systems disabled by user`);
-    return res.status(403).json({ error: "Trading system disabled by user - no initialization allowed" });
+    try {
+      const user = await storage.getUser(req.params.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.geminiApiKey || !user.geminiApiSecret) {
+        return res.status(400).json({ error: "Gemini API credentials not configured" });
+      }
+
+      // Initialize Gemini service
+      const geminiService = new GeminiService(
+        user.geminiApiKey,
+        user.geminiApiSecret,
+        process.env.NODE_ENV === 'development' // Use sandbox in development
+      );
+
+      // Test Gemini connection
+      try {
+        await geminiService.heartbeat();
+      } catch (error) {
+        return res.status(400).json({ error: "Invalid Gemini API credentials" });
+      }
+
+      // Initialize Discord service if configured
+      let discordService: DiscordBotService | undefined;
+      if (user.discordBotToken && user.discordGuildId && user.discordChannelId) {
+        discordService = new DiscordBotService(
+          user.discordBotToken,
+          user.discordGuildId,
+          user.discordChannelId,
+          user.id
+        );
+        
+        try {
+          await discordService.connect();
+        } catch (error) {
+          console.error('Failed to connect Discord bot:', error);
+          // Continue without Discord service
+          discordService = undefined;
+        }
+      }
+
+      // Initialize trading engine
+      const tradingEngine = new TradingEngine({
+        userId: user.id,
+        geminiService,
+        discordService,
+      });
+
+      await tradingEngine.start();
+
+      // Store services
+      userServices.set(user.id, {
+        gemini: geminiService,
+        discord: discordService,
+        trading: tradingEngine,
+      });
+
+      res.json({ message: "Trading services initialized successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to initialize services" });
+    }
   });
 
-  // Test Discord connection (notifications only)
+  // Test Discord connection
   app.post("/api/discord/test/:userId", async (req, res) => {
     try {
       const services = userServices.get(req.params.userId);
@@ -250,24 +294,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await services.discord.testConnection();
       
       if (success) {
-        res.json({ message: "✅ Discord notifications active - API handles trading" });
+        res.json({ message: "Discord connection test successful" });
       } else {
         res.status(500).json({ error: "Discord connection test failed" });
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to test Discord connection" });
     }
-  });
-
-  // API endpoints for Discord buttons to control trading - DISABLED
-  app.post("/api/trading/enable/:userId", async (req, res) => {
-    console.log(`🚫 TRADING ENABLE BLOCKED: All trading disabled by user`);
-    return res.status(403).json({ error: "Trading permanently disabled by user" });
-  });
-
-  app.post("/api/trading/disable/:userId", async (req, res) => {
-    console.log(`✅ TRADING ALREADY DISABLED: All sales permanently blocked`);
-    return res.json({ message: "Trading already disabled - all sales blocked" });
   });
 
   // Get available Gemini symbols
@@ -370,7 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         writeFileSync('last-bot-ping.json', JSON.stringify(timestampData, null, 2));
       } catch (fsError) {
-        console.error('❌ Failed to save timestamp for guardian:', fsError instanceof Error ? fsError.message : fsError);
+        console.error('❌ Failed to save timestamp for guardian:', fsError.message);
       }
       
       const [existingStatus] = await db.select().from(botStatus).limit(1);

@@ -7,26 +7,20 @@ import cron from 'node-cron';
 export interface TradingEngineConfig {
   userId: string;
   geminiService: GeminiService;
-  discordService?: DiscordBotService; // For notifications only - NO TRADING
+  discordService?: DiscordBotService;
 }
 
 export class TradingEngine {
   private userId: string;
   private geminiService: GeminiService;
-  private discordService?: DiscordBotService; // For notifications only - NO TRADING
+  private discordService?: DiscordBotService;
   private isRunning: boolean = false;
   private monitoringInterval?: NodeJS.Timeout;
-  
-  // Discord-style swing trading variables
-  private baselineValue: number = 0;
-  private savedTriggerValue: number = 0;
-  private lastKnownSOLAmount: number = 0;
-  private triggerInitialized: boolean = false;
 
   constructor(config: TradingEngineConfig) {
     this.userId = config.userId;
     this.geminiService = config.geminiService;
-    this.discordService = config.discordService; // For notifications only
+    this.discordService = config.discordService;
   }
 
   async start(): Promise<void> {
@@ -34,10 +28,14 @@ export class TradingEngine {
       throw new Error('Trading engine is already running');
     }
 
-    console.log(`🚫 SALES DISABLED - Trading engine started in monitoring-only mode`);
-    this.isRunning = false; // Keep sales disabled
+    console.log(`Starting trading engine for user ${this.userId}`);
+    this.isRunning = true;
 
-    console.log(`🚫 All trading operations STOPPED by user request`);
+    // Start monitoring portfolio and trades
+    await this.startMonitoring();
+
+    // Schedule periodic tasks
+    this.schedulePeriodicTasks();
   }
 
   async stop(): Promise<void> {
@@ -50,9 +48,40 @@ export class TradingEngine {
   }
 
   async placeOrder(orderRequest: GeminiOrderRequest): Promise<TradeOrder> {
-    console.log(`🚫 API SALES DISABLED: Blocking ${orderRequest.side} order for ${orderRequest.amount} ${orderRequest.symbol}`);
-    console.log(`🚫 NO TRADES ALLOWED: Sales disabled by user request`);
-    throw new Error('Sales disabled by user - no trades will execute');
+    try {
+      // Validate order against settings
+      await this.validateOrder(orderRequest);
+
+      // Place order with Gemini
+      const geminiOrder = await this.geminiService.placeOrder(orderRequest);
+
+      // Store order in database
+      const tradeOrder = await storage.createTradeOrder({
+        userId: this.userId,
+        geminiOrderId: geminiOrder.order_id,
+        symbol: orderRequest.symbol,
+        side: orderRequest.side,
+        orderType: orderRequest.type,
+        amount: orderRequest.amount,
+        price: orderRequest.price || '0',
+        status: 'pending',
+      });
+
+      // Send Discord notification
+      if (this.discordService) {
+        await this.discordService.sendTradeNotification(
+          orderRequest.symbol,
+          orderRequest.side,
+          orderRequest.amount,
+          orderRequest.price || 'Market',
+          'pending'
+        );
+      }
+
+      return tradeOrder;
+    } catch (error) {
+      throw new Error(`Failed to place order: ${error}`);
+    }
   }
 
   async cancelOrder(orderId: string): Promise<void> {
@@ -71,7 +100,7 @@ export class TradingEngine {
       // Update order status
       await storage.updateTradeOrder(orderId, { status: 'cancelled' });
 
-      // Send Discord notification (notifications only - no trading)
+      // Send Discord notification
       if (this.discordService) {
         await this.discordService.sendTradeNotification(
           order.symbol,
@@ -81,7 +110,6 @@ export class TradingEngine {
           'cancelled'
         );
       }
-      console.log(`✅ Order cancelled: ${order.symbol} ${order.side} ${order.amount}`);
     } catch (error) {
       throw new Error(`Failed to cancel order: ${error}`);
     }
@@ -138,7 +166,7 @@ export class TradingEngine {
   }
 
   private async startMonitoring(): Promise<void> {
-    // Monitor orders and portfolio every 5 seconds for swing trading
+    // Monitor orders and portfolio every 30 seconds
     this.monitoringInterval = setInterval(async () => {
       try {
         await this.monitorOrders();
@@ -147,7 +175,7 @@ export class TradingEngine {
       } catch (error) {
         console.error('Error in monitoring cycle:', error);
       }
-    }, 5000);
+    }, 30000);
   }
 
   private async monitorOrders(): Promise<void> {
@@ -185,7 +213,7 @@ export class TradingEngine {
             });
           }
 
-          // Send notification to Discord (no trading)
+          // Send Discord notification
           if (this.discordService) {
             await this.discordService.sendTradeNotification(
               order.symbol,
@@ -195,7 +223,6 @@ export class TradingEngine {
               newStatus
             );
           }
-          console.log(`✅ Order status updated: ${order.symbol} ${order.side} ${newStatus}`);
         }
       } catch (error) {
         console.error(`Error monitoring order ${order.id}:`, error);
@@ -249,9 +276,6 @@ export class TradingEngine {
     const settings = await storage.getTradingSettings(this.userId);
     if (!settings) return;
 
-    // PRIORITY: Check swing trading first (Discord logic)
-    await this.checkSwingTradingConditions();
-
     const holdings = await storage.getPortfolioHoldings(this.userId);
 
     for (const holding of holdings) {
@@ -296,7 +320,7 @@ export class TradingEngine {
   }
 
   private schedulePeriodicTasks(): void {
-    // Send portfolio updates to Discord every hour (notifications only)
+    // Send portfolio updates to Discord every hour
     cron.schedule('0 * * * *', async () => {
       if (!this.discordService) return;
 
@@ -324,126 +348,5 @@ export class TradingEngine {
       console.log('Performing daily reset tasks...');
       // Add any daily reset logic here
     });
-  }
-
-  // SALES: SOL balance USD value tracking | PROTECTION: SOL coin amount
-  private async checkSwingTradingConditions(): Promise<void> {
-    try {
-      const settings = await storage.getTradingSettings(this.userId);
-      if (!settings) return;
-
-      const balances = await this.geminiService.getBalances();
-      const solBalance = balances.find(b => b.currency === 'SOL');
-      
-      if (!solBalance || parseFloat(solBalance.amount) === 0) {
-        console.log('⚠️ No SOL balance found');
-        return;
-      }
-
-      const currentSOLAmount = parseFloat(solBalance.amount);
-      const ticker = await this.geminiService.getTicker('solusd');
-      const currentPrice = parseFloat(ticker.last);
-      const currentPortfolioValue = currentSOLAmount * currentPrice;
-
-      console.log(`📊 SOL MONITORING: ${currentSOLAmount.toFixed(8)} SOL @ $${currentPrice.toFixed(2)} = $${currentPortfolioValue.toFixed(2)}`);
-
-      // Initialize baseline if first run
-      if (!this.triggerInitialized) {
-        await this.loadTriggerFromFile();
-        if (this.baselineValue === 0) {
-          this.baselineValue = currentPortfolioValue;
-          this.savedTriggerValue = currentPortfolioValue + 1.00;
-          await this.saveTriggerToFile();
-          console.log(`🎯 TRIGGER INITIALIZED: Current SOL value $${this.baselineValue.toFixed(2)}, Next sale at $${this.savedTriggerValue.toFixed(2)}`);
-        }
-        this.lastKnownSOLAmount = currentSOLAmount;
-        this.triggerInitialized = true;
-        return;
-      }
-
-      // 🛒 BUY PROTECTION: Check SOL coin amount to detect purchases
-      if (this.lastKnownSOLAmount > 0 && currentSOLAmount > this.lastKnownSOLAmount) {
-        const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
-        
-        console.log(`🛒 BUY DETECTED: SOL amount +${solIncrease.toFixed(8)} (${this.lastKnownSOLAmount.toFixed(8)} → ${currentSOLAmount.toFixed(8)})`);
-        console.log(`🔒 PROTECTING BUY: Resetting trigger to prevent multiple sales`);
-        
-        // Reset trigger baseline to current USD value to protect the purchase
-        this.baselineValue = currentPortfolioValue;
-        this.savedTriggerValue = currentPortfolioValue + 1.00;
-        await this.saveTriggerToFile();
-        console.log(`✅ TRIGGER RESET: Baseline $${this.baselineValue.toFixed(2)} → Next sale $${this.savedTriggerValue.toFixed(2)}`);
-        
-        this.lastKnownSOLAmount = currentSOLAmount;
-        return;
-      }
-      
-      // 💰 SALES TRIGGER: Monitor SOL USD value for $1 increases
-      const nextSaleTrigger = this.baselineValue + 1.00;
-      
-      console.log(`💰 SOL USD MONITORING: $${currentPortfolioValue.toFixed(2)} (baseline $${this.baselineValue.toFixed(2)}) → Sale at $${nextSaleTrigger.toFixed(2)}`);
-      
-      // Trigger $1 sale when SOL USD value increases by $1
-      if (currentPortfolioValue >= nextSaleTrigger) {
-        console.log(`🚨 SOL USD +$1 TRIGGER: $${currentPortfolioValue.toFixed(2)} >= $${nextSaleTrigger.toFixed(2)}`);
-        console.log(`💰 EXECUTING $1 SALE`);
-        
-        // Execute $1 sell
-        await this.executeSwingTrade(currentSOLAmount, currentPrice);
-        
-        // Reset baseline after sale
-        this.baselineValue = currentPortfolioValue - 1.00;
-        this.savedTriggerValue = this.baselineValue + 1.00;
-        await this.saveTriggerToFile();
-        console.log(`✅ SALE COMPLETE: New baseline $${this.baselineValue.toFixed(2)} → Next sale $${this.savedTriggerValue.toFixed(2)}`);
-        
-        this.lastKnownSOLAmount = currentSOLAmount;
-        return;
-      }
-      
-      console.log(`📊 WAITING: Need +$${(nextSaleTrigger - currentPortfolioValue).toFixed(2)} for next sale`);
-
-      // Update tracking values for next iteration
-      this.lastKnownSOLAmount = currentSOLAmount;
-
-    } catch (error) {
-      console.error('Error in swing trading check:', error);
-    }
-  }
-
-  private async executeSwingTrade(currentSOLAmount: number, currentPrice: number): Promise<void> {
-    console.log(`🚫 SALES DISABLED: Would have sold $1.00 worth (${(1.00 / currentPrice).toFixed(8)} SOL) but sales are disabled by user`);
-    console.log(`🚫 API SALES BLOCKED: No trades will execute`);
-    return; // Exit without executing any trades
-  }
-
-  private async loadTriggerFromFile(): Promise<void> {
-    try {
-      const fs = await import('fs/promises');
-      const data = await fs.readFile('trigger.json', 'utf8');
-      const trigger = JSON.parse(data);
-      this.baselineValue = trigger.baseline || 0;
-      this.savedTriggerValue = trigger.trigger || 0;
-      console.log(`📁 Loaded trigger: baseline $${this.baselineValue.toFixed(2)}, trigger $${this.savedTriggerValue.toFixed(2)}`);
-    } catch (error) {
-      console.log(`📁 No trigger file found, will initialize new one`);
-      this.baselineValue = 0;
-      this.savedTriggerValue = 0;
-    }
-  }
-
-  private async saveTriggerToFile(): Promise<void> {
-    try {
-      const fs = await import('fs/promises');
-      const trigger = {
-        baseline: this.baselineValue,
-        trigger: this.savedTriggerValue,
-        timestamp: Date.now()
-      };
-      await fs.writeFile('trigger.json', JSON.stringify(trigger, null, 2));
-      console.log(`💾 Saved trigger: baseline $${this.baselineValue.toFixed(2)}, trigger $${this.savedTriggerValue.toFixed(2)}`);
-    } catch (error) {
-      console.error('Error saving trigger file:', error);
-    }
   }
 }

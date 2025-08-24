@@ -84,23 +84,22 @@ app.use((req, res, next) => {
         botProcess = null;
       }
       
-      log('🚫 Discord bot DISABLED - Server trading engine handles all trades');
-      // botProcess = spawn('node', ['discord-bot.js'], {
-      //   stdio: 'inherit',
-      //   cwd: process.cwd()
-      // });
+      log('🤖 Starting Discord bot...');
+      botProcess = spawn('node', ['discord-bot.js'], {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
       
-      // Event handlers disabled with Discord bot
-      // botProcess.on('error', (error) => {
-      //   console.error('Discord bot error:', error);
-      //   scheduleRestart();
-      // });
+      botProcess.on('error', (error) => {
+        console.error('Discord bot error:', error);
+        scheduleRestart();
+      });
       
-      // botProcess.on('exit', (code, signal) => {
-      //   console.log(`Discord bot exited with code ${code}, signal ${signal}`);
-      //   botProcess = null;
-      //   scheduleRestart();
-      // });
+      botProcess.on('exit', (code, signal) => {
+        console.log(`Discord bot exited with code ${code}, signal ${signal}`);
+        botProcess = null;
+        scheduleRestart();
+      });
     }
     
     function scheduleRestart(reason = 'unknown') {
@@ -310,9 +309,9 @@ app.use((req, res, next) => {
     }, 3 * 1000); // Check every 3 seconds
 
     // Guardian protection status
-    log('🚫 ALL GUARDIANS DISABLED - No automated trading systems active');
-    log('🚫 Auto-restart mechanism DISABLED');
-    log('🚫 All trading and monitoring systems STOPPED');
+    log('🛡️ WORKSPACE GUARDIAN ACTIVE - Green button protection enabled');
+    log('🎯 Auto-restart mechanism ready for any crashes');
+    log('⚡ Instant Guardian provides 5-second failure detection');
   });
 
   // Guardian restart function

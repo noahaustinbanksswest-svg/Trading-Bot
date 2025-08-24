@@ -122,8 +122,6 @@ export class GeminiService {
       const endpoint = '/v1/order/new';
       const headers = this.generateHeaders(endpoint, orderRequest);
       
-      console.log(`📊 Placing Gemini order: ${orderRequest.side} ${orderRequest.amount} ${orderRequest.symbol}`);
-      
       const response: AxiosResponse<GeminiOrder> = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
