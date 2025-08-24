@@ -204,16 +204,25 @@ export class GeminiService {
       const endpoint = '/v1/balances';
       const headers = this.generateHeaders(endpoint);
       
+      console.log('🔍 Testing Gemini API connection...');
+      console.log('🌐 Base URL:', this.baseUrl);
+      console.log('📡 Endpoint:', endpoint);
+      console.log('🔑 API Key:', this.apiKey.substring(0, 8) + '...');
+      
       const response: AxiosResponse<any[]> = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
         { headers }
       );
       
-      // If we get here, credentials are valid
+      console.log('✅ Gemini API connection successful!');
       return { result: "ok" };
-    } catch (error) {
-      throw new Error(`Failed to validate API credentials: ${error}`);
+    } catch (error: any) {
+      console.log('❌ Gemini API Error Details:');
+      console.log('Status:', error.response?.status);
+      console.log('Data:', error.response?.data);
+      console.log('Headers:', error.response?.headers);
+      throw new Error(`Failed to validate API credentials: ${error.response?.data?.message || error.message}`);
     }
   }
 }
