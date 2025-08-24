@@ -266,6 +266,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await tradingEngine.start();
 
+      // 🛡️ CRITICAL FIX: Stop any existing independent trading engine first
+      const existingServices = userServices.get(user.id);
+      if (existingServices?.independentTrading) {
+        console.log(`🛑 STOPPING existing independent trading engine for user ${user.id}`);
+        await existingServices.independentTrading.stop();
+      }
+
       // Initialize independent trading engine (server-side, Discord-independent)
       const independentTradingEngine = new IndependentTradingEngine(user.id, geminiService);
 
