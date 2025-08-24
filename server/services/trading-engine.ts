@@ -388,46 +388,47 @@ export class TradingEngine {
         return;
       }
 
-      // 🛒 PURCHASE PROTECTION: Check SOL coin amount increases to detect buys
+      // 🛒 BUY PROTECTION: Check SOL coin amount to detect purchases
       if (this.lastKnownSOLAmount > 0 && currentSOLAmount > this.lastKnownSOLAmount) {
         const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
-        const valueIncrease = solIncrease * currentPrice;
         
-        console.log(`🛒 SOL PURCHASE DETECTED: +${solIncrease.toFixed(8)} SOL (+$${valueIncrease.toFixed(2)} value) - PROTECTING BUY`);
+        console.log(`🛒 BUY DETECTED: SOL amount +${solIncrease.toFixed(8)} (${this.lastKnownSOLAmount.toFixed(8)} → ${currentSOLAmount.toFixed(8)})`);
+        console.log(`🔒 PROTECTING BUY: Resetting trigger to prevent multiple sales`);
         
-        // Reset baseline to current value to protect the purchase
+        // Reset trigger baseline to current USD value to protect the purchase
         this.baselineValue = currentPortfolioValue;
         this.savedTriggerValue = currentPortfolioValue + 1.00;
         await this.saveTriggerToFile();
-        console.log(`🔒 PURCHASE PROTECTION: Baseline reset to $${this.baselineValue.toFixed(2)}, Next sale at $${this.savedTriggerValue.toFixed(2)}`);
+        console.log(`✅ TRIGGER RESET: Baseline $${this.baselineValue.toFixed(2)} → Next sale $${this.savedTriggerValue.toFixed(2)}`);
         
         this.lastKnownSOLAmount = currentSOLAmount;
         return;
       }
       
-      // 💰 MAIN LOGIC: Track SOL balance USD value for $1 sale triggers
+      // 💰 SALES TRIGGER: Monitor SOL USD value for $1 increases
       const nextSaleTrigger = this.baselineValue + 1.00;
       
-      console.log(`💰 SOL BALANCE VALUE: $${currentPortfolioValue.toFixed(2)} | Baseline $${this.baselineValue.toFixed(2)} | Next sale at $${nextSaleTrigger.toFixed(2)}`);
+      console.log(`💰 SOL USD MONITORING: $${currentPortfolioValue.toFixed(2)} (baseline $${this.baselineValue.toFixed(2)}) → Sale at $${nextSaleTrigger.toFixed(2)}`);
       
-      // Check if SOL balance USD value increased by $1+
+      // Trigger $1 sale when SOL USD value increases by $1
       if (currentPortfolioValue >= nextSaleTrigger) {
-        console.log(`🚨 SOL BALANCE +$1: $${currentPortfolioValue.toFixed(2)} >= $${nextSaleTrigger.toFixed(2)} - EXECUTING SALE`);
+        console.log(`🚨 SOL USD +$1 TRIGGER: $${currentPortfolioValue.toFixed(2)} >= $${nextSaleTrigger.toFixed(2)}`);
+        console.log(`💰 EXECUTING $1 SALE`);
         
         // Execute $1 sell
         await this.executeSwingTrade(currentSOLAmount, currentPrice);
         
-        // Update baseline after sale
+        // Reset baseline after sale
         this.baselineValue = currentPortfolioValue - 1.00;
         this.savedTriggerValue = this.baselineValue + 1.00;
         await this.saveTriggerToFile();
-        console.log(`✅ SALE COMPLETE: New baseline $${this.baselineValue.toFixed(2)}, Next sale at $${this.savedTriggerValue.toFixed(2)}`);
+        console.log(`✅ SALE COMPLETE: New baseline $${this.baselineValue.toFixed(2)} → Next sale $${this.savedTriggerValue.toFixed(2)}`);
         
         this.lastKnownSOLAmount = currentSOLAmount;
         return;
       }
       
-      console.log(`📊 MONITORING: SOL balance needs +$${(nextSaleTrigger - currentPortfolioValue).toFixed(2)} to trigger sale`);
+      console.log(`📊 WAITING: Need +$${(nextSaleTrigger - currentPortfolioValue).toFixed(2)} for next sale`);
 
       // Update tracking values for next iteration
       this.lastKnownSOLAmount = currentSOLAmount;
