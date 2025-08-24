@@ -246,28 +246,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Gemini API credentials" });
       }
 
-      // 🚫 DISCORD SERVICE COMPLETELY DISABLED - Only server trading engine active
-      console.log('🚫 Discord bot disabled - Server trading engine handles all trades');
-      let discordService: DiscordBotService | undefined = undefined;
+      // ✅ DISCORD REMOVED FROM TRADING - Clean API only
+      console.log('✅ Trading API active without Discord dependencies');
+      // No Discord service needed
 
-      // 🚫🚫🚫 ALL TRADING COMPLETELY DISABLED - NO TRADES WILL HAPPEN 🚫🚫🚫
-      console.log('🚫🚫🚫 ALL TRADING COMPLETELY DISABLED - INVESTIGATING MULTIPLE SALES 🚫🚫🚫');
-      // const tradingEngine = new TradingEngine({
-      //   userId: user.id,
-      //   geminiService,
-      //   discordService,
-      // });
-
-      // await tradingEngine.start();
-
-      // Store services (trading engine COMPLETELY DISABLED)
-      userServices.set(user.id, {
-        gemini: geminiService,
-        discord: discordService,
-        trading: undefined, // COMPLETELY DISABLED
+      // ✅ CLEAN TRADING API ENABLED - NO DISCORD
+      console.log('✅ Starting clean trading API without Discord dependencies');
+      const tradingEngine = new TradingEngine({
+        userId: user.id,
+        geminiService,
+        // No Discord - pure trading API
       });
 
-      res.json({ message: "🚫 ALL TRADING COMPLETELY DISABLED - No trades will execute until multiple sales issue found" });
+      await tradingEngine.start();
+
+      // Store services (Discord-free trading engine)
+      userServices.set(user.id, {
+        gemini: geminiService,
+        discord: undefined, // No Discord
+        trading: tradingEngine,
+      });
+
+      res.json({ message: "✅ Clean trading API started - $1 sales on balance increases enabled" });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to initialize services" });
     }
@@ -394,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         writeFileSync('last-bot-ping.json', JSON.stringify(timestampData, null, 2));
       } catch (fsError) {
-        console.error('❌ Failed to save timestamp for guardian:', fsError.message);
+        console.error('❌ Failed to save timestamp for guardian:', fsError instanceof Error ? fsError.message : fsError);
       }
       
       const [existingStatus] = await db.select().from(botStatus).limit(1);

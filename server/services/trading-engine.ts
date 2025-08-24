@@ -1,5 +1,5 @@
 import { GeminiService, GeminiOrderRequest } from './gemini';
-import { DiscordBotService } from './discord-bot';
+// Discord service removed - clean API only
 import { storage } from '../storage';
 import { TradeOrder, TradingSettings, PortfolioHolding } from '@shared/schema';
 import cron from 'node-cron';
@@ -7,13 +7,13 @@ import cron from 'node-cron';
 export interface TradingEngineConfig {
   userId: string;
   geminiService: GeminiService;
-  discordService?: DiscordBotService;
+  // Discord removed - pure trading API
 }
 
 export class TradingEngine {
   private userId: string;
   private geminiService: GeminiService;
-  private discordService?: DiscordBotService;
+  // Discord service removed - clean trading API
   private isRunning: boolean = false;
   private monitoringInterval?: NodeJS.Timeout;
   
@@ -26,7 +26,7 @@ export class TradingEngine {
   constructor(config: TradingEngineConfig) {
     this.userId = config.userId;
     this.geminiService = config.geminiService;
-    this.discordService = config.discordService;
+    // No Discord - clean API-only trading
   }
 
   async start(): Promise<void> {
@@ -54,44 +54,32 @@ export class TradingEngine {
   }
 
   async placeOrder(orderRequest: GeminiOrderRequest): Promise<TradeOrder> {
-    // 🚫🚫🚫 ALL TRADING ENGINE ORDERS BLOCKED 🚫🚫🚫
-    console.log(`🚫🚫🚫 TRADING ENGINE ORDER BLOCKED: ${JSON.stringify(orderRequest)} 🚫🚫🚫`);
-    throw new Error('🚫 TRADING ENGINE DISABLED - No orders will be placed');
-    
-    // try {
-    //   // Validate order against settings
-    //   await this.validateOrder(orderRequest);
+    try {
+      // Validate order against settings
+      await this.validateOrder(orderRequest);
 
-    //   // Place order with Gemini
-    //   const geminiOrder = await this.geminiService.placeOrder(orderRequest);
+      // Place order with Gemini
+      const geminiOrder = await this.geminiService.placeOrder(orderRequest);
 
-    //   // Store order in database
-    //   const tradeOrder = await storage.createTradeOrder({
-    //     userId: this.userId,
-    //     geminiOrderId: geminiOrder.order_id,
-    //     symbol: orderRequest.symbol,
-    //     side: orderRequest.side,
-    //     orderType: orderRequest.type,
-    //     amount: orderRequest.amount,
-    //     price: orderRequest.price || '0',
-    //     status: 'pending',
-    //   });
+      // Store order in database
+      const tradeOrder = await storage.createTradeOrder({
+        userId: this.userId,
+        geminiOrderId: geminiOrder.order_id,
+        symbol: orderRequest.symbol,
+        side: orderRequest.side,
+        orderType: orderRequest.type,
+        amount: orderRequest.amount,
+        price: orderRequest.price || '0',
+        status: 'pending',
+      });
 
-    //   // Send Discord notification
-    //   if (this.discordService) {
-    //     await this.discordService.sendTradeNotification(
-    //       orderRequest.symbol,
-    //       orderRequest.side,
-    //       orderRequest.amount,
-    //       orderRequest.price || 'Market',
-    //       'pending'
-    //     );
-    //   }
+      console.log(`✅ Order placed: ${orderRequest.side} ${orderRequest.amount} ${orderRequest.symbol}`);
 
-    //   return tradeOrder;
-    // } catch (error) {
-    //   throw new Error(`Failed to place order: ${error}`);
-    // }
+      return tradeOrder;
+    } catch (error) {
+      console.error('Error placing order:', error);
+      throw error;
+    }
   }
 
   async cancelOrder(orderId: string): Promise<void> {
@@ -110,16 +98,8 @@ export class TradingEngine {
       // Update order status
       await storage.updateTradeOrder(orderId, { status: 'cancelled' });
 
-      // Send Discord notification
-      if (this.discordService) {
-        await this.discordService.sendTradeNotification(
-          order.symbol,
-          order.side,
-          order.amount,
-          order.price || 'Market',
-          'cancelled'
-        );
-      }
+      // Discord removed - clean API only
+      console.log(`✅ Order cancelled: ${order.symbol} ${order.side} ${order.amount}`);
     } catch (error) {
       throw new Error(`Failed to cancel order: ${error}`);
     }
@@ -223,16 +203,8 @@ export class TradingEngine {
             });
           }
 
-          // Send Discord notification
-          if (this.discordService) {
-            await this.discordService.sendTradeNotification(
-              order.symbol,
-              order.side,
-              geminiOrder.executed_amount || order.amount,
-              geminiOrder.avg_execution_price || order.price || 'Market',
-              newStatus
-            );
-          }
+          // Discord removed - clean API only
+          console.log(`✅ Order status updated: ${order.symbol} ${order.side} ${newStatus}`);
         }
       } catch (error) {
         console.error(`Error monitoring order ${order.id}:`, error);
@@ -333,29 +305,9 @@ export class TradingEngine {
   }
 
   private schedulePeriodicTasks(): void {
-    // Send portfolio updates to Discord every hour
-    cron.schedule('0 * * * *', async () => {
-      if (!this.discordService) return;
-
-      try {
-        const holdings = await storage.getPortfolioHoldings(this.userId);
-        const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.valueUSD || '0'), 0);
-        const activeTrades = await storage.getTradeOrders(this.userId, 'pending').then(orders => orders.length);
-        
-        // Calculate daily P&L (simplified)
-        const dailyPnL = '0'; // TODO: Implement proper daily P&L calculation
-
-        await this.discordService.sendPortfolioUpdate({
-          totalValue: totalValue.toFixed(2),
-          dailyPnL,
-          holdings,
-          activeTrades,
-        });
-      } catch (error) {
-        console.error('Error sending scheduled portfolio update:', error);
-      }
-    });
-
+    // Discord removed - clean API-only trading
+    console.log('📅 Trading monitoring active - no Discord notifications');
+    
     // Daily reset tasks at midnight
     cron.schedule('0 0 * * *', async () => {
       console.log('Performing daily reset tasks...');
