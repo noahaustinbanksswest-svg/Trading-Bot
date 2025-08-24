@@ -3380,12 +3380,22 @@ class DiscordTradingBot {
       console.error('❌ Failed to start Discord bot:', error);
       console.error('❌ Error details:', error.message);
       console.error('❌ Error stack:', error.stack);
+      
+      // EMERGENCY: Even if Discord fails, keep trading engine running
+      console.log('🚨 Discord failed but TRADING ENGINE CONTINUES RUNNING');
     }
   }
 }
 
 // Start the bot
 const bot = new DiscordTradingBot();
+
+// CRITICAL: Start trading monitoring IMMEDIATELY, independent of Discord
+console.log('🚀 EMERGENCY: Starting trading engine independent of Discord...');
+bot.startDailyTracking(); // This starts the auto trade monitoring
+bot.initializeRealTimeMonitoring(); // This starts balance/price streaming
+
+// Start Discord (may fail due to rate limits, but trading continues)
 bot.start();
 
 export default DiscordTradingBot;
