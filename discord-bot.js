@@ -3402,7 +3402,25 @@ class DiscordTradingBot {
       console.error('❌ Error details:', error.message);
       console.error('❌ Error stack:', error.stack);
       
-      // EMERGENCY: Even if Discord fails, keep trading engine running
+      // Handle rate limiting specifically
+      if (error.message.includes('sessions remaining')) {
+        const resetMatch = error.message.match(/resets at (.+)$/);
+        if (resetMatch) {
+          const resetTime = new Date(resetMatch[1]);
+          const waitTime = Math.max(0, resetTime.getTime() - Date.now());
+          console.log(`⏰ DISCORD RATE LIMITED - Resets in ${Math.ceil(waitTime / 1000 / 60 / 60)} hours`);
+          console.log(`🚨 TRADING ENGINE CONTINUES INDEPENDENTLY - Discord will retry automatically`);
+          
+          // Schedule retry after rate limit expires (max 24 hours)
+          if (waitTime > 0 && waitTime < 24 * 60 * 60 * 1000) {
+            setTimeout(() => {
+              console.log('🔄 Rate limit expired, retrying Discord connection...');
+              this.start().catch(err => console.log('🔄 Discord retry failed, will continue without Discord'));
+            }, waitTime + 10000); // Add 10 seconds buffer
+          }
+        }
+      }
+      
       console.log('🚨 Discord failed but TRADING ENGINE CONTINUES RUNNING');
     }
   }
