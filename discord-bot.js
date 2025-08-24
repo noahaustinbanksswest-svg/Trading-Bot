@@ -2745,7 +2745,25 @@ class DiscordTradingBot {
         cryptoValueReached: false,
         dailyBuyLimitReached: false
       };
+      
+      // Initialize conditions object if missing
+      if (!autoTradeSettings.conditions) {
+        autoTradeSettings.conditions = {
+          portfolioValueReached: false,
+          cryptoValueReached: false,
+          dailyBuyLimitReached: false
+        };
+      }
       console.log('✅ Auto trade settings fixed and enabled');
+    }
+    
+    // Ensure conditions object exists before any checks
+    if (!autoTradeSettings.conditions) {
+      autoTradeSettings.conditions = {
+        portfolioValueReached: false,
+        cryptoValueReached: false,
+        dailyBuyLimitReached: false
+      };
     }
     
     // Debug log to show monitoring is running
