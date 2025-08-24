@@ -1406,13 +1406,13 @@ class DiscordTradingBot {
         });
         
         if (validationResults.length > 0) {
-          console.log(`🔧 AUTO-CORRECTION DETECTED - ${validationResults.length} discrepancies found:`);
+          console.log(`🔧 AUTO-CORRECTION DETECTED - ${validationResults.length} discrepancies found (tolerance: $0.50):`);
           validationResults.forEach(result => {
             console.log(`   ❌ ${result.field}: Expected ${result.expected}, Found ${result.actual} (diff: ${result.difference})`);
           });
           console.log(`🛠️ Self-correcting embed with accurate live data...`);
         } else {
-          console.log(`✅ EMBED VALIDATION PASSED - All data accurate`);
+          console.log(`✅ EMBED VALIDATION PASSED - All data within tolerance`);
         }
       }
       
@@ -1685,11 +1685,11 @@ class DiscordTradingBot {
         
         // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Update for any meaningful change (>$0.01) or periodically every minute
+          // Update for significant changes (>$0.25) or periodically every 5 minutes
           const newPortfolioValue = this.calculateCurrentPortfolioValue();
           const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
-          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.01;
-          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every minute
+          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.25;
+          const shouldUpdateForTime = timeSinceLastUpdate > 300000; // Force update every 5 minutes
           
           if (shouldUpdateForChange || shouldUpdateForTime) {
             await this.updatePortfolioMessageFromRealTimeData();
@@ -1921,7 +1921,7 @@ class DiscordTradingBot {
           console.error(`❌ Dashboard reconnection failed:`, error.message);
         }
       }
-    }, 30000); // Backup sync every 30 seconds (much less frequent)
+    }, 120000); // Backup sync every 2 minutes to reduce bouncing
   }
 
   startKeepAlive() {
@@ -3297,7 +3297,7 @@ class DiscordTradingBot {
   // Validate embed data against fresh API data
   validateEmbedData(currentData, freshData) {
     const discrepancies = [];
-    const tolerance = 0.01; // $0.01 tolerance for minor price differences
+    const tolerance = 0.50; // $0.50 tolerance to prevent excessive bouncing
     
     try {
       // Validate total portfolio value
