@@ -196,32 +196,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Place new order
   app.post("/api/orders", async (req, res) => {
-    try {
-      const validatedData = insertTradeOrderSchema.parse(req.body);
-      const services = userServices.get(validatedData.userId);
-      
-      if (!services) {
-        return res.status(400).json({ error: "Trading services not initialized for user" });
-      }
-
-      const order = await services.trading.placeOrder({
-        symbol: validatedData.symbol,
-        amount: validatedData.amount,
-        price: validatedData.price || undefined,
-        side: validatedData.side as 'buy' | 'sell',
-        type: validatedData.orderType as any,
-      });
-
-      // Broadcast real-time update
-      broadcast({ type: 'new_order', data: order });
-      
-      res.json(order);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid data", details: error.errors });
-      }
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to place order" });
-    }
+    console.log(`🚫 API ORDER BLOCKED: Sales disabled by user`);
+    return res.status(403).json({ error: "Sales disabled by user - no trades allowed" });
   });
 
   // Cancel order

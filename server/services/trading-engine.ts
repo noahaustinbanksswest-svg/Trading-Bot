@@ -50,32 +50,9 @@ export class TradingEngine {
   }
 
   async placeOrder(orderRequest: GeminiOrderRequest): Promise<TradeOrder> {
-    try {
-      // Validate order against settings
-      await this.validateOrder(orderRequest);
-
-      // Place order with Gemini
-      const geminiOrder = await this.geminiService.placeOrder(orderRequest);
-
-      // Store order in database
-      const tradeOrder = await storage.createTradeOrder({
-        userId: this.userId,
-        geminiOrderId: geminiOrder.order_id,
-        symbol: orderRequest.symbol,
-        side: orderRequest.side,
-        orderType: orderRequest.type,
-        amount: orderRequest.amount,
-        price: orderRequest.price || '0',
-        status: 'pending',
-      });
-
-      console.log(`✅ Order placed: ${orderRequest.side} ${orderRequest.amount} ${orderRequest.symbol}`);
-
-      return tradeOrder;
-    } catch (error) {
-      console.error('Error placing order:', error);
-      throw error;
-    }
+    console.log(`🚫 API SALES DISABLED: Blocking ${orderRequest.side} order for ${orderRequest.amount} ${orderRequest.symbol}`);
+    console.log(`🚫 NO TRADES ALLOWED: Sales disabled by user request`);
+    throw new Error('Sales disabled by user - no trades will execute');
   }
 
   async cancelOrder(orderId: string): Promise<void> {
@@ -435,26 +412,9 @@ export class TradingEngine {
   }
 
   private async executeSwingTrade(currentSOLAmount: number, currentPrice: number): Promise<void> {
-    try {
-      const usdToSell = 1.00;
-      const solToSell = usdToSell / currentPrice;
-      
-      console.log(`💰 EXECUTING SWING TRADE: Selling $${usdToSell} worth (${solToSell.toFixed(8)} SOL)`);
-
-      const orderRequest: GeminiOrderRequest = {
-        symbol: 'solusd',
-        amount: solToSell.toFixed(8),
-        side: 'sell',
-        type: 'exchange market',
-      };
-
-      await this.placeOrder(orderRequest);
-      console.log(`✅ Swing trade executed successfully`);
-
-    } catch (error) {
-      console.error('Error executing swing trade:', error);
-      throw error;
-    }
+    console.log(`🚫 SALES DISABLED: Would have sold $1.00 worth (${(1.00 / currentPrice).toFixed(8)} SOL) but sales are disabled by user`);
+    console.log(`🚫 API SALES BLOCKED: No trades will execute`);
+    return; // Exit without executing any trades
   }
 
   private async loadTriggerFromFile(): Promise<void> {
