@@ -81,12 +81,6 @@ export class GeminiService {
       .update(encodedPayload)
       .digest('hex');
 
-    console.log('🔍 Gemini API Debug:');
-    console.log('Nonce:', nonce.toString());
-    console.log('Payload:', JSON.stringify(payloadWithDefaults));
-    console.log('Encoded Payload:', encodedPayload);
-    console.log('API Secret Length:', this.apiSecret.length);
-    console.log('Signature:', signature.substring(0, 16) + '...');
 
     return {
       'X-GEMINI-APIKEY': this.apiKey,
@@ -110,11 +104,12 @@ export class GeminiService {
   async getBalances(): Promise<GeminiBalance[]> {
     try {
       const endpoint = '/v1/balances';
-      const headers = this.generateHeaders(endpoint);
+      const payload = { account: 'primary' };
+      const headers = this.generateHeaders(endpoint, payload);
       
       const response: AxiosResponse<GeminiBalance[]> = await axios.post(
         `${this.baseUrl}${endpoint}`,
-        {},
+        Buffer.from(''),
         { headers }
       );
       
