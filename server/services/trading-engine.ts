@@ -34,14 +34,10 @@ export class TradingEngine {
       throw new Error('Trading engine is already running');
     }
 
-    console.log(`✅ Starting trading engine for user ${this.userId} - API access configured`);
-    this.isRunning = true;
+    console.log(`🚫 SALES DISABLED - Trading engine started in monitoring-only mode`);
+    this.isRunning = false; // Keep sales disabled
 
-    // Skip initial API calls - start monitoring without validation
-    console.log(`✅ Trading engine started successfully`);
-    
-    // Schedule periodic tasks
-    this.schedulePeriodicTasks();
+    console.log(`🚫 All trading operations STOPPED by user request`);
   }
 
   async stop(): Promise<void> {
