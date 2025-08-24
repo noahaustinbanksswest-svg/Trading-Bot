@@ -2665,13 +2665,13 @@ class DiscordTradingBot {
       const { writeFileSync } = await import('fs');
       const triggerData = {
         baseline: this.baselineValue,
-        trigger: this.baselineValue + 1.00,
+        trigger: this.savedTriggerValue || (this.baselineValue + 1.00),
         timestamp: Date.now()
       };
       writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
-      console.log(`💾 BASELINE SAVED: $${this.baselineValue.toFixed(2)}`);
+      console.log(`💾 TRIGGER SAVED: Baseline $${this.baselineValue.toFixed(2)}, Trigger $${triggerData.trigger.toFixed(2)}`);
     } catch (error) {
-      console.error('Error saving baseline:', error.message);
+      console.error('Error saving trigger:', error.message);
     }
   }
 
@@ -2680,8 +2680,9 @@ class DiscordTradingBot {
       const { readFileSync, existsSync } = await import('fs');
       if (existsSync('trigger.json')) {
         const triggerData = JSON.parse(readFileSync('trigger.json', 'utf8'));
+        this.savedTriggerValue = triggerData.trigger;
         this.lastTriggerTarget = triggerData.trigger;
-        console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
+        console.log(`📂 TRIGGER LOADED: $${this.savedTriggerValue.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
         return triggerData; // FIXED: Return the actual data object
       }
       return null;
@@ -2996,9 +2997,11 @@ class DiscordTradingBot {
           const freshPortfolioData = await this.getPortfolioData();
           const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
           if (solHolding) {
-            const newTrigger = parseFloat((solHolding.value + 1.00).toFixed(2));
-            this.lastTriggerTarget = newTrigger; // RESET TRIGGER AFTER SUCCESSFUL TRADE
-            console.log(`🔄 TRIGGER RESET AFTER TRADE: $${newTrigger.toFixed(2)} (post-trade portfolio: $${solHolding.value.toFixed(2)})`);
+            // CRITICAL: Update both baseline and trigger after successful trade
+            this.baselineValue = parseFloat(solHolding.value.toFixed(2));
+            this.savedTriggerValue = parseFloat((solHolding.value + 1.00).toFixed(2));
+            this.lastTriggerTarget = this.savedTriggerValue;
+            console.log(`🔄 TRIGGER RESET AFTER TRADE: New baseline $${this.baselineValue.toFixed(2)}, New trigger $${this.savedTriggerValue.toFixed(2)}`);
             await this.saveTriggerToFile();
           }
         }
