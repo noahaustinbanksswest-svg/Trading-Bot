@@ -129,10 +129,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get portfolio holdings
+  // Get portfolio holdings with real-time Gemini API data
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
-      const holdings = await storage.getPortfolioHoldings(req.params.userId);
+      const services = userServices.get(req.params.userId);
+      
+      if (!services?.gemini) {
+        // Fallback to database if Gemini not available
+        const holdings = await storage.getPortfolioHoldings(req.params.userId);
+        const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
+        
+        return res.json({
+          holdings,
+          totalValue: totalValue.toFixed(2),
+        });
+      }
+
+      // Get real-time data from Gemini API
+      const balances = await services.gemini.getBalances();
+      const holdings = [];
+      
+      for (const balance of balances) {
+        if (balance.currency !== 'USD' && parseFloat(balance.amount) > 0) {
+          const symbol = `${balance.currency.toLowerCase()}usd`;
+          
+          try {
+            const ticker = await services.gemini.getTicker(symbol);
+            const currentPrice = parseFloat(ticker.last);
+            const amount = parseFloat(balance.amount);
+            const valueUSD = amount * currentPrice;
+            
+            // Update database with fresh data
+            const existingHolding = await storage.getPortfolioHoldings(req.params.userId)
+              .then(holdings => holdings.find(h => h.symbol === symbol));
+
+            if (existingHolding) {
+              await storage.updatePortfolioHolding(req.params.userId, symbol, {
+                amount: amount.toString(),
+                currentPrice: currentPrice.toString(),
+                valueUSD: valueUSD.toString(),
+              });
+            } else {
+              await storage.createPortfolioHolding({
+                userId: req.params.userId,
+                symbol,
+                amount: amount.toString(),
+                avgPrice: null,
+                currentPrice: currentPrice.toString(),
+                valueUSD: valueUSD.toString(),
+              });
+            }
+
+            holdings.push({
+              id: existingHolding?.id || `new-${symbol}`,
+              userId: req.params.userId,
+              symbol,
+              amount: amount.toString(),
+              avgPrice: null,
+              currentPrice: currentPrice.toString(),
+              valueUSD: valueUSD.toFixed(2),
+              lastUpdated: new Date().toISOString(),
+            });
+          } catch (tickerError) {
+            console.error(`Failed to get ticker for ${symbol}:`, tickerError);
+          }
+        }
+      }
+
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
       res.json({
@@ -140,6 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalValue: totalValue.toFixed(2),
       });
     } catch (error) {
+      console.error("Portfolio API error:", error);
       res.status(500).json({ error: "Failed to get portfolio" });
     }
   });
@@ -233,7 +297,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // await tradingEngine.start();
       
       // Create dummy disabled trading engine for compatibility
-      const tradingEngine = { start: async () => {}, stop: async () => {} };
+      const tradingEngine = { 
+        start: async () => {}, 
+        stop: async () => {},
+        placeOrder: async () => { throw new Error("Trading disabled for security"); },
+        cancelOrder: async () => { throw new Error("Trading disabled for security"); },
+        userId: user.id,
+        geminiService: geminiService,
+        isRunning: false
+      } as any;
 
       // 🛡️ CRITICAL FIX: Stop any existing independent trading engine first
       const existingServices = userServices.get(user.id);
