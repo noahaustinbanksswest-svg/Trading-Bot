@@ -588,6 +588,7 @@ class DiscordTradingBot {
     this.priceHistory = []; // Clear price history cache
     this.realTimeBalances = new Map(); // Clear balance cache
     this.livePrices = new Map(); // Clear price cache
+    this.lastKnownSOLAmount = null; // Track SOL amount to detect buy orders
     console.log(`🔥 CONSTRUCTOR: All caches cleared, smart baseline tracking initialized`);
     
     // Real-time data storage
@@ -2846,6 +2847,26 @@ class DiscordTradingBot {
           
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
+          const currentSOLAmount = cryptoHolding.amount;
+          
+          // CRITICAL: Detect buy orders to prevent false triggers
+          if (this.lastKnownSOLAmount && currentSOLAmount > this.lastKnownSOLAmount) {
+            const solIncrease = currentSOLAmount - this.lastKnownSOLAmount;
+            console.log(`🛒 BUY ORDER DETECTED: SOL increased by ${solIncrease.toFixed(8)} (${this.lastKnownSOLAmount.toFixed(8)} → ${currentSOLAmount.toFixed(8)})`);
+            
+            // Update baseline to current portfolio value to prevent false sell
+            this.baselineValue = currentPortfolioValue;
+            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            await this.saveTriggerToFile();
+            console.log(`🔄 BASELINE UPDATED DUE TO PURCHASE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+            
+            // Store current SOL amount for next comparison
+            this.lastKnownSOLAmount = currentSOLAmount;
+            return false; // Skip trading this cycle
+          }
+          
+          // Store current SOL amount for buy detection
+          this.lastKnownSOLAmount = currentSOLAmount;
           
           // FORCE CLEAR VALUES AND LOAD FROM FILE ON EVERY SESSION
           console.log(`🔍 DEBUG: Before init - savedTriggerValue: ${this.savedTriggerValue}, baselineValue: ${this.baselineValue}`);
