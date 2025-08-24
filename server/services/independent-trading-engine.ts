@@ -23,7 +23,7 @@ export class IndependentTradingEngine {
   // Trading settings (loaded from autoTradeSettings)
   private selectedCrypto: string = 'SOL';
   private stopAtLoss: number = 1.5; // Base protection amount
-  private enabled: boolean = false; // DISABLED until Gemini credentials fixed
+  private enabled: boolean = true; // ENABLED - Gemini credentials working
 
   constructor(userId: string, geminiService: GeminiService) {
     this.userId = userId;

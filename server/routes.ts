@@ -229,11 +229,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Gemini API credentials not configured" });
       }
 
-      // Initialize Gemini service - Force production mode for real trading
+      // Initialize Gemini service - Try production credentials first
       const geminiService = new GeminiService(
         user.geminiApiKey,
         user.geminiApiSecret,
-        false // Use production API for real trading
+        false // Try production API first
       );
 
       // Test Gemini connection
