@@ -2883,8 +2883,16 @@ class DiscordTradingBot {
       try {
         console.log(`💰 Placing $1 USD sell order: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} on ${symbol}`);
         
-        // Execute actual sell order via Gemini API for exactly $1 USD worth
-        const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
+        // DISCORD BOT = VISUALS ONLY - Independent engine handles real trades
+        console.log(`🎭 DISCORD SIMULATION ONLY: Would sell ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} for $1 USD`);
+        console.log(`🤖 Real trading handled by independent server-side engine`);
+        const order = { 
+          order_id: `discord-visual-${Date.now()}`, 
+          symbol: symbol, 
+          amount: solAmountFor1USD.toString(),
+          status: 'visual-only',
+          note: 'Discord bot is for monitoring only - real trades via independent engine'
+        };
         
         // CRITICAL: Record trade time for cooldown 
         this.lastTradeTime = Date.now();

@@ -92,8 +92,8 @@ export class IndependentTradingEngine {
   }
 
   /**
-   * EXACT SAME LOGIC as Discord bot's checkSwingTradingConditions
-   * Implements the same baseline + $1 trigger system
+   * ONLY REAL TRADING ENGINE - Discord is visual only
+   * Implements the same baseline + $1 trigger system with proper sale limiting
    */
   private async checkSwingTradingConditions(): Promise<boolean> {
     try {
@@ -101,9 +101,16 @@ export class IndependentTradingEngine {
         return false;
       }
 
-      // Check trading lock (prevent multiple simultaneous trades)
+      // Check trading lock (prevent multiple simultaneous trades - CRITICAL FOR SINGLE SALE LIMIT)
       if (this.tradingLock) {
-        console.log('🔒 Trading locked - skipping swing check');
+        console.log('🔒 Trading locked - skipping swing check (preventing multiple sales)');
+        return false;
+      }
+
+      // Additional safety: Check if recent trade happened (30 second cooldown)
+      const timeSinceLastTrade = Date.now() - this.lastTradeTime;
+      if (timeSinceLastTrade < 30000) {
+        console.log(`⏳ Trade cooldown active: ${Math.ceil((30000 - timeSinceLastTrade) / 1000)}s remaining`);
         return false;
       }
 
