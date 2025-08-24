@@ -341,7 +341,8 @@ export class IndependentTradingEngine {
           symbol: symbol,
           amount: cryptoAmountFor1USD.toString(),
           side: 'sell',
-          type: 'exchange market'
+          type: 'market',
+          account: 'primary'
         });
 
         // Record trade time for cooldown
