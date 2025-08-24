@@ -273,17 +273,9 @@ export class IndependentTradingEngine {
         }
       }
 
-      // 🛡️ PROTECTION LAYER 3: Cooldown check (prevent rapid trades)
-      const TRADE_COOLDOWN = 60000; // 1 minute
-      const timeSinceLastTrade = Date.now() - this.lastTradeTime;
-      if (timeSinceLastTrade < TRADE_COOLDOWN) {
-        console.log(`🛑 PROTECTION LAYER 3 BLOCKED: Trade cooldown ${Math.round((TRADE_COOLDOWN - timeSinceLastTrade) / 1000)}s remaining`);
-        return;
-      }
-
-      // 🛡️ PROTECTION LAYER 4: Double-check engine state
+      // 🛡️ PROTECTION LAYER 3: Double-check engine state
       if (!this.isRunning || !this.enabled) {
-        console.log(`🛑 PROTECTION LAYER 4 BLOCKED: Engine not running (${this.isRunning}) or disabled (${!this.enabled})`);
+        console.log(`🛑 PROTECTION LAYER 3 BLOCKED: Engine not running (${this.isRunning}) or disabled (${!this.enabled})`);
         return;
       }
 
