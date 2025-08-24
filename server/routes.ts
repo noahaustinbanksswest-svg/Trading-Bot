@@ -236,12 +236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         false // Try production API first
       );
 
-      // Test Gemini connection
-      try {
-        // await geminiService.heartbeat(); // Skip heartbeat for now, use API directly
-      } catch (error) {
-        return res.status(400).json({ error: "Invalid Gemini API credentials" });
-      }
+      // Skip connection test for now - use API directly
 
       // Initialize Discord service if configured
       let discordService: DiscordBotService | undefined;
