@@ -3038,27 +3038,11 @@ class DiscordTradingBot {
         }
       }
       
+      // 🚫 DISCORD BOT NO LONGER EXECUTES TRADES - ONLY MONITORING
       if (shouldExecuteTrade) {
-        console.log(`🚨 EXECUTING TRADE: ${reason}`);
-        
-        // IMMEDIATE BASELINE UPDATE to prevent double trades
-        this.baselineValue = currentPortfolioValue;
-        this.savedTriggerValue = currentPortfolioValue + 1.00;
-        await this.saveTriggerToFile();
-        console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)} to prevent duplicate trades`);
-        
-        await this.executeAutoTrade(reason);
-        
-        // Update trigger AFTER successful trade execution
-        const freshPortfolioData = await this.getPortfolioData();
-        const solHolding = freshPortfolioData.holdings.find(h => h.currency === 'SOL');
-        if (solHolding) {
-          this.baselineValue = parseFloat(solHolding.value.toFixed(2));
-          this.savedTriggerValue = parseFloat((solHolding.value + 1.00).toFixed(2));
-          await this.saveTriggerToFile();
-          console.log(`🔄 FINAL BASELINE: $${this.baselineValue.toFixed(2)}, Next trigger: $${this.savedTriggerValue.toFixed(2)}`);
-        }
-        
+        console.log(`📊 DISCORD MONITORING: Would execute trade but TRADING DISABLED in Discord bot`);
+        console.log(`🎯 Server trading engine handles all trades - Discord is for visuals only`);
+        console.log(`📈 Trade condition: ${reason}`);
       } else {
         console.log(`⏸️ NO TRADE: Conditions not met yet`);
       }
