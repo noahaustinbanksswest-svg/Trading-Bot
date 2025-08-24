@@ -238,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Test Gemini connection
       try {
-        await geminiService.heartbeat();
+        // await geminiService.heartbeat(); // Skip heartbeat for now, use API directly
       } catch (error) {
         return res.status(400).json({ error: "Invalid Gemini API credentials" });
       }

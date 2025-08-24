@@ -202,16 +202,17 @@ export class GeminiService {
 
   async heartbeat(): Promise<{ result: string }> {
     try {
-      // Use balances endpoint as heartbeat - it validates API credentials
-      const endpoint = '/v1/balances';
-      const headers = this.generateHeaders(endpoint);
+      // Use notional volume endpoint as heartbeat with account parameter
+      const endpoint = '/v1/notionalvolume';
+      const payload = { account: 'primary' };
+      const headers = this.generateHeaders(endpoint, payload);
       
       console.log('🔍 Testing Gemini API connection...');
       console.log('🌐 Base URL:', this.baseUrl);
       console.log('📡 Endpoint:', endpoint);
       console.log('🔑 API Key:', this.apiKey.substring(0, 8) + '...');
       
-      const response: AxiosResponse<any[]> = await axios.post(
+      const response: AxiosResponse<any> = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
         { headers }
