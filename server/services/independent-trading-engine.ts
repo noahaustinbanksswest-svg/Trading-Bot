@@ -248,21 +248,53 @@ export class IndependentTradingEngine {
   }
 
   /**
-   * Execute $1 USD trade (exact same logic as Discord bot)
+   * Execute $1 USD trade with BULLETPROOF single-trade protection
    */
   private async executeAutoTrade(reason: string): Promise<void> {
+    const globalLockFile = path.join(process.cwd(), 'trading-lock.json');
+    
     try {
-      // Check cooldown (prevent rapid trades)
-      const TRADE_COOLDOWN = 60000; // 1 minute
-      const timeSinceLastTrade = Date.now() - this.lastTradeTime;
-      if (timeSinceLastTrade < TRADE_COOLDOWN) {
-        console.log(`⏸️ TRADE COOLDOWN: ${Math.round((TRADE_COOLDOWN - timeSinceLastTrade) / 1000)}s remaining`);
+      // 🛡️ PROTECTION LAYER 1: Trading lock check (in-memory)
+      if (this.tradingLock) {
+        console.log(`🛑 PROTECTION LAYER 1 BLOCKED: Trading already locked in memory`);
         return;
       }
 
-      // Engage trading lock
+      // 🛡️ PROTECTION LAYER 2: File-based global trading lock
+      if (fs.existsSync(globalLockFile)) {
+        const lockData = JSON.parse(fs.readFileSync(globalLockFile, 'utf8'));
+        const lockAge = Date.now() - lockData.timestamp;
+        if (lockAge < 120000) { // 2 minute max lock duration
+          console.log(`🛑 PROTECTION LAYER 2 BLOCKED: Global trading lock active (${Math.round(lockAge/1000)}s old)`);
+          return;
+        } else {
+          console.log(`🧹 Cleaning up stale global lock (${Math.round(lockAge/1000)}s old)`);
+          fs.unlinkSync(globalLockFile);
+        }
+      }
+
+      // 🛡️ PROTECTION LAYER 3: Cooldown check (prevent rapid trades)
+      const TRADE_COOLDOWN = 60000; // 1 minute
+      const timeSinceLastTrade = Date.now() - this.lastTradeTime;
+      if (timeSinceLastTrade < TRADE_COOLDOWN) {
+        console.log(`🛑 PROTECTION LAYER 3 BLOCKED: Trade cooldown ${Math.round((TRADE_COOLDOWN - timeSinceLastTrade) / 1000)}s remaining`);
+        return;
+      }
+
+      // 🛡️ PROTECTION LAYER 4: Double-check engine state
+      if (!this.isRunning || !this.enabled) {
+        console.log(`🛑 PROTECTION LAYER 4 BLOCKED: Engine not running (${this.isRunning}) or disabled (${!this.enabled})`);
+        return;
+      }
+
+      // 🔒 ENGAGE ALL LOCKS ATOMICALLY
       this.tradingLock = true;
-      console.log(`🔒 Trading lock ENGAGED`);
+      fs.writeFileSync(globalLockFile, JSON.stringify({ 
+        timestamp: Date.now(), 
+        userId: this.userId,
+        reason: 'Single trade protection'
+      }));
+      console.log(`🔒 ALL PROTECTION LAYERS ENGAGED - Single trade protection active`);
 
       console.log(`💰 Executing $1 USD Auto Trade: Selling $1.00 worth of ${this.selectedCrypto}`);
 
@@ -286,7 +318,12 @@ export class IndependentTradingEngine {
       // Skip very small amounts
       if (cryptoAmountFor1USD < 0.000001) {
         console.log(`⏭️ Skipping: $1 USD amount too small (${cryptoAmountFor1USD.toFixed(8)} ${this.selectedCrypto})`);
+        // 🔓 RELEASE ALL LOCKS when skipping
         this.tradingLock = false;
+        if (fs.existsSync(globalLockFile)) {
+          fs.unlinkSync(globalLockFile);
+        }
+        console.log(`🔓 ALL LOCKS RELEASED (skipped small amount)`);
         return;
       }
 
@@ -315,18 +352,34 @@ export class IndependentTradingEngine {
 
       } catch (error) {
         console.error(`❌ Failed to execute $1 USD sell order:`, error instanceof Error ? error.message : error);
+        // 🔓 RELEASE ALL LOCKS on error
         this.tradingLock = false;
+        if (fs.existsSync(globalLockFile)) {
+          fs.unlinkSync(globalLockFile);
+        }
+        console.log(`🔓 ALL LOCKS RELEASED due to trade error`);
         return;
       }
 
-      // Release trading lock
+      // 🔓 RELEASE ALL LOCKS after successful trade
       this.tradingLock = false;
-      console.log(`🔓 Trading lock RELEASED after successful trade`);
+      if (fs.existsSync(globalLockFile)) {
+        fs.unlinkSync(globalLockFile);
+      }
+      console.log(`🔓 ALL LOCKS RELEASED after successful trade`);
 
     } catch (error) {
       console.error('Error executing auto trade:', error instanceof Error ? error.message : error);
+      // 🔓 EMERGENCY RELEASE ALL LOCKS
       this.tradingLock = false;
-      console.log(`🔓 Trading lock RELEASED due to error`);
+      try {
+        if (fs.existsSync(globalLockFile)) {
+          fs.unlinkSync(globalLockFile);
+        }
+      } catch (unlinkError) {
+        console.error('Failed to release global lock:', unlinkError);
+      }
+      console.log(`🔓 EMERGENCY LOCK RELEASE due to error`);
     }
   }
 
