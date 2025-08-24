@@ -2862,6 +2862,23 @@ class DiscordTradingBot {
             
             // Store current SOL amount for next comparison
             this.lastKnownSOLAmount = currentSOLAmount;
+            
+            // FORCE complete reset of trigger system
+            this.triggerInitializedThisSession = false;
+            return false; // Skip trading this cycle
+          }
+          
+          // CRITICAL: Also detect large portfolio jumps even without SOL tracking
+          if (this.baselineValue && currentPortfolioValue > this.baselineValue + 5.00) {
+            console.log(`🛒 LARGE PORTFOLIO INCREASE DETECTED: $${currentPortfolioValue.toFixed(2)} vs baseline $${this.baselineValue.toFixed(2)} - Likely purchase`);
+            
+            // Update baseline to current portfolio value
+            this.baselineValue = currentPortfolioValue;
+            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            await this.saveTriggerToFile();
+            console.log(`🔄 BASELINE UPDATED DUE TO LARGE INCREASE: New baseline $${this.baselineValue.toFixed(2)}, Next trigger $${this.savedTriggerValue.toFixed(2)}`);
+            
+            this.triggerInitializedThisSession = false;
             return false; // Skip trading this cycle
           }
           
