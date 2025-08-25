@@ -52,6 +52,7 @@ export interface GeminiOrderRequest {
   side: 'buy' | 'sell';
   type: 'exchange limit' | 'exchange market' | 'exchange stop' | 'exchange stop limit';
   options?: string[];
+  account?: string;
 }
 
 export class GeminiService {

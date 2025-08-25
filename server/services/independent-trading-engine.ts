@@ -337,11 +337,18 @@ export class IndependentTradingEngine {
       try {
         console.log(`💰 Placing ${actualUsdValue >= 1.00 ? '$' + actualUsdValue.toFixed(2) : '$1+'} sell order: ${cryptoAmountFor1USD.toFixed(8)} ${this.selectedCrypto} on ${symbol}`);
         
+        // Get current price for aggressive limit order
+        const ticker = await this.geminiService.getTicker(symbol);
+        const currentPrice = parseFloat(ticker.last);
+        const aggressivePrice = currentPrice * 0.95; // 5% below market for immediate fill
+        
         const order = await this.geminiService.placeOrder({
           symbol: symbol,
           amount: cryptoAmountFor1USD.toString(),
           side: 'sell',
-          type: 'market',
+          type: 'exchange limit',
+          price: aggressivePrice.toFixed(2),
+          options: ['immediate-or-cancel'],
           account: 'primary'
         });
 

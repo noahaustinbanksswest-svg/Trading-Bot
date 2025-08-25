@@ -2037,40 +2037,78 @@ class DiscordTradingBot {
   }
 
   async getPortfolioData() {
+    try {
+      // Get portfolio data from Web API instead of directly from Gemini
+      const response = await fetch('http://localhost:5000/api/portfolio/user-1');
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+      const apiData = await response.json();
+      
+      let totalValue = parseFloat(apiData.totalValue);
+      let usdBalance = 0;
+      let holdings = [];
+      // Process API data
+      for (const holding of apiData.holdings) {
+        if (holding.symbol === 'lptusd') {
+          // Skip LPT holdings that are too small
+          continue;
+        }
+        if (holding.symbol === 'solusd') {
+          holdings.push({
+            currency: 'SOL',
+            amount: parseFloat(holding.amount),
+            currentPrice: parseFloat(holding.currentPrice),
+            value: parseFloat(holding.valueUSD),
+            change: 0 // API doesn't provide 24h change yet
+          });
+        }
+      }
+      
+      // Get trading status from API
+      const tradingResponse = await fetch('http://localhost:5000/api/independent-trading/status/user-1');
+      const tradingStatus = await tradingResponse.json();
+      
+      console.log(`💵 Portfolio loaded from API: $${totalValue.toFixed(2)}`);
+      console.log(`   Trading Status: ${tradingStatus.running ? 'ACTIVE' : 'INACTIVE'}`);
+
+      return {
+        totalValue: totalValue,
+        usdBalance: usdBalance,
+        holdings: holdings,
+        tradingStatus: tradingStatus
+      };
+    } catch (error) {
+      console.error('Error fetching portfolio from API:', error);
+      throw error;
+    }
+  }
+
+  // Old direct Gemini method - kept as backup
+  async getPortfolioDataDirect() {
     let totalValue = 0;
     let usdBalance = 0;
     let holdings = [];
 
     try {
-      // Get portfolio data
+      // Direct Gemini API call
       const balances = await this.gemini.getBalances();
       const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
       const usdBalanceData = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
 
-      // Use available USD balance instead of total amount (which can be negative due to margin)
       const totalUsdAmount = parseFloat(usdBalanceData.amount);
       const availableUsdAmount = parseFloat(usdBalanceData.available || '0.00');
-      // Use precise truncation to 2 decimal places (no rounding up)
       usdBalance = Math.floor(availableUsdAmount * 100) / 100;
-      totalValue = usdBalance; // Start total with corrected USD balance
-      
-      console.log(`💵 USD Balance Analysis:`);
-      console.log(`   Total USD Amount: $${totalUsdAmount.toFixed(2)} (includes margin/borrowed)`);
-      console.log(`   Available USD: $${availableUsdAmount.toFixed(2)} (actual usable balance)`);
-      console.log(`   Displayed USD: $${usdBalance.toFixed(2)}`);
+      totalValue = usdBalance;
 
-      // Get current prices and calculate portfolio value
       for (const balance of cryptoBalances) {
         try {
-          // Fix symbol format for Gemini API  
           const symbol = `${balance.currency.toUpperCase()}USD`;
-          console.log(`🔍 Trying uppercase symbol: ${symbol}`);
           const ticker = await this.gemini.getTicker(symbol);
           const currentPrice = parseFloat(ticker.last);
           const amount = parseFloat(balance.amount);
           const value = amount * currentPrice;
           const change = ticker.changes ? parseFloat(ticker.changes[0]) : 0;
-          // Truncate crypto value before adding to total (consistent with USD truncation)
           const truncatedValue = Math.floor(value * 100) / 100;
           totalValue += truncatedValue;
 
