@@ -176,11 +176,11 @@ class GeminiAPI {
   }
 
   generateHeaders(endpoint, payload = {}) {
-    // Use current timestamp in seconds (not milliseconds) for better Gemini compatibility
-    const nonce = Math.floor(Date.now() / 1000).toString();
+    // Use microsecond precision nonce with random component to prevent conflicts
+    const nonce = Date.now() * 1000 + Math.floor(Math.random() * 1000);
     const payloadWithDefaults = {
       request: endpoint,
-      nonce: nonce,
+      nonce: nonce.toString(),
       ...payload
     };
 
