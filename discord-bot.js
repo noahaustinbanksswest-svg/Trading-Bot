@@ -367,7 +367,7 @@ class GeminiAPI {
       }
       
       const endpoint = '/v1/order/new';
-      const nonce = Math.floor(Date.now() / 1000).toString();
+      const nonce = (Date.now() * 1000 + Math.floor(Math.random() * 1000)).toString();
       
       // Proper Gemini API payload format with required fields
       const payload = {
