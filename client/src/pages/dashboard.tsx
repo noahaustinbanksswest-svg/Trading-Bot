@@ -21,23 +21,18 @@ export default function Dashboard() {
   // WebSocket for real-time updates
   const { isConnected, sendMessage } = useWebSocket();
 
-  // Queries with correct endpoint paths
-  const { data: portfolio, refetch: refetchPortfolio, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: [`/api/portfolio/${MOCK_USER_ID}`],
-    refetchInterval: 2000, // Refresh every 2 seconds for real-time
+  // Queries
+  const { data: portfolio, refetch: refetchPortfolio } = useQuery({
+    queryKey: ['/api/portfolio', MOCK_USER_ID],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const { data: orders, refetch: refetchOrders } = useQuery({
-    queryKey: [`/api/orders/${MOCK_USER_ID}`],
+    queryKey: ['/api/orders', MOCK_USER_ID],
   });
 
   const { data: tradingSettings } = useQuery({
-    queryKey: [`/api/trading-settings/${MOCK_USER_ID}`],
-  });
-
-  const { data: triggerStatus } = useQuery({
-    queryKey: [`/api/independent-trading/status/${MOCK_USER_ID}`],
-    refetchInterval: 2000, // Real-time trigger updates
+    queryKey: ['/api/trading-settings', MOCK_USER_ID],
   });
 
   const activeTrades = (orders as any[])?.filter((order: any) => order.status === 'pending')?.length || 0;
@@ -132,16 +127,16 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-sm">Total Balance</p>
                   <p className="text-2xl font-bold text-white">
-                    {portfolioLoading ? 'Loading...' : portfolioError ? 'Error' : `$${(portfolio as any)?.totalValue || '0.00'}`}
+                    ${(portfolio as any)?.totalValue || '0.00'}
                   </p>
                 </div>
                 <Wallet className="w-8 h-8 text-primary" />
               </div>
               <div className="mt-2 flex items-center">
                 <Badge variant="outline" className="text-success border-success">
-                  Live
+                  +5.8%
                 </Badge>
-                <span className="text-gray-400 text-sm ml-2">Real-time</span>
+                <span className="text-gray-400 text-sm ml-2">24h</span>
               </div>
             </CardContent>
           </Card>
@@ -195,98 +190,10 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Portfolio Overview with Trigger Info */}
-        <div className="mb-8">
-          <Card className="bg-surface border-gray-700" data-testid="portfolio-overview">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-white">Portfolio Overview</h3>
-                <Badge variant="outline" className="text-primary border-primary">
-                  {(triggerStatus as any)?.running ? 'Trading Active' : 'Trading Inactive'}
-                </Badge>
-              </div>
-              
-              {/* Holdings */}
-              {portfolioLoading ? (
-                <div className="text-center py-8">
-                  <div className="text-gray-400">Loading portfolio...</div>
-                </div>
-              ) : portfolioError ? (
-                <div className="text-center py-8">
-                  <div className="text-red-400">Error loading portfolio: {String(portfolioError)}</div>
-                  <Button onClick={() => refetchPortfolio()} className="mt-4 bg-primary">
-                    Retry
-                  </Button>
-                </div>
-              ) : (portfolio as any)?.holdings?.map((holding: any) => (
-                <div key={holding.id} className="flex items-center justify-between p-4 bg-surfaceLight rounded-lg mb-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">
-                        {holding.symbol.replace('usd', '').toUpperCase().slice(0, 3)}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">
-                        {holding.symbol.replace('usd', '').toUpperCase()}
-                      </p>
-                      <p className="text-gray-400 text-sm">
-                        {parseFloat(holding.amount).toFixed(8)} {holding.symbol.replace('usd', '').toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-medium">${holding.valueUSD}</p>
-                    <p className="text-gray-400 text-sm">${holding.currentPrice}</p>
-                  </div>
-                </div>
-              ))}
-
-              {/* SOL Trigger Information */}
-              {(portfolio as any)?.holdings?.some((h: any) => h.symbol === 'solusd') && (
-                <div className="mt-6 p-4 bg-primary/10 border border-primary/20 rounded-lg">
-                  <h4 className="text-primary font-semibold mb-3">SOL Trading Trigger</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-gray-400 text-sm">Current SOL</p>
-                      <p className="text-white font-medium">
-                        {((portfolio as any)?.holdings?.find((h: any) => h.symbol === 'solusd')?.amount || 0)} SOL
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">SOL Value</p>
-                      <p className="text-white font-medium">
-                        ${((portfolio as any)?.holdings?.find((h: any) => h.symbol === 'solusd')?.valueUSD || '0.00')}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Baseline</p>
-                      <p className="text-white font-medium">
-                        ${(triggerStatus as any)?.triggerInfo?.baseline?.toFixed(2) || '0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Next Trigger</p>
-                      <p className="text-success font-medium">
-                        ${(triggerStatus as any)?.triggerInfo?.trigger?.toFixed(2) || '0.00'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-3 bg-success/10 border border-success/20 rounded">
-                    <p className="text-success text-sm">
-                      🎯 Next $1 sale when portfolio reaches ${(triggerStatus as any)?.triggerInfo?.trigger?.toFixed(2) || '0.00'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Trading Controls */}
+        {/* Portfolio and Trading Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <TradingControls userId={MOCK_USER_ID} compact />
           <PortfolioHoldings userId={MOCK_USER_ID} compact />
+          <TradingControls userId={MOCK_USER_ID} compact />
         </div>
 
         {/* Discord Bot Configuration */}

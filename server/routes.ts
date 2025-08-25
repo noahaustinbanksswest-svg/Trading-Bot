@@ -5,7 +5,6 @@ import { storage } from "./storage";
 import { GeminiService } from "./services/gemini";
 import { DiscordBotService } from "./services/discord-bot";
 import { TradingEngine } from "./services/trading-engine";
-import { IndependentTradingEngine } from "./services/independent-trading-engine";
 import { insertTradingSettingsSchema, insertTradeOrderSchema, botSettings, botStatus } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
@@ -16,62 +15,10 @@ const userServices = new Map<string, {
   gemini: GeminiService;
   discord?: DiscordBotService;
   trading: TradingEngine;
-  independentTrading?: IndependentTradingEngine;
 }>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
-
-  // Auto-initialize trading services for web dashboard on startup
-  async function autoInitializeServices() {
-    try {
-      console.log('🚀 Auto-initializing trading services for web dashboard...');
-      
-      const user = await storage.getUser('user-1');
-      if (user && user.geminiApiKey && user.geminiApiSecret) {
-        console.log('✅ Found user-1 with API credentials, initializing services...');
-        
-        // Initialize Gemini service
-        const geminiService = new GeminiService(
-          user.geminiApiKey,
-          user.geminiApiSecret,
-          false // Use production API
-        );
-
-        // Initialize independent trading engine for continuous operation
-        const independentTradingEngine = new IndependentTradingEngine(user.id, geminiService);
-
-        // Store services for web dashboard
-        userServices.set(user.id, {
-          gemini: geminiService,
-          discord: undefined, // Discord may be down, engine works independently
-          trading: { 
-            start: async () => {}, 
-            stop: async () => {},
-            placeOrder: async () => { throw new Error("Trading disabled for security"); },
-            cancelOrder: async () => { throw new Error("Trading disabled for security"); },
-            userId: user.id,
-            geminiService: geminiService,
-            isRunning: false
-          } as any,
-          independentTrading: independentTradingEngine,
-        });
-
-        // AUTO-START the trading engine for immediate baseline/trigger display
-        console.log('🚀 Auto-starting independent trading engine for continuous operation...');
-        await independentTradingEngine.start();
-        console.log('✅ Independent trading engine auto-started - baseline/trigger now active');
-
-        console.log('✅ Trading services auto-initialized for web dashboard');
-        console.log('🌐 Web interface will now show live updates even when Discord is down');
-      } else {
-        console.log('⚠️ User-1 not found or missing API credentials - web dashboard will show initialization needed');
-      }
-    } catch (error) {
-      console.error('❌ Auto-initialization failed:', error instanceof Error ? error.message : error);
-      console.log('⚠️ Web dashboard will show manual initialization required');
-    }
-  }
 
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
@@ -102,11 +49,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   };
-
-  // Auto-initialize services on startup for continuous web dashboard operation
-  setTimeout(() => {
-    autoInitializeServices();
-  }, 2000); // Wait 2 seconds for server to fully start
 
   // API Routes
 
@@ -185,73 +127,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get portfolio holdings with real-time Gemini API data
+  // Get portfolio holdings
   app.get("/api/portfolio/:userId", async (req, res) => {
     try {
-      const services = userServices.get(req.params.userId);
-      
-      if (!services?.gemini) {
-        // Fallback to database if Gemini not available
-        const holdings = await storage.getPortfolioHoldings(req.params.userId);
-        const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
-        
-        return res.json({
-          holdings,
-          totalValue: totalValue.toFixed(2),
-        });
-      }
-
-      // Get real-time data from Gemini API
-      const balances = await services.gemini.getBalances();
-      const holdings = [];
-      
-      for (const balance of balances) {
-        if (balance.currency !== 'USD' && parseFloat(balance.amount) > 0) {
-          const symbol = `${balance.currency.toLowerCase()}usd`;
-          
-          try {
-            const ticker = await services.gemini.getTicker(symbol);
-            const currentPrice = parseFloat(ticker.last);
-            const amount = parseFloat(balance.amount);
-            const valueUSD = amount * currentPrice;
-            
-            // Update database with fresh data
-            const existingHolding = await storage.getPortfolioHoldings(req.params.userId)
-              .then(holdings => holdings.find(h => h.symbol === symbol));
-
-            if (existingHolding) {
-              await storage.updatePortfolioHolding(req.params.userId, symbol, {
-                amount: amount.toString(),
-                currentPrice: currentPrice.toString(),
-                valueUSD: valueUSD.toString(),
-              });
-            } else {
-              await storage.createPortfolioHolding({
-                userId: req.params.userId,
-                symbol,
-                amount: amount.toString(),
-                avgPrice: null,
-                currentPrice: currentPrice.toString(),
-                valueUSD: valueUSD.toString(),
-              });
-            }
-
-            holdings.push({
-              id: existingHolding?.id || `new-${symbol}`,
-              userId: req.params.userId,
-              symbol,
-              amount: amount.toString(),
-              avgPrice: null,
-              currentPrice: currentPrice.toString(),
-              valueUSD: valueUSD.toFixed(2),
-              lastUpdated: new Date().toISOString(),
-            });
-          } catch (tickerError) {
-            console.error(`Failed to get ticker for ${symbol}:`, tickerError);
-          }
-        }
-      }
-
+      const holdings = await storage.getPortfolioHoldings(req.params.userId);
       const totalValue = holdings.reduce((sum, holding) => sum + parseFloat(holding.valueUSD || '0'), 0);
       
       res.json({
@@ -259,7 +138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalValue: totalValue.toFixed(2),
       });
     } catch (error) {
-      console.error("Portfolio API error:", error);
       res.status(500).json({ error: "Failed to get portfolio" });
     }
   });
@@ -275,21 +153,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 🛑 DISABLED: This endpoint used the dangerous TradingEngine
-  // All trading now handled exclusively by IndependentTradingEngine
+  // Place new order
   app.post("/api/orders", async (req, res) => {
-    res.status(403).json({ 
-      error: "Manual order placement disabled for security", 
-      message: "All trades handled automatically by IndependentTradingEngine only" 
-    });
+    try {
+      const validatedData = insertTradeOrderSchema.parse(req.body);
+      const services = userServices.get(validatedData.userId);
+      
+      if (!services) {
+        return res.status(400).json({ error: "Trading services not initialized for user" });
+      }
+
+      const order = await services.trading.placeOrder({
+        symbol: validatedData.symbol,
+        amount: validatedData.amount,
+        price: validatedData.price || undefined,
+        side: validatedData.side as 'buy' | 'sell',
+        type: validatedData.orderType as any,
+      });
+
+      // Broadcast real-time update
+      broadcast({ type: 'new_order', data: order });
+      
+      res.json(order);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to place order" });
+    }
   });
 
-  // 🛑 DISABLED: This endpoint used the dangerous TradingEngine
+  // Cancel order
   app.delete("/api/orders/:orderId", async (req, res) => {
-    res.status(403).json({ 
-      error: "Manual order cancellation disabled for security", 
-      message: "All trading handled automatically by IndependentTradingEngine only" 
-    });
+    try {
+      const { userId } = req.body;
+      const services = userServices.get(userId);
+      
+      if (!services) {
+        return res.status(400).json({ error: "Trading services not initialized for user" });
+      }
+
+      await services.trading.cancelOrder(req.params.orderId);
+      
+      // Broadcast real-time update
+      broadcast({ type: 'order_cancelled', data: { orderId: req.params.orderId } });
+      
+      res.json({ message: "Order cancelled successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to cancel order" });
+    }
   });
 
   // Get trading history
@@ -315,14 +227,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Gemini API credentials not configured" });
       }
 
-      // Initialize Gemini service - Try production credentials first
+      // Initialize Gemini service
       const geminiService = new GeminiService(
         user.geminiApiKey,
         user.geminiApiSecret,
-        false // Try production API first
+        process.env.NODE_ENV === 'development' // Use sandbox in development
       );
 
-      // Skip connection test for now - use API directly
+      // Test Gemini connection
+      try {
+        await geminiService.heartbeat();
+      } catch (error) {
+        return res.status(400).json({ error: "Invalid Gemini API credentials" });
+      }
 
       // Initialize Discord service if configured
       let discordService: DiscordBotService | undefined;
@@ -343,42 +260,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 🛑 DISABLED: TradingEngine was executing unauthorized trades
-      // Only use IndependentTradingEngine for all trading operations
-      // const tradingEngine = new TradingEngine({
-      //   userId: user.id,
-      //   geminiService,
-      //   discordService,
-      // });
-      // await tradingEngine.start();
-      
-      // Create dummy disabled trading engine for compatibility
-      const tradingEngine = { 
-        start: async () => {}, 
-        stop: async () => {},
-        placeOrder: async () => { throw new Error("Trading disabled for security"); },
-        cancelOrder: async () => { throw new Error("Trading disabled for security"); },
+      // Initialize trading engine
+      const tradingEngine = new TradingEngine({
         userId: user.id,
-        geminiService: geminiService,
-        isRunning: false
-      } as any;
+        geminiService,
+        discordService,
+      });
 
-      // 🛡️ CRITICAL FIX: Stop any existing independent trading engine first
-      const existingServices = userServices.get(user.id);
-      if (existingServices?.independentTrading) {
-        console.log(`🛑 STOPPING existing independent trading engine for user ${user.id}`);
-        await existingServices.independentTrading.stop();
-      }
-
-      // Initialize independent trading engine (server-side, Discord-independent)
-      const independentTradingEngine = new IndependentTradingEngine(user.id, geminiService);
+      await tradingEngine.start();
 
       // Store services
       userServices.set(user.id, {
         gemini: geminiService,
         discord: discordService,
         trading: tradingEngine,
-        independentTrading: independentTradingEngine,
       });
 
       res.json({ message: "Trading services initialized successfully" });
@@ -437,108 +332,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ticker);
     } catch (error) {
       res.status(500).json({ error: "Failed to get ticker data" });
-    }
-  });
-
-  // Independent Trading Engine endpoints (server-side, Discord-independent)
-  app.post("/api/independent-trading/start/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      
-      if (!services?.independentTrading) {
-        return res.status(400).json({ error: "Independent trading engine not initialized" });
-      }
-
-      if (services.independentTrading.isEngineRunning()) {
-        return res.status(400).json({ error: "Independent trading engine is already running" });
-      }
-
-      await services.independentTrading.start();
-      console.log(`🚀 Independent trading engine started for user ${req.params.userId}`);
-      
-      res.json({ 
-        message: "Independent trading engine started successfully",
-        status: "running",
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Failed to start independent trading engine" 
-      });
-    }
-  });
-
-  app.post("/api/independent-trading/stop/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      
-      if (!services?.independentTrading) {
-        return res.status(400).json({ error: "Independent trading engine not initialized" });
-      }
-
-      if (!services.independentTrading.isEngineRunning()) {
-        return res.status(400).json({ error: "Independent trading engine is not running" });
-      }
-
-      await services.independentTrading.stop();
-      console.log(`🛑 Independent trading engine stopped for user ${req.params.userId}`);
-      
-      res.json({ 
-        message: "Independent trading engine stopped successfully",
-        status: "stopped",
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Failed to stop independent trading engine" 
-      });
-    }
-  });
-
-  app.get("/api/independent-trading/status/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      
-      if (!services?.independentTrading) {
-        return res.status(400).json({ error: "Independent trading engine not initialized" });
-      }
-
-      const status = {
-        running: services.independentTrading.isEngineRunning(),
-        triggerInfo: services.independentTrading.getCurrentTriggerInfo(),
-        timestamp: new Date().toISOString()
-      };
-      
-      res.json(status);
-    } catch (error) {
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Failed to get independent trading engine status" 
-      });
-    }
-  });
-
-  app.get("/api/independent-trading/trigger/:userId", async (req, res) => {
-    try {
-      const services = userServices.get(req.params.userId);
-      
-      if (!services?.independentTrading) {
-        return res.status(400).json({ error: "Independent trading engine not initialized" });
-      }
-
-      const triggerInfo = services.independentTrading.getCurrentTriggerInfo();
-      
-      res.json({
-        baseline: triggerInfo.baseline,
-        trigger: triggerInfo.trigger,
-        initialized: triggerInfo.initialized,
-        locked: triggerInfo.locked,
-        lastTrade: triggerInfo.lastTrade ? new Date(triggerInfo.lastTrade).toISOString() : null,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Failed to get trigger information" 
-      });
     }
   });
 

@@ -52,7 +52,6 @@ export interface GeminiOrderRequest {
   side: 'buy' | 'sell';
   type: 'exchange limit' | 'exchange market' | 'exchange stop' | 'exchange stop limit';
   options?: string[];
-  account?: string;
 }
 
 export class GeminiService {
@@ -82,7 +81,6 @@ export class GeminiService {
       .update(encodedPayload)
       .digest('hex');
 
-
     return {
       'X-GEMINI-APIKEY': this.apiKey,
       'X-GEMINI-PAYLOAD': encodedPayload,
@@ -105,12 +103,11 @@ export class GeminiService {
   async getBalances(): Promise<GeminiBalance[]> {
     try {
       const endpoint = '/v1/balances';
-      const payload = { account: 'primary' };
-      const headers = this.generateHeaders(endpoint, payload);
+      const headers = this.generateHeaders(endpoint);
       
       const response: AxiosResponse<GeminiBalance[]> = await axios.post(
         `${this.baseUrl}${endpoint}`,
-        Buffer.from(''),
+        {},
         { headers }
       );
       
@@ -127,17 +124,13 @@ export class GeminiService {
       
       const response: AxiosResponse<GeminiOrder> = await axios.post(
         `${this.baseUrl}${endpoint}`,
-        orderRequest, // Send the order request as JSON body instead of empty object
+        {},
         { headers }
       );
       
       return response.data;
-    } catch (error: any) {
-      console.log('❌ Gemini Order Placement Error Details:');
-      console.log('Status:', error.response?.status);
-      console.log('Data:', error.response?.data);
-      console.log('Order Request:', orderRequest);
-      throw new Error(`Failed to place order: ${error.response?.data?.message || error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to place order: ${error}`);
     }
   }
 
@@ -207,30 +200,18 @@ export class GeminiService {
 
   async heartbeat(): Promise<{ result: string }> {
     try {
-      // Use notional volume endpoint as heartbeat with account parameter
-      const endpoint = '/v1/notionalvolume';
-      const payload = { account: 'primary' };
-      const headers = this.generateHeaders(endpoint, payload);
+      const endpoint = '/v1/heartbeat';
+      const headers = this.generateHeaders(endpoint);
       
-      console.log('🔍 Testing Gemini API connection...');
-      console.log('🌐 Base URL:', this.baseUrl);
-      console.log('📡 Endpoint:', endpoint);
-      console.log('🔑 API Key:', this.apiKey.substring(0, 8) + '...');
-      
-      const response: AxiosResponse<any> = await axios.post(
+      const response: AxiosResponse<{ result: string }> = await axios.post(
         `${this.baseUrl}${endpoint}`,
         {},
         { headers }
       );
       
-      console.log('✅ Gemini API connection successful!');
-      return { result: "ok" };
-    } catch (error: any) {
-      console.log('❌ Gemini API Error Details:');
-      console.log('Status:', error.response?.status);
-      console.log('Data:', error.response?.data);
-      console.log('Headers:', error.response?.headers);
-      throw new Error(`Failed to validate API credentials: ${error.response?.data?.message || error.message}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to send heartbeat: ${error}`);
     }
   }
 }

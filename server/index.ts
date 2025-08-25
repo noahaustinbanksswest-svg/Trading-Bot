@@ -75,7 +75,7 @@ app.use((req, res, next) => {
     let botProcess: ChildProcess | null = null;
     let restartCount = 0;
     let lastPingTime = Date.now();
-    const MAX_RESTARTS = 0; // DISABLED - No auto-restarts until Gemini API fixed
+    const MAX_RESTARTS = 25; // Increased restart attempts
     const PING_TIMEOUT = 999999000; // Effectively disabled - bot handles its own monitoring now
     
     function startBot() {
@@ -133,8 +133,8 @@ app.use((req, res, next) => {
       }, delay);
     }
     
-    // Start the bot - DISABLED until Gemini API fixed
-    // startBot();
+    // Start the bot
+    startBot();
     
     // Enhanced monitoring and restart system
     setInterval(() => {
