@@ -106,13 +106,10 @@ client.once('ready', async () => {
         .setColor(0x00ff00)
         .setDescription(`💎 Your Crypto Holdings (${holdings.length})\n${holdings.join('\n')}\n\n💰 **Total Value**: $${totalValue.toFixed(2)}`);
 
-      // Add trading engine status if available
-      if (tradingData.running && tradingData.trigger && tradingData.baseline) {
+      // Simple trigger status only
+      if (tradingData.running && tradingData.trigger && typeof tradingData.trigger === 'number') {
         const trigger = tradingData.trigger;
-        const baseline = tradingData.baseline;
         const needed = trigger - totalValue;
-        const gainFromBaseline = totalValue - baseline;
-        const progressPercent = Math.round((gainFromBaseline / 1.04) * 100);
 
         let triggerStatus;
         if (totalValue >= trigger) {
@@ -123,11 +120,9 @@ client.once('ready', async () => {
         
         embed.addFields([
           { 
-            name: '🎯 Swing Trading Engine (Live)', 
-            value: `📊 **Current Portfolio**: $${totalValue.toFixed(2)}\n` +
-                  `📍 **Last Reset Point**: $${baseline.toFixed(2)}\n` +
-                  `🎯 **Trade Trigger**: $${trigger.toFixed(2)} (${baseline.toFixed(2)} + $1.04)\n` +
-                  `💰 **Portfolio Gain**: +$${gainFromBaseline.toFixed(2)} (${progressPercent}% to trigger)\n` +
+            name: '🎯 Live Trading Engine Status', 
+            value: `🎯 **Next Trigger**: $${trigger.toFixed(2)}\n` +
+                  `💰 **Current**: $${totalValue.toFixed(2)}\n` +
                   `${triggerStatus}`,
             inline: false 
           }
