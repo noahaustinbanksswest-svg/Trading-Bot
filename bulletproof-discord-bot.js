@@ -165,24 +165,31 @@ class BulletproofBot {
         { name: '⚡ Connection', value: '🟢 LIVE', inline: true }
       ]);
 
-      // Show all crypto holdings
+      // Show ALL crypto holdings - enhanced detection for new crypto
       if (portfolio.holdings && portfolio.holdings.length > 0) {
         let allHoldings = '';
-        portfolio.holdings.forEach(holding => {
+        let cryptoCount = 0;
+        
+        // Sort by value to show most valuable first
+        const sortedHoldings = portfolio.holdings.sort((a, b) => parseFloat(b.valueUSD) - parseFloat(a.valueUSD));
+        
+        sortedHoldings.forEach(holding => {
           const symbol = holding.symbol.replace('usd', '').toUpperCase();
           const amount = parseFloat(holding.amount);
           const value = parseFloat(holding.valueUSD);
           const price = parseFloat(holding.currentPrice);
           
-          if (amount > 0.000001) {
+          // Show ANY crypto with meaningful value or amount (catch new additions)
+          if ((amount > 0.000001 && value >= 0.01) || (amount > 0.1 && symbol !== 'USD')) {
             allHoldings += `🪙 **${symbol}**: ${amount.toFixed(6)} ($${value.toFixed(2)} @ $${price.toFixed(2)})\n`;
+            cryptoCount++;
           }
         });
         
         if (allHoldings) {
           embed.addFields([
             { 
-              name: '💎 Your Crypto Holdings', 
+              name: `💎 Your Crypto Holdings (${cryptoCount})`, 
               value: allHoldings,
               inline: false 
             }
@@ -190,20 +197,41 @@ class BulletproofBot {
         }
       }
 
-      // Trading trigger section
+      // LIVE TRADING ENGINE CONNECTION - exact same data as server logs
       if (status.triggerInfo) {
-        const baseline = status.triggerInfo.baseline || 0;
-        const trigger = status.triggerInfo.trigger || 0;
+        const baseline = parseFloat(status.triggerInfo.baseline) || 0;
+        const trigger = parseFloat(status.triggerInfo.trigger) || 0;
         const needed = Math.max(0, trigger - totalValue);
+        const triggerHit = totalValue >= trigger;
+        
+        // Match the exact format from trading engine logs
+        let triggerStatus = '';
+        if (triggerHit) {
+          triggerStatus = '🔥 **TRIGGER HIT!** Trade executing...';
+        } else {
+          triggerStatus = `⏳ Need $${needed.toFixed(2)} more to trigger`;
+        }
         
         embed.addFields([
           { 
-            name: '🎯 Next Trade Trigger', 
-            value: `**Trigger**: $${trigger.toFixed(2)}\n**Baseline**: $${baseline.toFixed(2)}\n**Need**: $${needed.toFixed(2)} more`,
+            name: '🎯 Live Trading Engine Status', 
+            value: `🎯 **Next Trigger**: $${trigger.toFixed(2)}\n` +
+                  `📊 **Baseline**: $${baseline.toFixed(2)}\n` +
+                  `💰 **Current**: $${totalValue.toFixed(2)}\n` +
+                  `${triggerStatus}`,
             inline: false 
           }
         ]);
       }
+
+      // Add a timestamp to show when data was last fetched
+      embed.addFields([
+        {
+          name: '🕐 Last Update',
+          value: new Date().toLocaleTimeString(),
+          inline: true
+        }
+      ]);
 
       return embed;
       
