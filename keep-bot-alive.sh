@@ -1,26 +1,18 @@
 #!/bin/bash
 
-echo "🛡️ BULLETPROOF DISCORD BOT KEEP-ALIVE SYSTEM"
-echo "💎 TRUE ORIGINAL FORMAT WITH PERSISTENCE"
+# BULLETPROOF BOT DEPLOYMENT SCRIPT
+echo "🛡️ Starting bulletproof Discord bot deployment..."
 
-# Export environment variables
-export DISCORD_BOT_TOKEN="MTQwNzgyMDQ5MDM0MDMwNjk2NQ.G4C1ow.D3PCvrA6hUemKrh7hHJ2Bq_VBfbZzb7roTQ0v4"
+# Kill any existing bots
+pkill -f discord-bot || true
+pkill -f bulletproof-deployment-bot || true
+sleep 2
 
-# Kill any existing Discord processes
-pkill -f discord 2>/dev/null
-pkill -f original 2>/dev/null
-
-echo "🔄 Starting TRUE ORIGINAL Discord Bot with bulletproof persistence..."
-
-# Infinite restart loop - bot will NEVER stay offline
+# Start the bulletproof bot with auto-restart
 while true; do
-    echo "🚀 [$(date)] Starting Discord bot..."
+    echo "🚀 Starting bulletproof bot..."
+    DISCORD_TOKEN="$DISCORD_TOKEN" node bulletproof-deployment-bot.cjs >> bot-bulletproof.log 2>&1
     
-    # Run the bot
-    node true-original-bot.js
-    
-    echo "⚠️ [$(date)] Bot stopped - RESTARTING in 3 seconds..."
-    sleep 3
-    
-    echo "🔄 [$(date)] Auto-restart triggered - bot will never stay offline..."
+    echo "❌ Bot stopped - restarting in 5 seconds..."
+    sleep 5
 done
