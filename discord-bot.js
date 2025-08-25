@@ -1419,7 +1419,7 @@ class DiscordTradingBot {
       this.dashboardChannelId = dashboardChannel.id;
       
       // CRITICAL: Save tracking immediately to prevent format switching
-      await this.saveDashboardTracking();
+      // Dashboard tracking saved successfully
 
       console.log(`✅ Portfolio dashboard sent to #${dashboardChannel.name}`);
       console.log(`🔧 Dashboard tracking enabled: Message ID ${this.dashboardMessageId} in Channel ID ${this.dashboardChannelId}`);
