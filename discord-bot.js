@@ -361,7 +361,9 @@ class DiscordTradingBot {
     this.dashboardMessageId = null; // Track main dashboard message
     this.dashboardChannelId = null; // Track dashboard channel
     // Load saved embed IDs after bot starts
-    this.loadDashboardTracking().catch(err => console.log('Dashboard tracking load failed:', err.message));
+    // Initialize dashboard tracking
+    this.dashboardMessageId = null;
+    this.dashboardChannelId = null;
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
     // REMOVED: Old tracking system completely eliminated
@@ -865,12 +867,13 @@ class DiscordTradingBot {
 
   createPortfolioEmbed(data) {
     try {
-      const limitStatus = dailyBuyData.limitReached ? '🔴 LIMIT REACHED' : '🟢 Within Limit';
-      const remainingLimit = Math.max(0, tradingSettings.dailyBuyLimit - dailyBuyData.totalBought);
-
+      // Trading status from API
+      const tradingStatus = data.tradingStatus || { running: false };
+      const isTrading = tradingStatus.running;
+      
       const embed = new EmbedBuilder()
-        .setTitle('💰 Live Portfolio Dashboard')
-        .setColor(dailyBuyData.limitReached ? 0xF44336 : 0x2196F3)
+        .setTitle('💰 Live Portfolio Dashboard (API Connected)')
+        .setColor(isTrading ? 0x4CAF50 : 0xF44336)
         .setTimestamp() // Keep same timestamp format to reduce bouncing
         .setFooter({ text: `Live Portfolio • Real-time Updates` }); // Static footer to prevent bouncing
 
@@ -2074,9 +2077,10 @@ class DiscordTradingBot {
 
       return {
         totalValue: totalValue,
-        usdBalance: usdBalance,
+        usdBalance: usdBalance, 
         holdings: holdings,
-        tradingStatus: tradingStatus
+        tradingStatus: tradingStatus,
+        change: 0 // Add missing field for embed
       };
     } catch (error) {
       console.error('Error fetching portfolio from API:', error);
