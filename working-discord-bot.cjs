@@ -14,7 +14,7 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`✅ WORKING Bot Online: ${client.user.tag}`);
   
-  const CHANNEL_ID = '1409416108149190657';
+  const CHANNEL_ID = '1409416108661932093';
   let channel, embed, embedMessage;
 
   try {
