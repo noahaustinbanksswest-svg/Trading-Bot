@@ -867,65 +867,85 @@ class DiscordTradingBot {
     }
   }
 
-  createPortfolioEmbed(data) {
+  async createPortfolioEmbed() {
     try {
-      // Trading status from API
-      const tradingStatus = data.tradingStatus || { running: false };
-      const isTrading = tradingStatus.running;
+      console.log('🔗 Fetching live portfolio data from API...');
+      
+      // Fetch live portfolio data from local API
+      const portfolioResponse = await fetch('http://localhost:5000/api/portfolio/user-1');
+      const portfolioData = await portfolioResponse.json();
+      
+      // Fetch trading status
+      const statusResponse = await fetch('http://localhost:5000/api/independent-trading/status/user-1');
+      const statusData = await statusResponse.json();
+      
+      console.log('📊 Live Portfolio Data:', portfolioData);
+      console.log('🎯 Trading Status:', statusData);
+
+      const isTrading = statusData.running || false;
       
       const embed = new EmbedBuilder()
         .setTitle('💰 Live Portfolio Dashboard (API Connected)')
         .setColor(isTrading ? 0x4CAF50 : 0xF44336)
-        .setTimestamp() // Keep same timestamp format to reduce bouncing
-        .setFooter({ text: `Live Portfolio • Real-time Updates` }); // Static footer to prevent bouncing
+        .setTimestamp()
+        .setFooter({ text: `Live Portfolio • Real-time Updates` });
 
-      // Main portfolio info - simplified and safer
+      // Main portfolio info from live API
       embed.addFields([
-        { name: '📊 Total Portfolio Value', value: `**$${this.truncateToFixed(data.totalValue, 2)}**`, inline: true },
-        { name: '📈 Trading Status', value: 'ACTIVE - Monitoring 24/7', inline: true },
-        { name: '💵 USD Balance', value: `$${this.truncateToFixed(data.usdBalance, 2)}`, inline: true }
+        { name: '📊 Total Portfolio Value', value: `**$${portfolioData.totalValue}**`, inline: true },
+        { name: '📈 Trading Status', value: isTrading ? '✅ ACTIVE' : '❌ INACTIVE', inline: true },
+        { name: '⚡ Live Connection', value: '🟢 Connected', inline: true }
       ]);
 
-      // SOL-specific info (simplified for trading bot)
-      const solHolding = data.holdings.find(h => h.currency === 'SOL');
-      if (solHolding) {
-        // FIXED DISPLAY: Use saved trigger value to prevent bouncing
-        const displayTrigger = this.savedTriggerValue || (this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00));
-        const displayBaseline = this.baselineValue || (solHolding.value - 1.00);
-        // Fix precision: Round to cents to avoid floating-point errors
-        const needsAmount = Math.round((displayTrigger - solHolding.value) * 100) / 100;
-        const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
-                       `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
-                       `🎯 **Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
-                       `📊 **Baseline**: $${this.truncateToFixed(displayBaseline, 2)}\n` +
-                       `⏳ **Need**: $${this.truncateToFixed(needsAmount, 2)} more\n` +
-                       `💲 **Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
+      // Show all crypto holdings
+      if (portfolioData.holdings && portfolioData.holdings.length > 0) {
+        let holdingsInfo = '';
+        portfolioData.holdings.forEach(holding => {
+          const symbol = holding.symbol.replace('usd', '').toUpperCase();
+          const amount = parseFloat(holding.amount);
+          const value = parseFloat(holding.valueUSD);
+          const price = parseFloat(holding.currentPrice);
+          
+          if (amount > 0) {
+            holdingsInfo += `🪙 **${symbol}**: ${amount.toFixed(6)} (${value.toFixed(2)} USD @ $${price.toFixed(2)})\n`;
+          }
+        });
         
         embed.addFields({ 
-          name: '⚡ SOL Trading Monitor', 
-          value: solInfo, 
+          name: '💎 Your Crypto Holdings', 
+          value: holdingsInfo || 'No holdings found', 
           inline: false 
         });
       }
 
-      // Auto-trade status
-      const autoTradeInfo = `🤖 **Auto Trade**: ${autoTradeSettings.enabled ? '✅ ACTIVE' : '❌ DISABLED'}\n` +
-                           `📊 **Daily Spent**: $${this.truncateToFixed(dailyBuyData.totalBought, 2)}\n` +
-                           `⏰ **Updated**: ${new Date().toLocaleTimeString()} (LIVE)`;
-
-      embed.addFields({ 
-        name: '🔧 Auto Trade Status', 
-        value: autoTradeInfo, 
-        inline: false 
-      });
+      // SOL Trading Trigger Information
+      const solHolding = portfolioData.holdings?.find(h => h.symbol === 'solusd');
+      if (solHolding && statusData.triggerInfo) {
+        const currentValue = parseFloat(portfolioData.totalValue);
+        const baseline = statusData.triggerInfo.baseline || 0;
+        const trigger = statusData.triggerInfo.trigger || 0;
+        const needsAmount = Math.max(0, trigger - currentValue);
+        
+        const triggerInfo = `🎯 **Next Trigger**: $${trigger.toFixed(2)}\n` +
+                           `📊 **Baseline**: $${baseline.toFixed(2)}\n` +
+                           `💰 **Current**: $${currentValue.toFixed(2)}\n` +
+                           `⏳ **Need**: $${needsAmount.toFixed(2)} more\n` +
+                           `🔥 **SOL Price**: $${parseFloat(solHolding.currentPrice).toFixed(2)}`;
+        
+        embed.addFields({ 
+          name: '⚡ SOL Trading Trigger', 
+          value: triggerInfo, 
+          inline: false 
+        });
+      }
 
       return embed;
     } catch (error) {
       console.error('❌ Error creating portfolio embed:', error);
-      // Return simple fallback embed
+      // Return fallback embed with error info
       return new EmbedBuilder()
         .setTitle('💰 Portfolio Dashboard')
-        .setDescription('⚠️ Embed display error - please refresh')
+        .setDescription(`⚠️ API Connection Error: ${error.message}`)
         .setColor(0xFF9800)
         .setTimestamp();
     }
@@ -1399,13 +1419,8 @@ class DiscordTradingBot {
         };
       }
 
-      // CRITICAL: Use unified embed format with ALL required data (prevents format switching)
-      const embed = this.createPortfolioEmbed({
-        totalValue,
-        usdBalance,
-        holdings,
-        dailyBuyData // ENSURE daily buy data is included for consistent format
-      });
+      // CRITICAL: Use live API data for embed
+      const embed = await this.createPortfolioEmbed();
 
       const buttons = this.createPortfolioButtons();
 
