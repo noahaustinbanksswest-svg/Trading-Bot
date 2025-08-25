@@ -21,23 +21,23 @@ export default function Dashboard() {
   // WebSocket for real-time updates
   const { isConnected, sendMessage } = useWebSocket();
 
-  // Queries
-  const { data: portfolio, refetch: refetchPortfolio } = useQuery({
-    queryKey: ['/api/portfolio', MOCK_USER_ID],
-    refetchInterval: 1000, // Refresh every 1 second for real-time
+  // Queries with correct endpoint paths
+  const { data: portfolio, refetch: refetchPortfolio, isLoading: portfolioLoading, error: portfolioError } = useQuery({
+    queryKey: [`/api/portfolio/${MOCK_USER_ID}`],
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time
   });
 
   const { data: orders, refetch: refetchOrders } = useQuery({
-    queryKey: ['/api/orders', MOCK_USER_ID],
+    queryKey: [`/api/orders/${MOCK_USER_ID}`],
   });
 
   const { data: tradingSettings } = useQuery({
-    queryKey: ['/api/trading-settings', MOCK_USER_ID],
+    queryKey: [`/api/trading-settings/${MOCK_USER_ID}`],
   });
 
   const { data: triggerStatus } = useQuery({
-    queryKey: ['/api/independent-trading/status', MOCK_USER_ID],
-    refetchInterval: 1000, // Real-time trigger updates
+    queryKey: [`/api/independent-trading/status/${MOCK_USER_ID}`],
+    refetchInterval: 2000, // Real-time trigger updates
   });
 
   const activeTrades = (orders as any[])?.filter((order: any) => order.status === 'pending')?.length || 0;
@@ -132,7 +132,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-sm">Total Balance</p>
                   <p className="text-2xl font-bold text-white">
-                    ${(portfolio as any)?.totalValue || '0.00'}
+                    {portfolioLoading ? 'Loading...' : portfolioError ? 'Error' : `$${(portfolio as any)?.totalValue || '0.00'}`}
                   </p>
                 </div>
                 <Wallet className="w-8 h-8 text-primary" />
@@ -207,7 +207,18 @@ export default function Dashboard() {
               </div>
               
               {/* Holdings */}
-              {(portfolio as any)?.holdings?.map((holding: any) => (
+              {portfolioLoading ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400">Loading portfolio...</div>
+                </div>
+              ) : portfolioError ? (
+                <div className="text-center py-8">
+                  <div className="text-red-400">Error loading portfolio: {String(portfolioError)}</div>
+                  <Button onClick={() => refetchPortfolio()} className="mt-4 bg-primary">
+                    Retry
+                  </Button>
+                </div>
+              ) : (portfolio as any)?.holdings?.map((holding: any) => (
                 <div key={holding.id} className="flex items-center justify-between p-4 bg-surfaceLight rounded-lg mb-4">
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
