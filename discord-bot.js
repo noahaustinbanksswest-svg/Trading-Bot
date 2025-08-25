@@ -2674,6 +2674,41 @@ class DiscordTradingBot {
           
           let triggerValue = this.savedTriggerValue;
           
+          // 🛡️ PURCHASE PROTECTION: Detect if SOL balance increased (manual purchase)
+          const currentSOLBalance = holdings.find(h => h.currency === 'SOL')?.amount || 0;
+          
+          if (!this.previousSOLBalance) {
+            this.previousSOLBalance = currentSOLBalance;
+            console.log(`🔍 INITIAL SOL TRACKING: ${currentSOLBalance.toFixed(8)} SOL`);
+          }
+          
+          // Check if SOL balance increased (indicating a manual purchase)
+          if (currentSOLBalance > this.previousSOLBalance) {
+            const solIncrease = currentSOLBalance - this.previousSOLBalance;
+            const valueIncrease = solIncrease * holdings.find(h => h.currency === 'SOL')?.price;
+            
+            console.log(`🛡️ PURCHASE PROTECTION TRIGGERED!`);
+            console.log(`   Previous SOL: ${this.previousSOLBalance.toFixed(8)}`);
+            console.log(`   Current SOL: ${currentSOLBalance.toFixed(8)}`);
+            console.log(`   SOL Increase: +${solIncrease.toFixed(8)} SOL`);
+            console.log(`   Value Increase: +$${valueIncrease.toFixed(2)} USD`);
+            console.log(`   🔄 ADJUSTING BASELINE & TRIGGER...`);
+            
+            // Recalculate baseline and trigger based on new portfolio value
+            this.baselineValue = currentPortfolioValue;
+            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            triggerValue = this.savedTriggerValue;
+            await this.saveTriggerToFile();
+            
+            console.log(`✅ PURCHASE PROTECTION APPLIED:`);
+            console.log(`   New Baseline: $${this.baselineValue.toFixed(2)}`);
+            console.log(`   New Trigger: $${this.savedTriggerValue.toFixed(2)}`);
+            console.log(`   Protection prevents immediate sale of new SOL purchase`);
+          }
+          
+          // Update tracked SOL balance for next cycle
+          this.previousSOLBalance = currentSOLBalance;
+
           console.log(`📈 SWING TRADE CHECK:`);
           console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);  
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
