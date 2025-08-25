@@ -185,8 +185,8 @@ async function findExistingEmbed() {
 
 client.on('error', console.error);
 
-// Use your working token directly
-const token = 'MTQwNzgyMDQ5MDM0MDMwNjk2NQ.G4C1ow.D3PCvrA6hUemKrh7hHJ2Bq_VBfbZzb7roTQ0v4';
+// Use current valid token from environment
+const token = process.env.DISCORD_TOKEN;
 console.log('🔗 Connecting to Discord...');
 
 client.login(token)
