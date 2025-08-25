@@ -1572,11 +1572,11 @@ class DiscordTradingBot {
         
         // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Update for meaningful changes (>$0.25) or periodically every minute to prevent bouncing
+          // Update only for very large changes (>$2.00) or periodically every 2 minutes to prevent bouncing
           const newPortfolioValue = this.calculateCurrentPortfolioValue();
           const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
-          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0.25;
-          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every minute
+          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 2.00;
+          const shouldUpdateForTime = timeSinceLastUpdate > 120000; // Force update every 2 minutes
           
           if (shouldUpdateForChange || shouldUpdateForTime) {
             await this.updatePortfolioMessageFromRealTimeData();
