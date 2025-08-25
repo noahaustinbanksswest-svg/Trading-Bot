@@ -70,20 +70,36 @@ async function createFirstOriginalEmbed() {
       { name: '⚡ Connection', value: '🟢 LIVE', inline: true }  // Original connection field
     ]);
 
-    // SOL Holdings - exactly like original
-    const solHolding = portfolio.holdings?.find(h => h.symbol === 'solusd');
-    if (solHolding) {
-      const amount = parseFloat(solHolding.amount);
-      const value = parseFloat(solHolding.valueUSD);
-      const price = parseFloat(solHolding.currentPrice);
+    // ALL Crypto Holdings - show everything you own
+    if (portfolio.holdings && portfolio.holdings.length > 0) {
+      let allHoldings = '';
+      let totalDisplayed = 0;
       
-      embed.addFields([
-        { 
-          name: '🪙 SOL Holdings', 
-          value: `**${amount.toFixed(6)} SOL**\n$${value.toFixed(2)} USD @ $${price.toFixed(2)}`,
-          inline: false 
+      portfolio.holdings.forEach(holding => {
+        const symbol = holding.symbol.replace('usd', '').toUpperCase();
+        const amount = parseFloat(holding.amount);
+        const value = parseFloat(holding.valueUSD);
+        const price = parseFloat(holding.currentPrice);
+        
+        // Only show holdings with actual amounts (even very small ones)
+        if (amount > 0.000001 && totalDisplayed < 8) { // Show meaningful amounts only
+          allHoldings += `🪙 **${symbol}**: ${amount.toFixed(6)} ($${value.toFixed(2)} @ $${price.toFixed(2)})\n`;
+          totalDisplayed++;
+        } else if (amount > 0 && value >= 0.01) { // Show small amounts if they have decent USD value
+          allHoldings += `🪙 **${symbol}**: ${amount.toFixed(8)} ($${value.toFixed(2)} @ $${price.toFixed(2)})\n`;
+          totalDisplayed++;
         }
-      ]);
+      });
+      
+      if (allHoldings) {
+        embed.addFields([
+          { 
+            name: '💎 Your Crypto Holdings', 
+            value: allHoldings,
+            inline: false 
+          }
+        ]);
+      }
     }
 
     // Trading trigger - SEPARATE section as requested
@@ -112,7 +128,11 @@ async function createFirstOriginalEmbed() {
 }
 
 async function updateDashboard() {
-  if (!dashboardMessageId || !dashboardChannelId) return;
+  if (!dashboardMessageId || !dashboardChannelId) {
+    console.log('⚠️ No message ID or channel - finding embed...');
+    await findExistingEmbed();
+    return;
+  }
   
   try {
     const channel = await client.channels.fetch(dashboardChannelId);
@@ -120,9 +140,46 @@ async function updateDashboard() {
     const embed = await createFirstOriginalEmbed();
     
     await message.edit({ embeds: [embed] });
-    console.log(`✅ [${new Date().toLocaleTimeString()}] First original dashboard updated`);
+    console.log(`✅ [${new Date().toLocaleTimeString()}] All crypto holdings updated successfully`);
   } catch (error) {
-    console.error('❌ Update error:', error);
+    console.error('❌ Update error:', error.message);
+    
+    // Try to reconnect and find the embed again
+    if (error.message.includes('Unknown Message') || error.message.includes('404')) {
+      console.log('🔍 Message not found - searching for embed...');
+      dashboardMessageId = null;
+      dashboardChannelId = null;
+      await findExistingEmbed();
+    }
+  }
+}
+
+// Enhanced embed finding function
+async function findExistingEmbed() {
+  try {
+    const guild = client.guilds.cache.first();
+    if (!guild) return false;
+
+    const channel = guild.channels.cache.find(c => c.name === 'new-dashboard' && c.isTextBased());
+    if (!channel) return false;
+
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const existingEmbed = messages.find(msg => 
+      msg.author.id === client.user.id && 
+      msg.embeds.length > 0 && 
+      msg.embeds[0].title?.includes('Trading Portfolio')
+    );
+    
+    if (existingEmbed) {
+      dashboardMessageId = existingEmbed.id;
+      dashboardChannelId = channel.id;
+      console.log(`✅ Reconnected to embed: ${dashboardMessageId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ Error finding embed:', error.message);
+    return false;
   }
 }
 
