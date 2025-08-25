@@ -2696,9 +2696,10 @@ class DiscordTradingBot {
             console.log(`🔍 INITIAL SOL TRACKING: ${currentSOLBalance.toFixed(8)} SOL`);
           }
           
-          // Check if SOL balance increased (indicating a manual purchase)
-          if (currentSOLBalance > this.previousSOLBalance) {
-            const solIncrease = currentSOLBalance - this.previousSOLBalance;
+          // Check if SOL balance increased significantly (indicating a manual purchase)
+          // Require at least 0.001 SOL increase to prevent bouncing from API rounding
+          const solIncrease = currentSOLBalance - this.previousSOLBalance;
+          if (solIncrease > 0.001) {
             const valueIncrease = solIncrease * holdings.find(h => h.currency === 'SOL')?.price;
             
             console.log(`🛡️ PURCHASE PROTECTION TRIGGERED!`);
