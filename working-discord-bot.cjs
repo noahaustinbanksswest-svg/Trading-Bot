@@ -14,12 +14,20 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`✅ WORKING Bot Online: ${client.user.tag}`);
   
-  const CHANNEL_ID = '1409416108661932093';
+  const CHANNEL_NAME = 'new-dashboard';
   let channel, embed, embedMessage;
 
   try {
-    // Get the channel
-    channel = await client.channels.fetch(CHANNEL_ID);
+    // Find channel by name
+    const guild = client.guilds.cache.first();
+    if (!guild) {
+      throw new Error('No guild found');
+    }
+    
+    channel = guild.channels.cache.find(ch => ch.name === CHANNEL_NAME && ch.type === 0);
+    if (!channel) {
+      throw new Error(`Channel "${CHANNEL_NAME}" not found`);
+    }
     console.log('✅ Connected to Discord channel');
 
     // Look for existing embed
