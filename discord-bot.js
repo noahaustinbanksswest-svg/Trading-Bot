@@ -703,12 +703,20 @@ class DiscordTradingBot {
       // Destroy and recreate client connection
       this.client.destroy();
       
+      // Recreate client with fresh connection
+      this.client = new Client({
+        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+      });
+      
+      // CRITICAL: Re-setup event handlers for new client
+      this.setupEventHandlers();
+      
       // Wait before reconnecting
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Reconnect
+      // Reconnect with fresh client
       await this.client.login(BOT_TOKEN);
-      console.log('✅ Discord reconnection successful!');
+      console.log('✅ Discord reconnection successful with fresh event handlers!');
       
     } catch (error) {
       console.error('❌ Discord reconnection failed:', error.message);
