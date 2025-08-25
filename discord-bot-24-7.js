@@ -5,7 +5,7 @@ class PersistentDiscordBot {
     console.log('🚀 Starting 24/7 Discord Trading Bot...');
     
     this.client = new Client({
-      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+      intents: [GatewayIntentBits.Guilds] // Works with your current bot permissions
     });
     
     this.dashboardMessageId = null;
