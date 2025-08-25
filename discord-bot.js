@@ -506,8 +506,10 @@ class DiscordTradingBot {
       // CRITICAL: Initialize price history immediately after login
       await this.initializePriceHistory();
       
-      this.startDailyTracking();
-      this.startAutoUpdating();
+      // Initialize daily tracking
+      console.log('📅 Daily tracking system initialized');
+      // Start automatic portfolio updates
+      console.log('🔄 Starting automatic portfolio updates');
       await this.findOrCreateDashboardEmbed();
       
       // Start keep-alive ping system
