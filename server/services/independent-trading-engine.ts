@@ -143,7 +143,7 @@ export class IndependentTradingEngine {
           
           // Reset baseline/trigger to current value after purchase
           this.baselineValue = currentPortfolioValue;
-          this.savedTriggerValue = currentPortfolioValue + 1.00;
+          this.savedTriggerValue = currentPortfolioValue + this.actualTradeValue;
           await this.saveTriggerToFile();
           
           console.log(`🔄 TRIGGERS UPDATED AFTER PURCHASE:`);
@@ -198,9 +198,9 @@ export class IndependentTradingEngine {
       let triggerValue = this.savedTriggerValue;
 
       console.log(`📈 SWING TRADE CHECK:`);
-      console.log(`   Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);
-      console.log(`   Baseline: $${this.baselineValue?.toFixed(2) || 'N/A'}`);
-      console.log(`   Trigger at: $${triggerValue.toFixed(2)} (LOCKED)`);
+      console.log(`   📊 Current Portfolio: $${currentPortfolioValue.toFixed(2)}`);
+      console.log(`   📍 Baseline (Last Reset): $${this.baselineValue?.toFixed(2) || 'N/A'}`);
+      console.log(`   🎯 Next Trade Trigger: $${triggerValue.toFixed(2)} (+$${this.actualTradeValue} from baseline)`);
 
       // RESET LOGIC - 1 CENT DROP from baseline (exact same as Discord bot)
       const resetThreshold = (this.baselineValue || 0) - 0.01;
@@ -209,7 +209,7 @@ export class IndependentTradingEngine {
       if (currentPortfolioValue < resetThreshold) {
         console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below 1-cent threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
         this.baselineValue = currentPortfolioValue;
-        this.savedTriggerValue = currentPortfolioValue + 1.00;
+        this.savedTriggerValue = currentPortfolioValue + this.actualTradeValue;
         triggerValue = this.savedTriggerValue;
         await this.saveTriggerToFile();
         console.log(`🔄 NEW BASELINE: $${this.baselineValue?.toFixed(2) || 'N/A'}, NEW TRIGGER: $${this.savedTriggerValue?.toFixed(2) || 'N/A'}`);
@@ -217,15 +217,18 @@ export class IndependentTradingEngine {
         console.log(`🔒 TRIGGER LOCKED: Portfolio $${currentPortfolioValue.toFixed(2)} is above 1-cent threshold $${resetThreshold.toFixed(2)} - trigger stays at $${this.savedTriggerValue?.toFixed(2) || 'N/A'}`);
       }
 
-      // Check if portfolio has reached trigger value
+      // Check if portfolio has reached trigger value  
       const needsAmount = triggerValue - currentPortfolioValue;
-      console.log(`⏳ Need $${needsAmount.toFixed(2)} more to hit trigger $${triggerValue.toFixed(2)}`);
+      const gainFromBaseline = currentPortfolioValue - (this.baselineValue || 0);
+      console.log(`💰 Portfolio Gain: $${gainFromBaseline.toFixed(2)} (need $${this.actualTradeValue} total)`);
+      console.log(`⏳ Still Need: $${needsAmount.toFixed(2)} more to trigger $${this.actualTradeValue} trade`);
 
       // TRADE EXECUTION LOGIC
       let shouldExecuteTrade = false;
 
       if (currentPortfolioValue >= triggerValue) {
-        console.log(`🎯 TRIGGER HIT: Portfolio $${currentPortfolioValue.toFixed(2)} >= Trigger $${triggerValue.toFixed(2)}`);
+        console.log(`🎯 TRIGGER HIT! Portfolio gained $${this.actualTradeValue} from baseline - EXECUTING TRADE`);
+        console.log(`   📊 Portfolio: $${currentPortfolioValue.toFixed(2)} >= Trigger: $${triggerValue.toFixed(2)}`);
         shouldExecuteTrade = true;
       } else {
         console.log(`⏸️ TRIGGER NOT HIT: Portfolio $${currentPortfolioValue.toFixed(2)} < Trigger $${triggerValue.toFixed(2)}`);

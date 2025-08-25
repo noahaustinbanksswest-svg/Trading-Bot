@@ -212,12 +212,17 @@ class BulletproofBot {
           triggerStatus = `⏳ Need $${needed.toFixed(2)} more to trigger`;
         }
         
+        // Calculate gain from baseline for clearer messaging
+        const gainFromBaseline = totalValue - baseline;
+        const progressPercent = Math.round((gainFromBaseline / 1.04) * 100);
+        
         embed.addFields([
           { 
-            name: '🎯 Live Trading Engine Status', 
-            value: `🎯 **Next Trigger**: $${trigger.toFixed(2)}\n` +
-                  `📊 **Baseline**: $${baseline.toFixed(2)}\n` +
-                  `💰 **Current**: $${totalValue.toFixed(2)}\n` +
+            name: '🎯 Swing Trading Engine (Live)', 
+            value: `📊 **Current Portfolio**: $${totalValue.toFixed(2)}\n` +
+                  `📍 **Last Reset Point**: $${baseline.toFixed(2)}\n` +
+                  `🎯 **Trade Trigger**: $${trigger.toFixed(2)} (${baseline.toFixed(2)} + $1.04)\n` +
+                  `💰 **Portfolio Gain**: +$${gainFromBaseline.toFixed(2)} (${progressPercent}% to trigger)\n` +
                   `${triggerStatus}`,
             inline: false 
           }
