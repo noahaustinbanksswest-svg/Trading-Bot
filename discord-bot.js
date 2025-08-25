@@ -2760,6 +2760,14 @@ class DiscordTradingBot {
             console.log(`🚨 TRIGGER CONFIRMED - Preparing to execute trade`);
             
             // Execute trade
+            // Ensure conditions object exists before setting properties
+            if (!autoTradeSettings.conditions) {
+              autoTradeSettings.conditions = {
+                portfolioValueReached: false,
+                cryptoValueReached: false,
+                dailyBuyLimitReached: false
+              };
+            }
             autoTradeSettings.conditions.portfolioValueReached = true;
             shouldExecuteTrade = true;
             reason = `💰 SWING TRADE: Portfolio hit $${triggerValue.toFixed(2)} - EXECUTING $1 TRADE`;
@@ -2777,6 +2785,14 @@ class DiscordTradingBot {
       if (autoTradeSettings.stopAtValue) {
         const solHolding = holdings.find(h => h.currency === 'SOL');
         if (solHolding && solHolding.amount <= autoTradeSettings.stopAtValue) {
+          // Ensure conditions object exists
+          if (!autoTradeSettings.conditions) {
+            autoTradeSettings.conditions = {
+              portfolioValueReached: false,
+              cryptoValueReached: false,
+              dailyBuyLimitReached: false
+            };
+          }
           autoTradeSettings.conditions.cryptoValueReached = true;
           shouldExecuteTrade = true;
           reason = `SOL amount reached ${solHolding.amount.toFixed(8)} (trigger: ${autoTradeSettings.stopAtValue})`;
@@ -2785,6 +2801,14 @@ class DiscordTradingBot {
 
       // Check daily buys condition
       if (autoTradeSettings.stopOnDailyBuys && dailyBuyData.totalBought >= autoTradeSettings.stopOnDailyBuys) {
+        // Ensure conditions object exists
+        if (!autoTradeSettings.conditions) {
+          autoTradeSettings.conditions = {
+            portfolioValueReached: false,
+            cryptoValueReached: false,
+            dailyBuyLimitReached: false
+          };
+        }
         autoTradeSettings.conditions.dailyBuyLimitReached = true;
         shouldExecuteTrade = true;
         reason = `Daily buys reached $${dailyBuyData.totalBought.toFixed(2)} (trigger: $${autoTradeSettings.stopOnDailyBuys})`;
