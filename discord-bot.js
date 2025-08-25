@@ -173,11 +173,14 @@ class GeminiAPI {
     this.apiKey = GEMINI_API_KEY;
     this.apiSecret = GEMINI_API_SECRET;
     this.baseUrl = GEMINI_BASE_URL;
+    this.nonceCounter = 0; // Unique counter for each instance
   }
 
   generateHeaders(endpoint, payload = {}) {
-    // Use microsecond precision nonce with random component to prevent conflicts
-    const nonce = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    // Use timestamp with large offset to get above cached nonces
+    const baseTime = Date.now() + 999999999; // Add ~31 years to current timestamp
+    this.nonceCounter = (this.nonceCounter + 1) % 100000;
+    const nonce = (baseTime * 100000 + this.nonceCounter).toString();
     const payloadWithDefaults = {
       request: endpoint,
       nonce: nonce.toString(),
@@ -367,7 +370,10 @@ class GeminiAPI {
       }
       
       const endpoint = '/v1/order/new';
-      const nonce = (Date.now() * 1000 + Math.floor(Math.random() * 1000)).toString();
+      // Generate nonce with large offset to get above any cached values
+      const baseTime = Date.now() + 999999999; // Add ~31 years to current timestamp  
+      this.nonceCounter = (this.nonceCounter + 1) % 100000;
+      const nonce = (baseTime * 100000 + this.nonceCounter).toString();
       
       // Proper Gemini API payload format with required fields
       const payload = {
