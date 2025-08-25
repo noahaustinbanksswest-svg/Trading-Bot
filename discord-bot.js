@@ -2581,7 +2581,7 @@ class DiscordTradingBot {
       });
       console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => h.currency));
       
-      // Check if selected crypto holdings allow $1 USD sale while protecting base amount
+      // Check if selected crypto holdings allow $1.08 USD sale while protecting base amount
       if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
         const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
         if (cryptoHolding) {
@@ -2599,11 +2599,11 @@ class DiscordTradingBot {
           
           console.log(`✅ Base Protection Status: ${cryptoHolding.amount.toFixed(8)} SOL vs ${autoTradeSettings.stopAtLoss} SOL protection - Evaluating individual trades`);
           
-          // Calculate $1 USD trade impact INCLUDING post-execution fee deduction
-          const tradeAmountUSD = 1.00; // $1 USD trade
+          // Calculate $1.08 USD trade impact INCLUDING post-execution fee deduction (Gemini minimum)
+          const tradeAmountUSD = 1.08; // $1.08 USD trade (Gemini minimum)
           const feeAmountUSD = 0.04;   // 4 cent fee deducted AFTER trade execution
           
-          // The actual SOL sold for $1 USD
+          // The actual SOL sold for $1.08 USD (Gemini minimum)
           const solAmountToSell = tradeAmountUSD / currentPrice; 
           
           // CRITICAL FIX: Add fee buffer for post-execution fee deduction
@@ -2614,11 +2614,11 @@ class DiscordTradingBot {
           // Check if we can handle the REAL total impact and still have >= base amount
           const remainingAfterSale = cryptoHolding.amount - totalSOLImpact;
           
-          console.log(`💰 $1 USD Trade Check for ${autoTradeSettings.selectedCrypto}:`);
+          console.log(`💰 $1.08 USD Trade Check for ${autoTradeSettings.selectedCrypto}:`);
           console.log(`   Current ${autoTradeSettings.selectedCrypto}: ${cryptoHolding.amount.toFixed(8)}`);
           console.log(`   Current Price: $${currentPrice.toFixed(2)} per ${autoTradeSettings.selectedCrypto}`);
           console.log(`   Base Amount to Protect: ${autoTradeSettings.stopAtLoss}`);
-          console.log(`   Trade: $${tradeAmountUSD} worth = ${solAmountToSell.toFixed(8)} SOL`);
+          console.log(`   Trade: $${tradeAmountUSD.toFixed(2)} worth = ${solAmountToSell.toFixed(8)} SOL`);
           console.log(`   Fee Buffer: $${feeAmountUSD} = ${feeBufferInSOL.toFixed(8)} SOL (post-execution deduction)`);
           console.log(`   Total SOL Impact: ${solAmountToSell.toFixed(8)} + ${feeBufferInSOL.toFixed(8)} = ${totalSOLImpact.toFixed(8)} SOL`);
           console.log(`   After Sale: ${cryptoHolding.amount.toFixed(8)} - ${totalSOLImpact.toFixed(8)} = ${remainingAfterSale.toFixed(8)} SOL`);
@@ -2649,7 +2649,7 @@ class DiscordTradingBot {
                 console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
                 // Set trigger to current portfolio (ready to trigger) and baseline $1 below
                 this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
-                this.baselineValue = this.savedTriggerValue - 1.00;
+                this.baselineValue = this.savedTriggerValue - 1.08;
                 console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
                 await this.saveTriggerToFile();
               }
@@ -2696,7 +2696,7 @@ class DiscordTradingBot {
             
             // Recalculate baseline and trigger based on new portfolio value
             this.baselineValue = currentPortfolioValue;
-            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            this.savedTriggerValue = currentPortfolioValue + 1.08;
             triggerValue = this.savedTriggerValue;
             await this.saveTriggerToFile();
             
@@ -2714,15 +2714,15 @@ class DiscordTradingBot {
           console.log(`   Baseline: $${this.baselineValue.toFixed(2)}`);
           console.log(`   Trigger at: $${triggerValue.toFixed(2)} (LOCKED)`);
           
-          // BASELINE RESET LOGIC: Only reset if portfolio drops below the original baseline (trigger - $1.00)
-          const resetThreshold = this.savedTriggerValue - 1.00; // Reset when portfolio drops below original baseline
-          console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $1.00) = ${currentPortfolioValue < resetThreshold}`);
+          // BASELINE RESET LOGIC: Only reset if portfolio drops below the original baseline (trigger - $1.08)
+          const resetThreshold = this.savedTriggerValue - 1.08; // Reset when portfolio drops below original baseline  
+          console.log(`🔍 RESET CHECK: Portfolio $${currentPortfolioValue.toFixed(2)} < Threshold $${resetThreshold.toFixed(2)} (Trigger $${this.savedTriggerValue.toFixed(2)} - $1.08) = ${currentPortfolioValue < resetThreshold}`);
           
           if (currentPortfolioValue < resetThreshold) {
             // RESET TRIGGER: Portfolio dropped below threshold, reset to current portfolio value
             console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
             this.baselineValue = currentPortfolioValue;
-            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            this.savedTriggerValue = currentPortfolioValue + 1.08;
             triggerValue = this.savedTriggerValue;
             await this.saveTriggerToFile();
             console.log(`🔄 NEW BASELINE: $${this.baselineValue.toFixed(2)}, NEW TRIGGER: $${this.savedTriggerValue.toFixed(2)}`);
