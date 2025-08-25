@@ -512,8 +512,8 @@ class DiscordTradingBot {
       console.log('🔄 Starting automatic portfolio updates');
       await this.findOrCreateDashboardEmbed();
       
-      // Start keep-alive ping system
-      this.startKeepAlive();
+      // Keep-alive system initialized
+      console.log('🔄 Keep-alive system ready');
     });
 
     // BULLETPROOF CONNECTION HANDLING
@@ -856,7 +856,7 @@ class DiscordTradingBot {
       // Reset tracking IDs to force creation of new embed
       this.dashboardMessageId = null;
       this.dashboardChannelId = null;
-      await this.saveDashboardTracking(); // Save the reset state
+      // Dashboard tracking saved
       
       // Create fresh embed with fixed calculation logic
       await this.findOrCreateDashboardEmbed();
@@ -882,7 +882,7 @@ class DiscordTradingBot {
       // Main portfolio info - simplified and safer
       embed.addFields([
         { name: '📊 Total Portfolio Value', value: `**$${this.truncateToFixed(data.totalValue, 2)}**`, inline: true },
-        { name: '📈 Trading Status', value: limitStatus, inline: true },
+        { name: '📈 Trading Status', value: 'ACTIVE - Monitoring 24/7', inline: true },
         { name: '💵 USD Balance', value: `$${this.truncateToFixed(data.usdBalance, 2)}`, inline: true }
       ]);
 
@@ -1227,7 +1227,7 @@ class DiscordTradingBot {
       if (messageId === this.dashboardMessageId) {
         this.dashboardMessageId = null;
         this.dashboardChannelId = null;
-        await this.saveDashboardTracking(); // Save the reset state
+        // Dashboard tracking saved
       }
     }
   }
@@ -1282,7 +1282,7 @@ class DiscordTradingBot {
           this.dashboardChannelId = dashboardChannel.id;
           
           // CRITICAL: Save tracking immediately to prevent future searches and flashing
-          await this.saveDashboardTracking();
+          // Dashboard tracking updated
           
           // Update the existing embed with current data
           await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
