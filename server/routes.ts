@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { GeminiService } from "./services/gemini";
 import { DiscordBotService } from "./services/discord-bot";
 import { TradingEngine } from "./services/trading-engine";
-import { insertTradingSettingsSchema, insertTradeOrderSchema, botSettings, botStatus } from "@shared/schema";
+import { insertTradingSettingsSchema, insertTradeOrderSchema, botSettings, botStatus } from "../shared/schema.js";
 import { z } from "zod";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";

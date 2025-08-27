@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextChannel } from 'discord.js';
 import { storage } from '../storage';
-import { PortfolioHolding, TradingSettings } from '@shared/schema';
+import { PortfolioHolding, TradingSettings } from '../../shared/schema.js';
 
 export interface DiscordPortfolioUpdate {
   totalValue: string;

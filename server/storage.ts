@@ -14,7 +14,7 @@ import {
   type InsertTradeOrder,
   type TradingHistory,
   type InsertTradingHistory
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 

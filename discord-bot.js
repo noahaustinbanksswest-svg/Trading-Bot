@@ -2398,7 +2398,7 @@ class DiscordTradingBot {
             .setStyle(ButtonStyle.Primary)
             .setEmoji('🛡️'),
           new ButtonBuilder()
-            .setCustomId('refresh_portfolio')
+            .setCustomId('settings_config')
             .setLabel('Back to Portfolio')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('↩️')

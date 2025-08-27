@@ -1,7 +1,7 @@
 import { GeminiService, GeminiOrderRequest } from './gemini';
 import { DiscordBotService } from './discord-bot';
 import { storage } from '../storage';
-import { TradeOrder, TradingSettings, PortfolioHolding } from '@shared/schema';
+import { TradeOrder, TradingSettings, PortfolioHolding } from '../../shared/schema.js';
 import cron from 'node-cron';
 
 export interface TradingEngineConfig {
