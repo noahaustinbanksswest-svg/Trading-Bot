@@ -842,18 +842,6 @@ class DiscordTradingBot {
 
     try {
       switch (customId) {
-        case 'refresh_portfolio':
-          await this.refreshPortfolio(interaction);
-          break;
-        case 'view_daily_buys':
-          await this.showDailyBuyTracker(interaction);
-          break;
-        case 'view_orders':
-          await this.showActiveOrders(interaction);
-          break;
-        case 'price_alerts':
-          await this.showPriceAlerts(interaction);
-          break;
         case 'emergency_stop':
           await this.emergencyStopMonitoring(interaction);
           break;
@@ -1051,33 +1039,10 @@ class DiscordTradingBot {
       new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('refresh_portfolio')
-            .setLabel('Refresh')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🔄'),
-          new ButtonBuilder()
-            .setCustomId('view_daily_buys')
-            .setLabel('Daily Buy Tracker')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('📊'),
-          new ButtonBuilder()
-            .setCustomId('view_orders')
-            .setLabel('Active Orders')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('📋'),
-          new ButtonBuilder()
-            .setCustomId('price_alerts')
-            .setLabel('Price Alerts')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔔'),
-          new ButtonBuilder()
             .setCustomId('emergency_stop')
             .setLabel('Stop Monitoring')
             .setStyle(ButtonStyle.Danger)
-            .setEmoji('🛑')
-        ),
-      new ActionRowBuilder()
-        .addComponents(
+            .setEmoji('🛑'),
           new ButtonBuilder()
             .setCustomId('auto_trade_setup')
             .setLabel('Auto Trade')
