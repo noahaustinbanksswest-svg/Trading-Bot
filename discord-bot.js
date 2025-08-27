@@ -2679,36 +2679,34 @@ class DiscordTradingBot {
           // NEW LOGIC: Last portfolio value + $1.00 trigger (not price-based)
           const currentPortfolioValue = cryptoHolding.value; // $267.84
           
-          // LOAD STABLE VALUES ONLY ONCE AT STARTUP
+          // FORCE CLEAR VALUES AND LOAD FROM FILE ON EVERY SESSION
           console.log(`🔍 DEBUG: Before init - savedTriggerValue: ${this.savedTriggerValue}, baselineValue: ${this.baselineValue}`);
           if (!this.triggerInitializedThisSession) {
-            // Only load from file if we don't already have values
-            if (!this.savedTriggerValue || !this.baselineValue) {
-              try {
-                const triggerData = await this.loadTriggerFromFile();
-                console.log(`🔍 DEBUG: Loaded trigger data:`, triggerData);
-                if (triggerData && triggerData.baseline && triggerData.trigger) {
-                  this.baselineValue = triggerData.baseline;
-                  this.savedTriggerValue = triggerData.trigger;
-                  console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)}, TRIGGER LOCKED: $${this.savedTriggerValue.toFixed(2)} (loaded from file)`);
-                } else {
-                  console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
-                  // Set trigger to current portfolio (ready to trigger) and baseline $1 below
-                  this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
-                  this.baselineValue = this.savedTriggerValue - 1.00;
-                  console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
-                  await this.saveTriggerToFile();
-                }
-              } catch (error) {
-                console.log(`🔍 DEBUG: Error loading trigger data:`, error.message);
+            // Clear values to force proper initialization
+            this.savedTriggerValue = null;
+            this.baselineValue = null;
+            try {
+              const triggerData = await this.loadTriggerFromFile();
+              console.log(`🔍 DEBUG: Loaded trigger data:`, triggerData);
+              if (triggerData && triggerData.baseline && triggerData.trigger) {
+                this.baselineValue = triggerData.baseline;
+                this.savedTriggerValue = triggerData.trigger;
+                console.log(`🔒 BASELINE LOCKED: $${this.baselineValue.toFixed(2)}, TRIGGER LOCKED: $${this.savedTriggerValue.toFixed(2)} (loaded from file)`);
+              } else {
+                console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
                 // Set trigger to current portfolio (ready to trigger) and baseline $1 below
                 this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
                 this.baselineValue = this.savedTriggerValue - 1.00;
-                console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
+                console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
                 await this.saveTriggerToFile();
               }
-            } else {
-              console.log(`🔒 USING EXISTING VALUES: Baseline $${this.baselineValue.toFixed(2)}, Trigger $${this.savedTriggerValue.toFixed(2)} (already loaded)`);
+            } catch (error) {
+              console.log(`🔍 DEBUG: Error loading trigger data:`, error.message);
+              // Set trigger to current portfolio (ready to trigger) and baseline $1 below
+              this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
+              this.baselineValue = this.savedTriggerValue - 1.00;
+              console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
+              await this.saveTriggerToFile();
             }
             this.triggerInitializedThisSession = true;
           }
