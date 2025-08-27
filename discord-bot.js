@@ -865,7 +865,8 @@ class DiscordTradingBot {
           await this.showAutoTradeStatus(interaction);
           break;
         case 'settings_config':
-          await this.showSettingsConfig(interaction);
+          console.log('⚙️ Settings button clicked - showing auto trade setup modal');
+          await this.showAutoTradeSetup(interaction);
           break;
         case 'stop_auto_trade':
           await this.stopAutoTrade(interaction);
