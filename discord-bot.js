@@ -864,6 +864,9 @@ class DiscordTradingBot {
         case 'auto_trade_status':
           await this.showAutoTradeStatus(interaction);
           break;
+        case 'settings_config':
+          await this.showSettingsConfig(interaction);
+          break;
         case 'stop_auto_trade':
           await this.stopAutoTrade(interaction);
           break;
@@ -1084,6 +1087,11 @@ class DiscordTradingBot {
             .setLabel('Auto Trade Status')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('📋'),
+          new ButtonBuilder()
+            .setCustomId('settings_config')
+            .setLabel('Settings')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('⚙️'),
           new ButtonBuilder()
             .setCustomId('stop_auto_trade')
             .setLabel('Stop Auto Trade')
@@ -2385,6 +2393,63 @@ class DiscordTradingBot {
     }
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  async showSettingsConfig(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const embed = new EmbedBuilder()
+        .setTitle('⚙️ Auto Trade Settings')
+        .setColor(0x2196F3)
+        .addFields(
+          { name: '🤖 Auto Trade Status', value: autoTradeSettings.enabled ? '✅ Enabled' : '❌ Disabled', inline: true },
+          { name: '💰 Selected Crypto', value: autoTradeSettings.selectedCrypto || 'SOL', inline: true },
+          { name: '🛡️ Stop at Base Amount', value: `${autoTradeSettings.stopAtLoss || 1.5} SOL`, inline: true },
+          { name: '📈 Stop at Value', value: autoTradeSettings.stopAtValue ? `$${autoTradeSettings.stopAtValue}` : 'Not Set', inline: true },
+          { name: '💸 Trade Amount', value: `$${autoTradeSettings.amount || 1.00} USD per trade`, inline: true },
+          { name: '⚡ Trade Interval', value: `Every $1 portfolio increase`, inline: true }
+        )
+        .addFields({
+          name: '🔧 Configuration Commands',
+          value: `Use these slash commands to modify settings:
+• \`/settings setting:daily_limit value:500\` - Set daily buy limit
+• \`/settings setting:stop_loss value:5\` - Set stop loss %
+• \`/settings setting:take_profit value:10\` - Set take profit %
+
+**Current Values:**
+• Daily Limit: $${tradingSettings.dailyBuyLimit}
+• Stop Loss: ${tradingSettings.stopLossPercent}%
+• Take Profit: ${tradingSettings.takeProfitPercent}%`,
+          inline: false
+        })
+        .setFooter({ text: 'Use the Auto Trade Setup button to modify stop-at-base amounts' })
+        .setTimestamp();
+
+      const buttons = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('auto_trade_setup')
+            .setLabel('Modify Stop-at-Base')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('🛡️'),
+          new ButtonBuilder()
+            .setCustomId('refresh_portfolio')
+            .setLabel('Back to Portfolio')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('↩️')
+        );
+
+      await interaction.editReply({ 
+        embeds: [embed],
+        components: [buttons]
+      });
+      
+      console.log('⚙️ Settings config displayed to user');
+    } catch (error) {
+      console.error('Error showing settings config:', error);
+      await this.replyWithError(interaction, `Failed to show settings: ${error.message}`);
+    }
   }
 
   async stopAutoTrade(interaction) {
