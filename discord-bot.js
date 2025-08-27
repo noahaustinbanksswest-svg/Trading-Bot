@@ -1039,11 +1039,6 @@ class DiscordTradingBot {
       new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('emergency_stop')
-            .setLabel('Stop Monitoring')
-            .setStyle(ButtonStyle.Danger)
-            .setEmoji('🛑'),
-          new ButtonBuilder()
             .setCustomId('auto_trade_setup')
             .setLabel('Auto Trade')
             .setStyle(ButtonStyle.Success)
