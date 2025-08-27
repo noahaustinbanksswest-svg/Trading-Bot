@@ -2396,8 +2396,6 @@ class DiscordTradingBot {
   }
 
   async showSettingsConfig(interaction) {
-    await interaction.deferReply({ ephemeral: true });
-
     try {
       const embed = new EmbedBuilder()
         .setTitle('⚙️ Auto Trade Settings')
@@ -2440,15 +2438,19 @@ class DiscordTradingBot {
             .setEmoji('↩️')
         );
 
-      await interaction.editReply({ 
+      // Update the original message instead of showing ephemeral reply
+      await interaction.update({ 
         embeds: [embed],
         components: [buttons]
       });
       
-      console.log('⚙️ Settings config displayed to user');
+      console.log('⚙️ Settings config displayed to user (updated main embed)');
     } catch (error) {
       console.error('Error showing settings config:', error);
-      await this.replyWithError(interaction, `Failed to show settings: ${error.message}`);
+      await interaction.reply({ 
+        content: `Failed to show settings: ${error.message}`, 
+        ephemeral: true 
+      });
     }
   }
 
