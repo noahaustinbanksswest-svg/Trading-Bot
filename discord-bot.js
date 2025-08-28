@@ -3335,20 +3335,6 @@ class DiscordTradingBot {
         .setTimestamp()
         .setFooter({ text: 'UTC Trading Bot • Secure • Automated • Profitable' });
 
-      const publicButtons = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId('create_account')
-            .setLabel('Create Account')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('🚀'),
-          new ButtonBuilder()
-            .setCustomId('view_portfolio')
-            .setLabel('Portfolio')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('📊')
-        );
-
       // Find public-dashboard channel
       const guild = interaction.guild;
       const publicDashboardChannel = guild.channels.cache.find(channel => 
@@ -3360,10 +3346,9 @@ class DiscordTradingBot {
         return;
       }
 
-      // Send to public dashboard channel
+      // Send to public dashboard channel without buttons
       await publicDashboardChannel.send({
-        embeds: [publicEmbed],
-        components: [publicButtons]
+        embeds: [publicEmbed]
       });
 
       await interaction.editReply('✅ Public dashboard created in #public-dashboard!');
