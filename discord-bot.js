@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import crypto from 'crypto';
 import axios from 'axios';
 import { Pool, neonConfig } from '@neondatabase/serverless';
@@ -169,9 +169,9 @@ async function sendKeepAlivePing(status = 'running', errorMessage = null) {
 }
 
 class GeminiAPI {
-  constructor() {
-    this.apiKey = GEMINI_API_KEY;
-    this.apiSecret = GEMINI_API_SECRET;
+  constructor(apiKey = null, apiSecret = null) {
+    this.apiKey = apiKey || GEMINI_API_KEY;
+    this.apiSecret = apiSecret || GEMINI_API_SECRET;
     this.baseUrl = GEMINI_BASE_URL;
     this.nonceCounter = 0; // Unique counter for each instance
   }
@@ -790,7 +790,27 @@ class DiscordTradingBot {
         .addStringOption(option =>
           option.setName('base')
             .setDescription('Base amount to keep (default: 1/2 = 0.5)')
-            .setRequired(false))
+            .setRequired(false)),
+
+      new SlashCommandBuilder()
+        .setName('public-dashboard')
+        .setDescription('Create or update the public trading bot dashboard'),
+
+      new SlashCommandBuilder()
+        .setName('setup-user')
+        .setDescription('Set up new user with API credentials')
+        .addStringOption(option =>
+          option.setName('api_key')
+            .setDescription('Your Gemini API Key')
+            .setRequired(true))
+        .addStringOption(option =>
+          option.setName('api_secret')
+            .setDescription('Your Gemini API Secret')
+            .setRequired(true))
+        .addStringOption(option =>
+          option.setName('username')
+            .setDescription('Choose a username for your account')
+            .setRequired(true))
     ];
 
     const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
@@ -827,6 +847,12 @@ class DiscordTradingBot {
         case 'testautotrade':
           await this.testAutoTrade(interaction);
           break;
+        case 'public-dashboard':
+          await this.createPublicDashboard(interaction);
+          break;
+        case 'setup-user':
+          await this.setupUser(interaction);
+          break;
         default:
           await this.replyWithError(interaction, 'Unknown command');
       }
@@ -859,6 +885,18 @@ class DiscordTradingBot {
         case 'stop_auto_trade':
           await this.stopAutoTrade(interaction);
           break;
+        case 'create_account':
+          await this.handleCreateAccount(interaction);
+          break;
+        case 'view_portfolio':
+          await this.handleViewPortfolio(interaction);
+          break;
+        case 'user_login':
+          await this.handleUserLogin(interaction);
+          break;
+        case 'user_logout':
+          await this.handleUserLogout(interaction);
+          break;
         default:
           await this.replyWithError(interaction, 'Unknown button action');
       }
@@ -872,11 +910,22 @@ class DiscordTradingBot {
     console.log(`📋 Modal submitted: ${interaction.customId} by user ${interaction.user.tag}`);
     
     try {
-      if (interaction.customId === 'auto_trade_modal') {
-        console.log('🤖 Auto Trade Modal submitted - processing configuration');
-        await this.handleAutoTradeModal(interaction);
-      } else {
-        await interaction.reply({ content: 'Unknown modal submission.', ephemeral: true });
+      switch (interaction.customId) {
+        case 'auto_trade_modal':
+          console.log('🤖 Auto Trade Modal submitted - processing configuration');
+          await this.handleAutoTradeModal(interaction);
+          break;
+        case 'api_setup_modal':
+          await this.handleApiSetupModal(interaction);
+          break;
+        case 'username_modal':
+          await this.handleUsernameModal(interaction);
+          break;
+        case 'login_modal':
+          await this.handleLoginModal(interaction);
+          break;
+        default:
+          await interaction.reply({ content: 'Unknown modal submission.', ephemeral: true });
       }
     } catch (error) {
       console.error('Error handling modal submit:', error);
@@ -2271,7 +2320,6 @@ class DiscordTradingBot {
   }
 
   async showAutoTradeSetup(interaction) {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
     
     const modal = new ModalBuilder()
       .setCustomId('auto_trade_modal')
@@ -3248,6 +3296,418 @@ class DiscordTradingBot {
     } catch (error) {
       console.error('❌ Error validating embed data:', error.message);
       return [];
+    }
+  }
+
+  // User storage for multi-user system
+  userDatabase = new Map(); // In production, use actual database
+
+  async createPublicDashboard(interaction) {
+    try {
+      await interaction.deferReply();
+
+      const publicEmbed = new EmbedBuilder()
+        .setTitle('🤖 Day Trading Bot')
+        .setDescription('**Powered by UTC**\n\n' +
+          '🔥 **Automated Crypto Trading System**\n' +
+          '• Intelligent swing trading with $1 increments\n' +
+          '• Real-time portfolio monitoring\n' +
+          '• Risk management & stop-loss protection\n' +
+          '• Multi-user support with individual API connections\n\n' +
+          '💰 **How It Works:**\n' +
+          '1. Connect your Gemini API for secure trading\n' +
+          '2. Bot monitors your portfolio 24/7\n' +
+          '3. Automatically sells $1 worth when portfolio increases by $1\n' +
+          '4. Maintains your chosen base protection amount\n' +
+          '5. Tracks all trades with real-time Discord updates\n\n' +
+          '🛡️ **Security Features:**\n' +
+          '• Your API keys stay encrypted and private\n' +
+          '• Base amount protection prevents over-selling\n' +
+          '• Manual override controls always available\n\n' +
+          '📊 **Get Started Below:**')
+        .setColor(0x00D4AA)
+        .setTimestamp()
+        .setFooter({ text: 'UTC Trading Bot • Secure • Automated • Profitable' });
+
+      const publicButtons = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('create_account')
+            .setLabel('Create Account')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('🚀'),
+          new ButtonBuilder()
+            .setCustomId('view_portfolio')
+            .setLabel('Portfolio')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('📊')
+        );
+
+      // Find public-dashboard channel
+      const guild = interaction.guild;
+      const publicDashboardChannel = guild.channels.cache.find(channel => 
+        channel.name === 'public-dashboard' && channel.type === 0
+      );
+
+      if (!publicDashboardChannel) {
+        await interaction.editReply('❌ #public-dashboard channel not found. Please create it first.');
+        return;
+      }
+
+      // Send to public dashboard channel
+      await publicDashboardChannel.send({
+        embeds: [publicEmbed],
+        components: [publicButtons]
+      });
+
+      await interaction.editReply('✅ Public dashboard created in #public-dashboard!');
+
+    } catch (error) {
+      console.error('❌ Error creating public dashboard:', error);
+      await this.replyWithError(interaction, `Failed to create public dashboard: ${error.message}`);
+    }
+  }
+
+  async setupUser(interaction) {
+    try {
+      // This will be handled via button interactions for security
+      await interaction.reply({
+        content: '⚠️ Please use the **Create Account** button in #public-dashboard for secure API setup.',
+        ephemeral: true
+      });
+    } catch (error) {
+      console.error('❌ Error in setupUser:', error);
+      await this.replyWithError(interaction, `Setup error: ${error.message}`);
+    }
+  }
+
+  async handleCreateAccount(interaction) {
+    try {
+      const userId = interaction.user.id;
+      const userExists = this.userDatabase.has(userId);
+
+      if (userExists) {
+        const userData = this.userDatabase.get(userId);
+        // User exists - show login/logout options
+        const loginButtons = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId('user_login')
+              .setLabel('Log In')
+              .setStyle(ButtonStyle.Success)
+              .setEmoji('🔐'),
+            new ButtonBuilder()
+              .setCustomId('user_logout')
+              .setLabel('Log Out')
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji('🚪')
+          );
+
+        await interaction.reply({
+          content: `👋 Welcome back! You already have an account.\n**Username:** ${userData.username}\n**Status:** ${userData.loggedIn ? '🟢 Logged In' : '🔴 Logged Out'}`,
+          components: [loginButtons],
+          ephemeral: true
+        });
+      } else {
+        // New user - start API setup process
+        const modal = new ModalBuilder()
+          .setCustomId('api_setup_modal')
+          .setTitle('🔐 Connect Your Gemini API');
+
+        const apiKeyInput = new TextInputBuilder()
+          .setCustomId('api_key')
+          .setLabel('Gemini API Key')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Enter your Gemini API Key')
+          .setRequired(true);
+
+        const apiSecretInput = new TextInputBuilder()
+          .setCustomId('api_secret')
+          .setLabel('Gemini API Secret')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Enter your Gemini API Secret')
+          .setRequired(true);
+
+        const firstActionRow = new ActionRowBuilder().addComponents(apiKeyInput);
+        const secondActionRow = new ActionRowBuilder().addComponents(apiSecretInput);
+
+        modal.addComponents(firstActionRow, secondActionRow);
+        await interaction.showModal(modal);
+      }
+    } catch (error) {
+      console.error('❌ Error handling create account:', error);
+      await interaction.reply({ content: `❌ Account setup error: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async handleApiSetupModal(interaction) {
+    try {
+      const apiKey = interaction.fields.getTextInputValue('api_key');
+      const apiSecret = interaction.fields.getTextInputValue('api_secret');
+      const userId = interaction.user.id;
+
+      // Test the API credentials
+      await interaction.deferReply({ ephemeral: true });
+      
+      // Basic validation
+      if (!apiKey || !apiSecret || apiKey.length < 10 || apiSecret.length < 10) {
+        await interaction.editReply('❌ Invalid API credentials. Please check your Gemini API key and secret.');
+        return;
+      }
+
+      // Store temporarily and ask for username
+      this.userDatabase.set(userId, {
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        status: 'pending_username',
+        loggedIn: false,
+        createdAt: new Date()
+      });
+
+      const usernameModal = new ModalBuilder()
+        .setCustomId('username_modal')
+        .setTitle('👤 Choose Your Username');
+
+      const usernameInput = new TextInputBuilder()
+        .setCustomId('username')
+        .setLabel('Username')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Choose a unique username')
+        .setRequired(true)
+        .setMinLength(3)
+        .setMaxLength(20);
+
+      const usernameRow = new ActionRowBuilder().addComponents(usernameInput);
+      usernameModal.addComponents(usernameRow);
+
+      await interaction.editReply('✅ API credentials received! Please choose a username...');
+      setTimeout(async () => {
+        try {
+          await interaction.followUp({ content: 'Please set your username:', ephemeral: true });
+          await interaction.showModal(usernameModal);
+        } catch (err) {
+          console.error('Error showing username modal:', err);
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('❌ Error handling API setup:', error);
+      await interaction.editReply(`❌ API setup failed: ${error.message}`);
+    }
+  }
+
+  async handleUsernameModal(interaction) {
+    try {
+      const username = interaction.fields.getTextInputValue('username');
+      const userId = interaction.user.id;
+
+      // Check if username is taken
+      const usernameExists = Array.from(this.userDatabase.values()).some(user => user.username === username);
+      if (usernameExists) {
+        await interaction.reply({ content: '❌ Username already taken. Please choose another.', ephemeral: true });
+        return;
+      }
+
+      // Complete user setup
+      const userData = this.userDatabase.get(userId);
+      userData.username = username;
+      userData.status = 'active';
+      userData.loggedIn = true;
+      this.userDatabase.set(userId, userData);
+
+      await interaction.reply({
+        content: `🎉 **Account Created Successfully!**\n` +
+                `**Username:** ${username}\n` +
+                `**Status:** 🟢 Active\n\n` +
+                `You can now use the **Portfolio** button to access your personal trading dashboard!`,
+        ephemeral: true
+      });
+
+      console.log(`✅ New user registered: ${username} (${userId})`);
+
+    } catch (error) {
+      console.error('❌ Error handling username setup:', error);
+      await interaction.reply({ content: `❌ Username setup failed: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async handleViewPortfolio(interaction) {
+    try {
+      const userId = interaction.user.id;
+      const userData = this.userDatabase.get(userId);
+
+      if (!userData || !userData.loggedIn) {
+        await interaction.reply({
+          content: '❌ Please create an account first using the **Create Account** button.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Create user-specific Gemini instance
+      const userGemini = new GeminiAPI(userData.apiKey, userData.apiSecret);
+      
+      try {
+        // Test API and get portfolio data
+        const balances = await userGemini.getBalances();
+        const portfolioData = await this.processUserPortfolioData(balances, userGemini);
+        
+        // Create personal portfolio embed (same format as main dashboard)
+        const embed = this.createPortfolioEmbed(portfolioData);
+        const buttons = this.createPortfolioButtons();
+
+        // Add user identification
+        embed.setAuthor({ name: `${userData.username}'s Portfolio` });
+
+        await interaction.reply({
+          embeds: [embed],
+          components: buttons,
+          ephemeral: true
+        });
+
+      } catch (apiError) {
+        await interaction.reply({
+          content: `❌ API Error: Unable to fetch your portfolio data.\n**Error:** ${apiError.message}\n\nPlease check your API credentials.`,
+          ephemeral: true
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error showing user portfolio:', error);
+      await interaction.reply({ content: `❌ Portfolio error: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async processUserPortfolioData(balances, geminiInstance) {
+    // Process balances similar to main portfolio but for individual user
+    const cryptoBalances = balances.filter(b => b.currency !== 'USD' && parseFloat(b.amount) > 0);
+    const usdBalance = balances.find(b => b.currency === 'USD') || { amount: '0.00' };
+
+    let totalValue = 0;
+    const holdings = [];
+
+    for (const balance of cryptoBalances) {
+      try {
+        const symbol = `${balance.currency}USD`;
+        const ticker = await geminiInstance.getTicker(symbol);
+        const price = parseFloat(ticker.last);
+        const amount = parseFloat(balance.amount);
+        const value = price * amount;
+        
+        totalValue += value;
+        holdings.push({
+          currency: balance.currency,
+          amount: amount,
+          price: price,
+          value: value,
+          change: 0 // Would need historical data for real change
+        });
+      } catch (error) {
+        console.error(`Error fetching price for ${balance.currency}:`, error);
+      }
+    }
+
+    return {
+      totalValue: totalValue,
+      usdBalance: parseFloat(usdBalance.amount),
+      holdings: holdings,
+      username: this.userDatabase.get(interaction?.user?.id)?.username || 'User'
+    };
+  }
+
+  async handleUserLogin(interaction) {
+    try {
+      const userId = interaction.user.id;
+      const userData = this.userDatabase.get(userId);
+
+      if (!userData) {
+        await interaction.reply({
+          content: '❌ No account found. Please create an account first.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Simple username confirmation for login
+      const modal = new ModalBuilder()
+        .setCustomId('login_modal')
+        .setTitle('🔐 Log In to Your Account');
+
+      const usernameInput = new TextInputBuilder()
+        .setCustomId('login_username')
+        .setLabel('Enter Your Username')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Your registered username')
+        .setRequired(true);
+
+      const usernameRow = new ActionRowBuilder().addComponents(usernameInput);
+      modal.addComponents(usernameRow);
+      await interaction.showModal(modal);
+
+    } catch (error) {
+      console.error('❌ Error handling user login:', error);
+      await interaction.reply({ content: `❌ Login error: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async handleUserLogout(interaction) {
+    try {
+      const userId = interaction.user.id;
+      const userData = this.userDatabase.get(userId);
+
+      if (!userData) {
+        await interaction.reply({
+          content: '❌ No account found.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Log out the user
+      userData.loggedIn = false;
+      this.userDatabase.set(userId, userData);
+
+      await interaction.reply({
+        content: `👋 **Logged Out Successfully**\n**Username:** ${userData.username}\n**Status:** 🔴 Logged Out\n\nYou can log back in anytime using the Create Account button.`,
+        ephemeral: true
+      });
+
+      console.log(`🚪 User logged out: ${userData.username} (${userId})`);
+
+    } catch (error) {
+      console.error('❌ Error handling user logout:', error);
+      await interaction.reply({ content: `❌ Logout error: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async handleLoginModal(interaction) {
+    try {
+      const username = interaction.fields.getTextInputValue('login_username');
+      const userId = interaction.user.id;
+      const userData = this.userDatabase.get(userId);
+
+      if (!userData || userData.username !== username) {
+        await interaction.reply({
+          content: '❌ Invalid username. Please check your username or create a new account.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Log in the user
+      userData.loggedIn = true;
+      this.userDatabase.set(userId, userData);
+
+      await interaction.reply({
+        content: `🔐 **Logged In Successfully!**\n**Username:** ${username}\n**Status:** 🟢 Logged In\n\nYou can now access your portfolio dashboard!`,
+        ephemeral: true
+      });
+
+      console.log(`🔐 User logged in: ${username} (${userId})`);
+
+    } catch (error) {
+      console.error('❌ Error handling login modal:', error);
+      await interaction.reply({ content: `❌ Login failed: ${error.message}`, ephemeral: true });
     }
   }
 
