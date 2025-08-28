@@ -616,6 +616,11 @@ class DiscordTradingBot {
       this.startAutoUpdating();
       await this.findOrCreateDashboardEmbed();
       
+      // Auto-deploy public dashboard
+      setTimeout(async () => {
+        await this.autoDeployPublicDashboard();
+      }, 3000);
+      
       // Start keep-alive ping system
       this.startKeepAlive();
     });
@@ -3677,6 +3682,102 @@ class DiscordTradingBot {
     } catch (error) {
       console.error('❌ Error handling user logout:', error);
       await interaction.reply({ content: `❌ Logout error: ${error.message}`, ephemeral: true });
+    }
+  }
+
+  async autoDeployPublicDashboard() {
+    try {
+      console.log('🚀 Auto-deploying public dashboard...');
+      
+      const guild = this.client.guilds.cache.first();
+      if (!guild) {
+        console.log('❌ No guild found for dashboard deployment');
+        return;
+      }
+
+      // Find or create public-dashboard channel
+      let publicDashboardChannel = guild.channels.cache.find(channel => 
+        channel.name === 'public-dashboard' && channel.type === 0
+      );
+
+      if (!publicDashboardChannel) {
+        console.log('📢 Creating #public-dashboard channel...');
+        try {
+          publicDashboardChannel = await guild.channels.create({
+            name: 'public-dashboard',
+            type: 0,
+            topic: 'Multi-user trading bot dashboard - Create your account and start trading!'
+          });
+          console.log('✅ #public-dashboard channel created!');
+        } catch (error) {
+          console.error('❌ Failed to create channel:', error.message);
+          return;
+        }
+      }
+
+      // Check if dashboard already exists in channel
+      const messages = await publicDashboardChannel.messages.fetch({ limit: 10 });
+      const existingDashboard = messages.find(msg => 
+        msg.author.id === this.client.user.id && 
+        msg.embeds[0]?.title === '🤖 Day Trading Bot'
+      );
+
+      if (existingDashboard) {
+        console.log('✅ Public dashboard already exists in #public-dashboard');
+        return;
+      }
+
+      // Create the public dashboard embed
+      const publicEmbed = new EmbedBuilder()
+        .setTitle('🤖 Day Trading Bot')
+        .setDescription('**Powered by UTC**\n\n' +
+          '🔥 **Automated Crypto Trading System**\n' +
+          '• Intelligent swing trading with $1 increments\n' +
+          '• Real-time portfolio monitoring\n' +
+          '• Risk management & stop-loss protection\n' +
+          '• Multi-user support with individual API connections\n\n' +
+          '💰 **How It Works:**\n' +
+          '1. Connect your Gemini API for secure trading\n' +
+          '2. Bot monitors your portfolio 24/7\n' +
+          '3. Automatically sells $1 worth when portfolio increases by $1\n' +
+          '4. Maintains your chosen base protection amount\n' +
+          '5. Tracks all trades with real-time Discord updates\n\n' +
+          '🛡️ **Security Features:**\n' +
+          '• Your API keys stay encrypted and private\n' +
+          '• Base amount protection prevents over-selling\n' +
+          '• Manual override controls always available\n\n' +
+          '📊 **Get Started Below:**')
+        .setColor(0x00D4AA)
+        .setTimestamp()
+        .setFooter({ text: 'UTC Trading Bot • Secure • Automated • Profitable' });
+
+      const publicButtons = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('create_account')
+            .setLabel('Create Account')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('🚀'),
+          new ButtonBuilder()
+            .setCustomId('view_portfolio')
+            .setLabel('Portfolio')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('📊')
+        );
+
+      // Send the dashboard to the channel
+      await publicDashboardChannel.send({
+        embeds: [publicEmbed],
+        components: [publicButtons]
+      });
+
+      console.log('🎉 PUBLIC DASHBOARD DEPLOYED SUCCESSFULLY!');
+      console.log(`📍 Channel: #${publicDashboardChannel.name}`);
+      console.log(`🔗 Channel ID: ${publicDashboardChannel.id}`);
+      console.log('👥 Users can now create accounts and access individual trading dashboards!');
+
+    } catch (error) {
+      console.error('❌ Error auto-deploying dashboard:', error);
     }
   }
 
