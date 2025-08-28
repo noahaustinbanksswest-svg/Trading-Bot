@@ -275,7 +275,8 @@ class GeminiAPI {
       
       console.log('✅ Gemini API connected successfully!');
       console.log('💰 Live portfolio data retrieved');
-      console.log('📊 Raw Gemini balances:', JSON.stringify(response.data, null, 2));
+      // Log raw balances (remove heavy logging to prevent EPIPE errors)
+      console.log(`📊 Raw Gemini balances: ${response.data.length} currencies retrieved`);
       return response.data;
       
     } catch (error) {
@@ -3388,6 +3389,7 @@ class DiscordTradingBot {
 
   async handleCreateAccount(interaction) {
     try {
+      console.log(`🚀 Create Account button clicked by user ${interaction.user.tag} (${interaction.user.id})`);
       const userId = interaction.user.id;
       const userExists = this.userDatabase.has(userId);
 
@@ -3538,6 +3540,7 @@ class DiscordTradingBot {
 
   async handleViewPortfolio(interaction) {
     try {
+      console.log(`📊 Portfolio button clicked by user ${interaction.user.tag} (${interaction.user.id})`);
       const userId = interaction.user.id;
       const userData = this.userDatabase.get(userId);
 
@@ -3824,14 +3827,23 @@ class DiscordTradingBot {
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
     } catch (error) {
-      console.error('❌ Failed to start Discord bot:', error);
-      console.error('❌ Error details:', error.message);
-      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Failed to start Discord bot:', error.message);
+      process.exit(1);
     }
   }
 }
 
-// Start the bot
+// Start the bot with error handling
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error.message);
+  // Don't exit, keep the bot running
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('💥 Unhandled Rejection:', error.message);
+  // Don't exit, keep the bot running
+});
+
 const bot = new DiscordTradingBot();
 bot.start();
 
