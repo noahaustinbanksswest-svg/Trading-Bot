@@ -20,6 +20,285 @@ const userServices = new Map<string, {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
+  // Serve the dashboard as the root route to bypass vite issues
+  app.get("/", (req, res) => {
+    const dashboardHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <title>🚀 Trading Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white; min-height: 100vh; overflow-x: hidden;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { 
+            font-size: 3rem; margin-bottom: 10px; 
+            background: linear-gradient(135deg, #4CAF50, #2196F3);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .status-grid { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px; margin-bottom: 30px;
+        }
+        .card { 
+            background: rgba(42, 42, 42, 0.8); backdrop-filter: blur(10px);
+            padding: 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .card.success { border-left: 4px solid #4CAF50; }
+        .card.info { border-left: 4px solid #2196F3; }
+        .card.warning { border-left: 4px solid #FF9800; }
+        .card h2 { color: #4CAF50; margin-bottom: 15px; font-size: 1.4rem; }
+        .card h3 { color: #2196F3; margin-bottom: 10px; }
+        button { 
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white; border: none; padding: 12px 24px; border-radius: 8px;
+            cursor: pointer; font-size: 1rem; margin: 10px 10px 10px 0;
+            transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        button:hover { 
+            transform: translateY(-2px); box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        .data-display { 
+            background: #333; padding: 15px; border-radius: 8px; margin: 10px 0;
+            font-family: 'Courier New', monospace; font-size: 0.9rem;
+            max-height: 400px; overflow-y: auto; border: 1px solid #555;
+        }
+        .loading { color: #2196F3; }
+        .error { color: #f44336; background: rgba(244, 67, 54, 0.1); }
+        .metrics { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px; margin: 20px 0;
+        }
+        .metric { 
+            text-align: center; padding: 15px; background: rgba(0,0,0,0.3);
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .metric-value { font-size: 2rem; font-weight: bold; color: #4CAF50; }
+        .metric-label { font-size: 0.9rem; color: #aaa; margin-top: 5px; }
+        .footer { text-align: center; margin-top: 40px; color: #888; }
+        .status-indicator { 
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online { background: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        .status-offline { background: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Trading Dashboard</h1>
+            <p>Real-time cryptocurrency portfolio management & Discord bot control</p>
+        </div>
+        
+        <div class="status-grid">
+            <div class="card success">
+                <h2><span class="status-indicator status-online"></span>System Status</h2>
+                <p>Backend server is running successfully</p>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="uptime">--</div>
+                        <div class="metric-label">Uptime (min)</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="memory">--</div>
+                        <div class="metric-label">Memory (MB)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card info">
+                <h2>📊 Portfolio Tracker</h2>
+                <button onclick="loadBotSettings()">🔧 Bot Settings</button>
+                <button onclick="loadHealthCheck()">❤️ Health Check</button>
+                <div id="portfolio-data" class="data-display">Click buttons to load data...</div>
+            </div>
+
+            <div class="card info">
+                <h2>🤖 Discord Bot</h2>
+                <button onclick="loadBotStatus()">📡 Check Status</button>
+                <button onclick="testBotPing()">🏓 Test Ping</button>
+                <div id="bot-status" class="data-display">Click buttons to check Discord bot status...</div>
+            </div>
+        </div>
+
+        <div class="card warning">
+            <h2>🔧 API Testing Suite</h2>
+            <button onclick="testAllAPIs()">🧪 Test All APIs</button>
+            <button onclick="testPingAPI()">🏓 Ping Test</button>
+            <button onclick="loadAllBotSettings()">⚙️ All Bot Settings</button>
+            <div id="api-results" class="data-display">Ready for API testing...</div>
+        </div>
+
+        <div class="footer">
+            <p>🔐 Secure | 🌐 Live | ⚡ Real-time | 🚀 Trading Bot Dashboard</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-update functions
+        async function updateSystemMetrics() {
+            try {
+                const response = await fetch("/api/ping");
+                const data = await response.json();
+                if (data.uptime) {
+                    document.getElementById("uptime").textContent = Math.floor(data.uptime / 60);
+                }
+                if (data.memory) {
+                    document.getElementById("memory").textContent = data.memory.replace("MB", "");
+                }
+            } catch (error) {
+                console.error("Failed to update metrics:", error);
+            }
+        }
+
+        async function loadBotSettings() {
+            const element = document.getElementById("portfolio-data");
+            try {
+                element.innerHTML = '<div class="loading">🔄 Loading bot settings...</div>';
+                const response = await fetch("/api/bot/settings");
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>🔧 Bot Settings:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function loadHealthCheck() {
+            const element = document.getElementById("portfolio-data");
+            try {
+                element.innerHTML = '<div class="loading">🔄 Running health check...</div>';
+                const response = await fetch("/api/health");
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>❤️ System Health:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function loadBotStatus() {
+            const element = document.getElementById("bot-status");
+            try {
+                element.innerHTML = '<div class="loading">🔄 Checking Discord bot...</div>';
+                const response = await fetch("/api/bot/status");
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>🤖 Bot Status:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function testBotPing() {
+            const element = document.getElementById("bot-status");
+            try {
+                element.innerHTML = '<div class="loading">🏓 Pinging Discord bot...</div>';
+                const response = await fetch("/api/bot/ping", { 
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "dashboard-test" })
+                });
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>🏓 Bot Ping Result:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function testPingAPI() {
+            const element = document.getElementById("api-results");
+            try {
+                element.innerHTML = '<div class="loading">🔄 Testing ping API...</div>';
+                const response = await fetch("/api/ping");
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>🏓 Ping API Test:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function loadAllBotSettings() {
+            const element = document.getElementById("api-results");
+            try {
+                element.innerHTML = '<div class="loading">🔄 Loading all bot settings...</div>';
+                const response = await fetch("/api/bot/settings");
+                const data = await response.json();
+                element.innerHTML = \`
+                    <h3>⚙️ Complete Bot Settings:</h3>
+                    <pre>\${JSON.stringify(data, null, 2)}</pre>
+                \`;
+            } catch (error) {
+                element.innerHTML = \`<div class="error">❌ Error: \${error.message}</div>\`;
+            }
+        }
+
+        async function testAllAPIs() {
+            const element = document.getElementById("api-results");
+            element.innerHTML = '<div class="loading">🧪 Testing all APIs...</div>';
+            
+            const results = {};
+            const endpoints = [
+                { name: "Health", url: "/api/health" },
+                { name: "Ping", url: "/api/ping" },
+                { name: "Bot Status", url: "/api/bot/status" },
+                { name: "Bot Settings", url: "/api/bot/settings" },
+                { name: "Keep Alive", url: "/api/keep-alive" }
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url);
+                    const data = await response.json();
+                    results[endpoint.name] = { status: "✅ Success", responseTime: Date.now(), data: data };
+                } catch (error) {
+                    results[endpoint.name] = { status: "❌ Failed", error: error.message };
+                }
+            }
+
+            element.innerHTML = \`
+                <h3>🧪 Complete API Test Results:</h3>
+                <pre>\${JSON.stringify(results, null, 2)}</pre>
+            \`;
+        }
+
+        // Auto-load on page load
+        window.onload = function() {
+            updateSystemMetrics();
+            loadBotStatus();
+            
+            // Auto-refresh metrics every 30 seconds
+            setInterval(updateSystemMetrics, 30000);
+        };
+    </script>
+</body>
+</html>`;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(dashboardHTML);
+  });
+
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
