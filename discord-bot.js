@@ -6,6 +6,25 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 // Note: Using direct database tables since we can't easily import TS schema from JS
 import { eq } from "drizzle-orm";
+import { spawn } from 'child_process';
+
+// IMPORTANT: Start the Express server for the trading dashboard
+console.log('🚀 DEPLOYMENT: Starting Express server for trading dashboard...');
+const expressServer = spawn('tsx', ['server/index.ts'], {
+  stdio: 'inherit',
+  cwd: process.cwd(),
+  env: { ...process.env, NODE_ENV: 'production' }
+});
+
+expressServer.on('error', (error) => {
+  console.error('❌ Express server error:', error);
+});
+
+expressServer.on('exit', (code, signal) => {
+  console.log(`🔄 Express server exited with code ${code}, signal ${signal}`);
+});
+
+console.log('✅ Express server started - Trading dashboard available on domain URL!');
 
 neonConfig.webSocketConstructor = ws;
 
