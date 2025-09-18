@@ -4,6 +4,9 @@
   "description": "A Discord bot that integrates with the Gemini cryptocurrency exchange API to provide real-time portfolio tracking, automated trading, and live price monitoring through Discord embeds and interactive buttons.",
   "main": "server/index.ts",
   "dependencies": {
+    "@replit/vite-plugin-cartographer": "^0.3.1",
+    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
+    "@vitejs/plugin-react": "^5.0.3",
     "accepts": "^1.3.8",
     "ansi-regex": "^6.1.0",
     "ansi-styles": "^6.2.1",
