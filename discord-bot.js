@@ -8,23 +8,23 @@ import ws from "ws";
 import { eq } from "drizzle-orm";
 import { spawn } from 'child_process';
 
-// IMPORTANT: Start the Express server for the trading dashboard
-console.log('🚀 DEPLOYMENT: Starting Express server for trading dashboard...');
-const expressServer = spawn('tsx', ['server/index.ts'], {
+// IMPORTANT: Start the standalone web dashboard for deployment
+console.log('🚀 DEPLOYMENT: Starting trading dashboard web server...');
+const webServer = spawn('node', ['web-server.js'], {
   stdio: 'inherit',
   cwd: process.cwd(),
-  env: { ...process.env, NODE_ENV: 'production' }
+  env: { ...process.env, PORT: '5000' }
 });
 
-expressServer.on('error', (error) => {
-  console.error('❌ Express server error:', error);
+webServer.on('error', (error) => {
+  console.error('❌ Web server error:', error);
 });
 
-expressServer.on('exit', (code, signal) => {
-  console.log(`🔄 Express server exited with code ${code}, signal ${signal}`);
+webServer.on('exit', (code, signal) => {
+  console.log(`🔄 Web server exited with code ${code}, signal ${signal}`);
 });
 
-console.log('✅ Express server started - Trading dashboard available on domain URL!');
+console.log('✅ Trading dashboard web server started - Available on domain URL!');
 
 neonConfig.webSocketConstructor = ws;
 
