@@ -655,12 +655,9 @@ class DiscordTradingBot {
       
       this.startDailyTracking();
       this.startAutoUpdating();
-      await this.findOrCreateDashboardEmbed();
       
-      // Auto-deploy public dashboard
-      setTimeout(async () => {
-        await this.autoDeployPublicDashboard();
-      }, 3000);
+      // REMOVED: Dashboard auto-creation - dashboards must be created manually via /portfolio command
+      // Do NOT call findOrCreateDashboardEmbed() or autoDeployPublicDashboard()
       
       // Start keep-alive ping system
       this.startKeepAlive();
@@ -1001,6 +998,12 @@ class DiscordTradingBot {
         messageId: message.id,
         lastUpdate: Date.now()
       });
+      
+      // IMPORTANT: Save this as the tracked dashboard for background updates
+      this.dashboardMessageId = message.id;
+      this.dashboardChannelId = interaction.channelId;
+      await this.saveDashboardTracking();
+      console.log(`✅ Dashboard created via /portfolio command and saved to database: ${message.id}`);
 
     } catch (error) {
       console.error('Portfolio error:', error);
@@ -1884,36 +1887,7 @@ class DiscordTradingBot {
     // Initialize real-time monitoring
     this.initializeRealTimeMonitoring();
     
-    // Check for manual dashboard recreation trigger every 5 seconds
-    setInterval(async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/bot/settings/recreate_dashboard_trigger');
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.triggered) {
-            console.log('🔄 Manual dashboard recreation triggered!');
-            // Clear the trigger
-            await fetch('http://localhost:5000/api/bot/settings/recreate_dashboard_trigger', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ value: { triggered: false, processed: Date.now() } })
-            });
-            // Recreate the dashboard
-            await this.findOrCreateDashboardEmbed();
-          }
-        }
-      } catch (error) {
-        // Silently ignore errors - this is a background check
-      }
-    }, 5000); // Check every 5 seconds
-    
-    // FORCE IMMEDIATE RECONNECTION
-    console.log('🚨 FORCING IMMEDIATE DASHBOARD RECONNECTION...');
-    setTimeout(() => {
-      this.findOrCreateDashboardEmbed().catch(error => {
-        console.error('❌ Immediate reconnection failed:', error.message);
-      });
-    }, 2000);
+    // REMOVED: All auto-creation triggers disabled - dashboards must be created manually via /portfolio
     
     // Reduced frequency polling for backup (every 30 seconds instead of 1 second)
     setInterval(async () => {
