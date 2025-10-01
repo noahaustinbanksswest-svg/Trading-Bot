@@ -1416,38 +1416,33 @@ class DiscordTradingBot {
         return;
       }
 
-      // 🗑️ FIX BUTTON BOUNCING: Delete ALL old dashboards first
-      console.log(`🗑️ Cleaning up old dashboard messages to fix button bouncing...`);
-      try {
-        const messages = await dashboardChannel.messages.fetch({ limit: 50 });
-        const oldDashboards = messages.filter(msg => 
-          msg.author.id === this.client.user.id && 
-          msg.embeds.length > 0 && 
-          msg.embeds[0].title === '💰 Live Portfolio Dashboard'
-        );
-        
-        let deletedCount = 0;
-        for (const oldMsg of oldDashboards.values()) {
-          try {
-            await oldMsg.delete();
-            deletedCount++;
-            console.log(`🗑️ Deleted old dashboard: ${oldMsg.id}`);
-          } catch (delError) {
-            console.log(`⚠️ Could not delete ${oldMsg.id}: ${delError.message}`);
+      // Try to reuse existing dashboard from dashboard.json
+      const dashboardData = await this.loadDashboardTracking();
+      
+      if (dashboardData.messageId && dashboardData.channelId) {
+        try {
+          console.log(`🔍 Checking for existing dashboard message: ${dashboardData.messageId}`);
+          const channel = await this.client.channels.fetch(dashboardData.channelId);
+          const message = await channel.messages.fetch(dashboardData.messageId);
+          
+          // Dashboard exists! Reuse it
+          this.dashboardMessageId = dashboardData.messageId;
+          this.dashboardChannelId = dashboardData.channelId;
+          console.log(`✅ Reusing existing dashboard message: ${this.dashboardMessageId}`);
+          return;
+          
+        } catch (fetchError) {
+          // Message doesn't exist or can't access it
+          if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
+            console.log(`⚠️ Existing dashboard not found (${fetchError.code || fetchError.status}), creating new one...`);
+          } else {
+            console.log(`⚠️ Error fetching existing dashboard: ${fetchError.message}`);
           }
         }
-        
-        console.log(`✅ Cleanup complete: ${deletedCount} old dashboard(s) removed`);
-      } catch (fetchError) {
-        console.log('⚠️ Could not fetch messages for cleanup, will create new dashboard');
       }
       
-      // Reset tracking - we deleted everything
-      this.dashboardMessageId = null;
-      this.dashboardChannelId = null;
-      
-      // Create fresh dashboard with current 4-button layout
-      console.log(`📊 Creating fresh dashboard with current button layout in #${dashboardChannel.name}`);
+      // No existing dashboard or couldn't fetch it - create a new one
+      console.log(`📊 Creating new dashboard in #${dashboardChannel.name}`);
       await this.sendDashboardEmbed();
 
     } catch (error) {
@@ -1695,12 +1690,56 @@ class DiscordTradingBot {
     }, 30000); // Every 30 seconds for swing monitoring (prevent rate limits and restarts)
   }
   
-  async updatePortfolioMessageFromRealTimeData() {
+  async getDashboardMessage(forceRefresh = false) {
     try {
-      if (!this.dashboardMessageId || !this.dashboardChannelId) {
-        return;
+      // Read dashboard.json directly to get message IDs
+      const { readFileSync, existsSync } = await import('fs');
+      let messageId = null;
+      let channelId = null;
+      
+      if (existsSync('dashboard.json')) {
+        try {
+          const dashboardData = JSON.parse(readFileSync('dashboard.json', 'utf8'));
+          messageId = dashboardData.messageId;
+          channelId = dashboardData.channelId;
+        } catch (parseError) {
+          console.log('⚠️ Could not parse dashboard.json:', parseError.message);
+        }
       }
       
+      if (!messageId || !channelId) {
+        console.log('⚠️ No dashboard message ID in dashboard.json, recreating...');
+        await this.findOrCreateDashboardEmbed();
+        return null;
+      }
+      
+      // Try to fetch the message from Discord
+      try {
+        const channel = await this.client.channels.fetch(channelId);
+        const message = await channel.messages.fetch(messageId);
+        
+        // Update instance variables with validated IDs
+        this.dashboardMessageId = messageId;
+        this.dashboardChannelId = channelId;
+        
+        return message;
+      } catch (fetchError) {
+        // Handle Discord API errors: 10008 (Unknown Message), 404, 10003 (Unknown Channel), 50001 (Missing Access)
+        if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
+          console.log(`⚠️ Dashboard message not found on Discord (error ${fetchError.code || fetchError.status}), recreating...`);
+          await this.findOrCreateDashboardEmbed();
+          return null;
+        }
+        throw fetchError;
+      }
+    } catch (error) {
+      console.error('❌ Error getting dashboard message:', error.message);
+      return null;
+    }
+  }
+
+  async updatePortfolioMessageFromRealTimeData() {
+    try {
       // Use cached real-time data instead of making API calls
       const usdBalance = this.realTimeBalances.get('USD') || { amount: 0, available: 0 };
       const displayUsdBalance = Math.floor(usdBalance.available * 100) / 100;
@@ -1742,9 +1781,12 @@ class DiscordTradingBot {
         console.log(`💹 Value changed by $${valueChange.toFixed(2)} - updating dashboard`);
       }
       
-      // Update the Discord embed with fresh data
-      const channel = await this.client.channels.fetch(this.dashboardChannelId);
-      const message = await channel.messages.fetch(this.dashboardMessageId);
+      // Get validated dashboard message (handles stale IDs)
+      const message = await this.getDashboardMessage();
+      if (!message) {
+        console.log('⚠️ Could not get dashboard message for update, will retry next cycle');
+        return;
+      }
       
       // CRITICAL: Use SAME embed format with ALL data (prevents format switching)
       const embed = this.createPortfolioEmbed({
@@ -1756,14 +1798,26 @@ class DiscordTradingBot {
       
       const buttons = this.createPortfolioButtons();
       
-      await message.edit({ 
-        embeds: [embed],
-        components: buttons 
-      });
-      
-      // Save the displayed value to prevent unnecessary updates
-      this.lastDisplayedValue = consistentTotalValue;
-      console.log('✨ REAL-TIME PORTFOLIO UPDATED SUCCESSFULLY!');
+      // Edit the message and only log success AFTER it completes
+      try {
+        await message.edit({ 
+          embeds: [embed],
+          components: buttons 
+        });
+        
+        // Save the displayed value to prevent unnecessary updates
+        this.lastDisplayedValue = consistentTotalValue;
+        console.log('📊 DISCORD EMBED UPDATED: $' + consistentTotalValue.toFixed(2) + ' (change: value)');
+        
+      } catch (editError) {
+        // Handle edit failures by refreshing the message reference
+        if (editError.code === 10008 || editError.status === 404) {
+          console.log(`⚠️ Edit failed (${editError.code || editError.status}), refreshing dashboard...`);
+          await this.getDashboardMessage(true);
+        } else {
+          throw editError;
+        }
+      }
       
     } catch (error) {
       console.error('❌ Real-time portfolio update failed:', error.message);
