@@ -1722,8 +1722,7 @@ class DiscordTradingBot {
       await this.loadDashboardTracking();
       
       if (!this.dashboardMessageId || !this.dashboardChannelId) {
-        console.log('⚠️ No dashboard message ID in database, recreating...');
-        await this.findOrCreateDashboardEmbed();
+        console.log('⚠️ No dashboard tracking - skipping update (create via /portfolio command)');
         return null;
       }
       
@@ -1736,8 +1735,10 @@ class DiscordTradingBot {
       } catch (fetchError) {
         // Handle Discord API errors: 10008 (Unknown Message), 404, 10003 (Unknown Channel), 50001 (Missing Access)
         if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
-          console.log(`⚠️ Dashboard message not found on Discord (error ${fetchError.code || fetchError.status}), recreating...`);
-          await this.findOrCreateDashboardEmbed();
+          console.log(`⚠️ Dashboard message was deleted (error ${fetchError.code || fetchError.status}) - clearing tracking`);
+          this.dashboardMessageId = null;
+          this.dashboardChannelId = null;
+          await this.saveDashboardTracking();
           return null;
         }
         throw fetchError;
