@@ -1736,13 +1736,10 @@ class DiscordTradingBot {
       const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
-      // 🛑 PREVENT BOUNCING: Only update if value changed by $0.10 or more
+      // Allow all updates for real-time monitoring
       if (this.lastDisplayedValue !== undefined) {
         const valueChange = Math.abs(consistentTotalValue - this.lastDisplayedValue);
-        if (valueChange < 0.10) {
-          console.log(`⏭️ Skipping update - value change too small: $${valueChange.toFixed(2)}`);
-          return;
-        }
+        console.log(`💹 Value changed by $${valueChange.toFixed(2)} - updating dashboard`);
       }
       
       // Update the Discord embed with fresh data
