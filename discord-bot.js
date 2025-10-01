@@ -1434,15 +1434,19 @@ class DiscordTradingBot {
           const channel = await this.client.channels.fetch(this.dashboardChannelId);
           const message = await channel.messages.fetch(this.dashboardMessageId);
           
-          // Dashboard exists! ALWAYS reuse it on restart
-          console.log(`✅ REUSING EXISTING DASHBOARD (No new messages on restart): ${this.dashboardMessageId}`);
+          // Dashboard exists! ALWAYS reuse it
+          console.log(`✅ REUSING EXISTING DASHBOARD: ${this.dashboardMessageId}`);
           return;
           
         } catch (fetchError) {
-          // Message doesn't exist or can't access it - ONLY then create new
+          // Message doesn't exist (deleted by user) - DO NOT recreate, just clear tracking
           if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
-            console.log(`⚠️ Existing dashboard message deleted or not found (error ${fetchError.code || fetchError.status})`);
-            console.log(`📊 Creating replacement dashboard in #${dashboardChannel.name}`);
+            console.log(`⚠️ Dashboard message was deleted by user - clearing tracking`);
+            this.dashboardMessageId = null;
+            this.dashboardChannelId = null;
+            await this.saveDashboardTracking();
+            console.log(`🛑 Dashboard will not be recreated (deleted by user)`);
+            return; // EXIT - do not recreate
           } else {
             console.log(`⚠️ Error fetching existing dashboard: ${fetchError.message}`);
             // For other errors, assume dashboard exists and return
@@ -1451,11 +1455,10 @@ class DiscordTradingBot {
           }
         }
       } else {
+        // ONLY create dashboard on very first startup (no tracking exists)
         console.log('⚠️ No dashboard tracking in database - creating first dashboard...');
+        await this.sendDashboardEmbed();
       }
-      
-      // Only create new dashboard if explicitly needed (no tracking or message deleted)
-      await this.sendDashboardEmbed();
 
     } catch (error) {
       console.error('❌ Error finding/creating dashboard embed:', error.message);
@@ -1920,20 +1923,15 @@ class DiscordTradingBot {
           await this.updatePortfolioMessageFromRealTimeData();
         } catch (error) {
           console.error('❌ Dashboard backup sync failed:', error.message);
-          // Reset dashboard tracking if message becomes invalid
+          // Clear tracking but don't recreate (user deleted it)
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
-          console.log('🔄 Attempting to reconnect to dashboard...');
-          await this.findOrCreateDashboardEmbed();
+          await this.saveDashboardTracking();
+          console.log('🛑 Dashboard cleared (not recreating)');
         }
       } else {
-        console.log(`⚠️ No dashboard message tracked - RECONNECTING...`);
-        try {
-          await this.findOrCreateDashboardEmbed();
-          console.log(`🔗 Dashboard reconnection completed`);
-        } catch (error) {
-          console.error(`❌ Dashboard reconnection failed:`, error.message);
-        }
+        // No dashboard tracked - silently skip (user deleted it)
+        // Do nothing - dashboard was deleted by user
       }
     }, 30000); // Backup sync every 30 seconds (much less frequent)
   }
