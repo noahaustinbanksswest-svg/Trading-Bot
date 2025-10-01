@@ -517,6 +517,9 @@ class DiscordTradingBot {
     this.lastBalanceUpdate = null;
     this.lastPriceUpdate = null;
     this.lastTriggerTarget = null;    // Store the next trigger value
+    this.lastDisplayedValue = undefined; // Track last displayed value to prevent bouncing
+    this.lastEmbedPortfolioValue = null;
+    this.lastEmbedUpdateTime = 0;
     
     this.setupEventHandlers();
     this.registerCommands();
@@ -1746,7 +1749,14 @@ class DiscordTradingBot {
       const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
       console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
       
-      // ⚡ REAL-TIME UPDATES: Always update for live portfolio tracking
+      // 🛑 PREVENT BOUNCING: Only update if value changed by $0.10 or more
+      if (this.lastDisplayedValue !== undefined) {
+        const valueChange = Math.abs(consistentTotalValue - this.lastDisplayedValue);
+        if (valueChange < 0.10) {
+          console.log(`⏭️ Skipping update - value change too small: $${valueChange.toFixed(2)}`);
+          return;
+        }
+      }
       
       // Update the Discord embed with fresh data
       const channel = await this.client.channels.fetch(this.dashboardChannelId);
@@ -1766,6 +1776,9 @@ class DiscordTradingBot {
         embeds: [embed],
         components: buttons 
       });
+      
+      // Save the displayed value to prevent unnecessary updates
+      this.lastDisplayedValue = consistentTotalValue;
       console.log('✨ REAL-TIME PORTFOLIO UPDATED SUCCESSFULLY!');
       
     } catch (error) {
