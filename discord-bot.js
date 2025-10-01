@@ -1596,9 +1596,9 @@ class DiscordTradingBot {
   }
   
   startBalanceStreaming() {
-    console.log('💰 Starting balance streaming (every 5 seconds to prevent embed bouncing)...');
+    console.log('💰 Starting balance streaming (every 10 seconds with FORCED Discord updates)...');
     
-    // Fetch fresh balance data every 10 seconds (reduced from 5s to prevent rate limits)
+    // Fetch fresh balance data every 10 seconds
     setInterval(async () => {
       try {
         const balances = await this.gemini.getBalances();
@@ -1616,19 +1616,26 @@ class DiscordTradingBot {
         this.lastBalanceUpdate = Date.now();
         console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
         
-        // 📺 UPDATE DISCORD EMBED with real-time Gemini data
+        // 📺 ALWAYS UPDATE DISCORD EMBED with fresh Gemini data (no conditional logic)
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Update every minute or on any price change
-          const newPortfolioValue = this.calculateCurrentPortfolioValue();
-          const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
-          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0;
-          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every 1 minute
-          
-          if (shouldUpdateForChange || shouldUpdateForTime) {
+          try {
+            // Load dashboard tracking from database to ensure we have the latest message ID
+            await this.loadDashboardTracking();
+            
+            // Force update dashboard with real-time Gemini data
             await this.updatePortfolioMessageFromRealTimeData();
-            this.lastEmbedPortfolioValue = newPortfolioValue;
-            this.lastEmbedUpdateTime = Date.now();
-            console.log(`📊 DISCORD EMBED UPDATED: $${newPortfolioValue.toFixed(2)} (change: ${shouldUpdateForChange ? 'value' : 'time'})`);
+            
+            const newPortfolioValue = this.calculateCurrentPortfolioValue();
+            console.log(`📊 DISCORD EMBED FORCE-UPDATED: $${newPortfolioValue.toFixed(2)} (Gemini API → Discord)`);
+          } catch (updateError) {
+            console.error(`❌ Discord update failed: ${updateError.message}`);
+            // Try to reload dashboard tracking and retry once
+            try {
+              await this.loadDashboardTracking();
+              await this.getDashboardMessage(true); // Force refresh message reference
+            } catch (retryError) {
+              console.error(`❌ Dashboard reload failed: ${retryError.message}`);
+            }
           }
         }
         
@@ -1637,7 +1644,7 @@ class DiscordTradingBot {
           console.error('❌ Balance streaming error:', error.message);
         }
       }
-    }, 10000); // Every 10 seconds to prevent rate limits and embed bouncing
+    }, 10000); // Every 10 seconds - Gemini API → Discord updates
   }
   
   startPriceStreaming() {
