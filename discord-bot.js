@@ -1425,7 +1425,7 @@ class DiscordTradingBot {
         return;
       }
 
-      // Try to reuse existing dashboard from database
+      // ALWAYS load dashboard tracking from database first
       await this.loadDashboardTracking();
       
       if (this.dashboardMessageId && this.dashboardChannelId) {
@@ -1434,24 +1434,27 @@ class DiscordTradingBot {
           const channel = await this.client.channels.fetch(this.dashboardChannelId);
           const message = await channel.messages.fetch(this.dashboardMessageId);
           
-          // Dashboard exists! Reuse it
-          console.log(`✅ Reusing existing dashboard message: ${this.dashboardMessageId}`);
+          // Dashboard exists! ALWAYS reuse it on restart
+          console.log(`✅ REUSING EXISTING DASHBOARD (No new messages on restart): ${this.dashboardMessageId}`);
           return;
           
         } catch (fetchError) {
-          // Message doesn't exist or can't access it
+          // Message doesn't exist or can't access it - ONLY then create new
           if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
-            console.log(`⚠️ Existing dashboard not found (error ${fetchError.code || fetchError.status}), creating new one...`);
+            console.log(`⚠️ Existing dashboard message deleted or not found (error ${fetchError.code || fetchError.status})`);
+            console.log(`📊 Creating replacement dashboard in #${dashboardChannel.name}`);
           } else {
             console.log(`⚠️ Error fetching existing dashboard: ${fetchError.message}`);
+            // For other errors, assume dashboard exists and return
+            console.log(`🛡️ Assuming dashboard exists, will update on next cycle`);
+            return;
           }
         }
       } else {
-        console.log('⚠️ No dashboard found in database, creating new dashboard...');
+        console.log('⚠️ No dashboard tracking in database - creating first dashboard...');
       }
       
-      // No existing dashboard or couldn't fetch it - create a new one
-      console.log(`📊 Creating new dashboard in #${dashboardChannel.name}`);
+      // Only create new dashboard if explicitly needed (no tracking or message deleted)
       await this.sendDashboardEmbed();
 
     } catch (error) {
