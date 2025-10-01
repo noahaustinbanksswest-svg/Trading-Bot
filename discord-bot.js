@@ -1417,28 +1417,42 @@ class DiscordTradingBot {
       }
 
       // Try to reuse existing dashboard from dashboard.json
-      const dashboardData = await this.loadDashboardTracking();
+      const { readFileSync, existsSync } = await import('fs');
+      let messageId = null;
+      let channelId = null;
       
-      if (dashboardData.messageId && dashboardData.channelId) {
+      if (existsSync('dashboard.json')) {
         try {
-          console.log(`🔍 Checking for existing dashboard message: ${dashboardData.messageId}`);
-          const channel = await this.client.channels.fetch(dashboardData.channelId);
-          const message = await channel.messages.fetch(dashboardData.messageId);
+          const dashboardData = JSON.parse(readFileSync('dashboard.json', 'utf8'));
+          messageId = dashboardData.messageId;
+          channelId = dashboardData.channelId;
+          console.log(`🔍 Checking for existing dashboard message: ${messageId}`);
+        } catch (parseError) {
+          console.log('⚠️ Could not parse dashboard.json:', parseError.message);
+        }
+      }
+      
+      if (messageId && channelId) {
+        try {
+          const channel = await this.client.channels.fetch(channelId);
+          const message = await channel.messages.fetch(messageId);
           
           // Dashboard exists! Reuse it
-          this.dashboardMessageId = dashboardData.messageId;
-          this.dashboardChannelId = dashboardData.channelId;
+          this.dashboardMessageId = messageId;
+          this.dashboardChannelId = channelId;
           console.log(`✅ Reusing existing dashboard message: ${this.dashboardMessageId}`);
           return;
           
         } catch (fetchError) {
           // Message doesn't exist or can't access it
           if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
-            console.log(`⚠️ Existing dashboard not found (${fetchError.code || fetchError.status}), creating new one...`);
+            console.log(`⚠️ Existing dashboard not found (error ${fetchError.code || fetchError.status}), creating new one...`);
           } else {
             console.log(`⚠️ Error fetching existing dashboard: ${fetchError.message}`);
           }
         }
+      } else {
+        console.log('⚠️ No dashboard.json found, creating new dashboard...');
       }
       
       // No existing dashboard or couldn't fetch it - create a new one
