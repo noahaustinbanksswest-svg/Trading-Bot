@@ -1416,51 +1416,38 @@ class DiscordTradingBot {
         return;
       }
 
-      // PRIORITY: Use saved embed ID first (prevents flashing)
-      if (this.dashboardMessageId && this.dashboardChannelId) {
-        try {
-          const savedMessage = await dashboardChannel.messages.fetch(this.dashboardMessageId);
-          if (savedMessage) {
-            console.log(`📌 USING SAVED EMBED: ${this.dashboardMessageId} (NO FLASHING)`);
-            await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
-            return;
-          }
-        } catch (error) {
-          console.log(`🔍 Saved embed ${this.dashboardMessageId} no longer exists, searching...`);
-        }
-      }
-
-      // Try to find existing dashboard embed
-      console.log(`🔍 Searching for existing dashboard embed in #${dashboardChannel.name}`);
-      
+      // 🗑️ FIX BUTTON BOUNCING: Delete ALL old dashboards first
+      console.log(`🗑️ Cleaning up old dashboard messages to fix button bouncing...`);
       try {
-        // Fetch recent messages to find existing dashboard
         const messages = await dashboardChannel.messages.fetch({ limit: 50 });
-        const existingDashboard = messages.find(msg => 
+        const oldDashboards = messages.filter(msg => 
           msg.author.id === this.client.user.id && 
           msg.embeds.length > 0 && 
           msg.embeds[0].title === '💰 Live Portfolio Dashboard'
         );
-
-        if (existingDashboard) {
-          console.log(`✅ Found existing dashboard message: ${existingDashboard.id} (NO FLASHING)`);
-          this.dashboardMessageId = existingDashboard.id;
-          this.dashboardChannelId = dashboardChannel.id;
-          
-          // CRITICAL: Save tracking immediately to prevent future searches and flashing
-          await this.saveDashboardTracking();
-          
-          // Update the existing embed with current data
-          await this.updatePortfolioMessage(this.dashboardChannelId, this.dashboardMessageId);
-          console.log(`🔄 Existing dashboard updated - ID preserved: ${existingDashboard.id}`);
-          return;
+        
+        let deletedCount = 0;
+        for (const oldMsg of oldDashboards.values()) {
+          try {
+            await oldMsg.delete();
+            deletedCount++;
+            console.log(`🗑️ Deleted old dashboard: ${oldMsg.id}`);
+          } catch (delError) {
+            console.log(`⚠️ Could not delete ${oldMsg.id}: ${delError.message}`);
+          }
         }
+        
+        console.log(`✅ Cleanup complete: ${deletedCount} old dashboard(s) removed`);
       } catch (fetchError) {
-        console.log('⚠️ Could not fetch existing messages, creating new dashboard');
+        console.log('⚠️ Could not fetch messages for cleanup, will create new dashboard');
       }
-
-      // No existing dashboard found, create new one
-      console.log(`📊 Creating new portfolio embed in #${dashboardChannel.name}`);
+      
+      // Reset tracking - we deleted everything
+      this.dashboardMessageId = null;
+      this.dashboardChannelId = null;
+      
+      // Create fresh dashboard with current 4-button layout
+      console.log(`📊 Creating fresh dashboard with current button layout in #${dashboardChannel.name}`);
       await this.sendDashboardEmbed();
 
     } catch (error) {
