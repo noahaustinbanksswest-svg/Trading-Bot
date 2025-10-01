@@ -1416,16 +1416,14 @@ class DiscordTradingBot {
         return;
       }
 
-      // Try to reuse existing dashboard from database
+      // Try to reuse existing dashboard from dashboard.json
       await this.loadDashboardTracking();
       
       if (this.dashboardMessageId && this.dashboardChannelId) {
-        const messageId = this.dashboardMessageId;
-        const channelId = this.dashboardChannelId;
-        console.log(`🔍 Checking for existing dashboard message: ${messageId}`);
+        console.log(`🔍 Checking for existing dashboard message: ${this.dashboardMessageId}`);
         try {
-          const channel = await this.client.channels.fetch(channelId);
-          const message = await channel.messages.fetch(messageId);
+          const channel = await this.client.channels.fetch(this.dashboardChannelId);
+          const message = await channel.messages.fetch(this.dashboardMessageId);
           
           // Dashboard exists! Reuse it
           console.log(`✅ Reusing existing dashboard message: ${this.dashboardMessageId}`);
@@ -1440,7 +1438,7 @@ class DiscordTradingBot {
           }
         }
       } else {
-        console.log('⚠️ No dashboard found in database, creating new dashboard...');
+        console.log('⚠️ No dashboard.json found, creating new dashboard...');
       }
       
       // No existing dashboard or couldn't fetch it - create a new one
@@ -2702,53 +2700,37 @@ class DiscordTradingBot {
   // Save dashboard tracking to prevent embed bouncing on restarts
   async saveDashboardTracking() {
     try {
+      const { writeFileSync } = await import('fs');
       if (this.dashboardMessageId && this.dashboardChannelId) {
-        const { db } = await import('./db/index.js');
-        const { botSettings } = await import('./db/schema.js');
-        const { eq } = await import('drizzle-orm');
-        
         const dashboardData = {
           messageId: this.dashboardMessageId,
           channelId: this.dashboardChannelId,
           timestamp: Date.now()
         };
-        
-        const existing = await db.select().from(botSettings).where(eq(botSettings.key, 'dashboard')).limit(1);
-        
-        if (existing && existing.length > 0) {
-          await db.update(botSettings).set({ value: dashboardData, updatedAt: new Date() }).where(eq(botSettings.key, 'dashboard'));
-        } else {
-          await db.insert(botSettings).values({ key: 'dashboard', value: dashboardData });
-        }
-        
-        console.log(`💾 Dashboard tracking saved to DB: ${this.dashboardMessageId}`);
+        writeFileSync('dashboard.json', JSON.stringify(dashboardData, null, 2));
+        console.log(`💾 Dashboard tracking saved: ${this.dashboardMessageId}`);
       }
     } catch (error) {
-      console.error('Failed to save dashboard tracking to DB:', error.message);
+      console.error('Failed to save dashboard tracking:', error.message);
     }
   }
 
   // Load dashboard tracking to prevent embed bouncing on restarts
   async loadDashboardTracking() {
     try {
-      const { db } = await import('./db/index.js');
-      const { botSettings } = await import('./db/schema.js');
-      const { eq } = await import('drizzle-orm');
-      
-      const setting = await db.select().from(botSettings).where(eq(botSettings.key, 'dashboard')).limit(1);
-      
-      if (setting && setting.length > 0 && setting[0].value) {
-        const dashboardData = setting[0].value;
+      const { readFileSync, existsSync } = await import('fs');
+      if (existsSync('dashboard.json')) {
+        const dashboardData = JSON.parse(readFileSync('dashboard.json', 'utf8'));
         if (dashboardData.messageId && dashboardData.channelId) {
           this.dashboardMessageId = dashboardData.messageId;
           this.dashboardChannelId = dashboardData.channelId;
-          console.log(`📂 Dashboard tracking loaded from DB: ${this.dashboardMessageId}`);
+          console.log(`📂 Dashboard tracking loaded: ${this.dashboardMessageId}`);
           return true;
         }
       }
       return false;
     } catch (error) {
-      console.error('Failed to load dashboard tracking from DB:', error.message);
+      console.error('Failed to load dashboard tracking:', error.message);
       this.dashboardMessageId = null;
       this.dashboardChannelId = null;
       return false;
