@@ -1441,12 +1441,12 @@ class DiscordTradingBot {
         } catch (fetchError) {
           // Message doesn't exist (deleted by user) - DO NOT recreate, just clear tracking
           if (fetchError.code === 10008 || fetchError.status === 404 || fetchError.code === 10003 || fetchError.code === 50001) {
-            console.log(`⚠️ Dashboard message was deleted by user - clearing tracking`);
+            console.log(`⚠️ Dashboard message was deleted - clearing tracking`);
             this.dashboardMessageId = null;
             this.dashboardChannelId = null;
             await this.saveDashboardTracking();
-            console.log(`🛑 Dashboard will not be recreated (deleted by user)`);
-            return; // EXIT - do not recreate
+            console.log(`🛑 Dashboard will NOT be auto-created (must be created manually via /portfolio command)`);
+            return; // EXIT - never auto-create
           } else {
             console.log(`⚠️ Error fetching existing dashboard: ${fetchError.message}`);
             // For other errors, assume dashboard exists and return
@@ -1455,13 +1455,14 @@ class DiscordTradingBot {
           }
         }
       } else {
-        // ONLY create dashboard on very first startup (no tracking exists)
-        console.log('⚠️ No dashboard tracking in database - creating first dashboard...');
-        await this.sendDashboardEmbed();
+        // NO AUTO-CREATE - User must create dashboard manually
+        console.log('⚠️ No dashboard tracking - bot will NOT auto-create dashboard');
+        console.log('💡 Use /portfolio command in Discord to create the dashboard manually');
+        return; // EXIT - never auto-create
       }
 
     } catch (error) {
-      console.error('❌ Error finding/creating dashboard embed:', error.message);
+      console.error('❌ Error finding dashboard:', error.message);
     }
   }
 
