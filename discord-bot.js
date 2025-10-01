@@ -1612,13 +1612,13 @@ class DiscordTradingBot {
         this.lastBalanceUpdate = Date.now();
         console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
         
-        // 📺 UPDATE DISCORD EMBED only when values actually change (prevent bouncing)
+        // 📺 UPDATE DISCORD EMBED with real-time Gemini data
         if (this.dashboardMessageId && this.dashboardChannelId) {
-          // Update only for very large changes (>$2.00) or periodically every 2 minutes to prevent bouncing
+          // Update every minute or on any price change
           const newPortfolioValue = this.calculateCurrentPortfolioValue();
           const timeSinceLastUpdate = Date.now() - (this.lastEmbedUpdateTime || 0);
-          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 2.00;
-          const shouldUpdateForTime = timeSinceLastUpdate > 120000; // Force update every 2 minutes
+          const shouldUpdateForChange = !this.lastEmbedPortfolioValue || Math.abs(newPortfolioValue - this.lastEmbedPortfolioValue) > 0;
+          const shouldUpdateForTime = timeSinceLastUpdate > 60000; // Force update every 1 minute
           
           if (shouldUpdateForChange || shouldUpdateForTime) {
             await this.updatePortfolioMessageFromRealTimeData();
