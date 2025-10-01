@@ -768,6 +768,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual dashboard recreation trigger
+  app.post("/api/bot/recreate-dashboard", async (req, res) => {
+    try {
+      // Set a flag in database that the bot will check
+      await db.insert(botSettings).values({
+        key: 'recreate_dashboard_trigger',
+        value: { timestamp: Date.now(), triggered: true }
+      }).onConflictDoUpdate({
+        target: botSettings.key,
+        set: { value: { timestamp: Date.now(), triggered: true }, updatedAt: new Date() }
+      });
+      
+      res.json({ message: "Dashboard recreation triggered - bot will process this shortly" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to trigger dashboard recreation", details: error.message });
+    }
+  });
+
   // Catch-all route to serve dashboard for any non-API path (fixes deployment issue)
   app.get(/^\/(?!api).*/, (req, res) => {
     const dashboardHTML = `<!DOCTYPE html>

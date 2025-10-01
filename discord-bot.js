@@ -1826,6 +1826,29 @@ class DiscordTradingBot {
     // Initialize real-time monitoring
     this.initializeRealTimeMonitoring();
     
+    // Check for manual dashboard recreation trigger every 5 seconds
+    setInterval(async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/bot/settings/recreate_dashboard_trigger');
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.triggered) {
+            console.log('🔄 Manual dashboard recreation triggered!');
+            // Clear the trigger
+            await fetch('http://localhost:5000/api/bot/settings/recreate_dashboard_trigger', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: { triggered: false, processed: Date.now() } })
+            });
+            // Recreate the dashboard
+            await this.findOrCreateDashboardEmbed();
+          }
+        }
+      } catch (error) {
+        // Silently ignore errors - this is a background check
+      }
+    }, 5000); // Check every 5 seconds
+    
     // FORCE IMMEDIATE RECONNECTION
     console.log('🚨 FORCING IMMEDIATE DASHBOARD RECONNECTION...');
     setTimeout(() => {
