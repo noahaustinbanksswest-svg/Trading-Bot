@@ -656,8 +656,8 @@ class DiscordTradingBot {
       this.startDailyTracking();
       this.startAutoUpdating();
       
-      // REMOVED: Dashboard auto-creation - dashboards must be created manually via /portfolio command
-      // Do NOT call findOrCreateDashboardEmbed() or autoDeployPublicDashboard()
+      // Deploy live dashboard to #private-dashboard (only if it doesn't exist)
+      await this.deployLiveDashboard();
       
       // Start keep-alive ping system
       this.startKeepAlive();
@@ -1380,6 +1380,56 @@ class DiscordTradingBot {
     }
   }
 
+  async deployLiveDashboard() {
+    try {
+      console.log('📡 Deploying live dashboard to #private-dashboard...');
+      
+      // Check if dashboard already exists
+      await this.loadDashboardTracking();
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        console.log(`✅ Dashboard already exists: ${this.dashboardMessageId} - will update it`);
+        return;
+      }
+      
+      const guild = this.client.guilds.cache.first();
+      if (!guild) {
+        console.log('❌ No guild found');
+        return;
+      }
+
+      const dashboardChannel = guild.channels.cache.find(channel => 
+        channel.name.toLowerCase() === 'private-dashboard' && channel.isTextBased()
+      );
+
+      if (!dashboardChannel) {
+        console.log('❌ #private-dashboard channel not found. Please create it first.');
+        return;
+      }
+
+      // Get portfolio data from Gemini
+      const portfolioData = await this.getPortfolioData();
+      const embed = this.createPortfolioEmbed(portfolioData);
+      const buttons = this.createPortfolioButtons();
+
+      // Send the dashboard message
+      const message = await dashboardChannel.send({
+        embeds: [embed],
+        components: buttons,
+      });
+
+      // Save dashboard tracking
+      this.dashboardMessageId = message.id;
+      this.dashboardChannelId = dashboardChannel.id;
+      await this.saveDashboardTracking();
+
+      console.log(`✅ LIVE DASHBOARD DEPLOYED to #${dashboardChannel.name}`);
+      console.log(`📌 Message ID: ${message.id}`);
+      console.log(`🔄 Dashboard will auto-update every 10 seconds with live Gemini data`);
+      
+    } catch (error) {
+      console.error('❌ Error deploying live dashboard:', error.message);
+    }
+  }
 
   initializeRealTimeMonitoring() {
     console.log('🚀 Initializing REAL-TIME monitoring system...');
