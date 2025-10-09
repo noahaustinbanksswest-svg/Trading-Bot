@@ -967,39 +967,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 500);
   });
 
-  // Discord timestamp keep-alive trigger (server-side timer → database → bot reads)
-  app.post('/api/discord/timestamp-update', async (req, res) => {
-    try {
-      // Increment timestamp trigger counter in database
-      const existingTrigger = await db.query.botSettings.findFirst({
-        where: eq(botSettings.key, 'timestamp_trigger')
-      });
-
-      const newCount = existingTrigger ? (parseInt(existingTrigger.value as string) || 0) + 1 : 1;
-
-      if (existingTrigger) {
-        await db.update(botSettings)
-          .set({ 
-            value: newCount.toString(),
-            updatedAt: new Date()
-          })
-          .where(eq(botSettings.key, 'timestamp_trigger'));
-      } else {
-        await db.insert(botSettings).values({
-          key: 'timestamp_trigger',
-          value: newCount.toString()
-        });
-      }
-
-      res.json({ 
-        success: true, 
-        trigger: newCount,
-        message: 'Discord timestamp update triggered (bot will update using cached data)'
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   return httpServer;
 }

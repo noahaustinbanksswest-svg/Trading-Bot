@@ -142,20 +142,6 @@ app.use((req, res, next) => {
           log('❌ Web server ping failed:', error?.message || 'Unknown error');
         }
       }, 10 * 1000); // Every 10 seconds
-      
-      // Discord timestamp keep-alive: Update every 60 seconds (uses cached data, no new Gemini API calls)
-      setInterval(async () => {
-        try {
-          const response = await fetch(`http://localhost:${port}/api/discord/timestamp-update`, {
-            method: 'POST'
-          });
-          if (response.ok) {
-            log('⏰ Discord timestamp keep-alive triggered (60s interval)');
-          }
-        } catch (error: any) {
-          // Silently fail if Discord bot isn't ready yet
-        }
-      }, 60 * 1000); // Every 60 seconds
     }
 
   });

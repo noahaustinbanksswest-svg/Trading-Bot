@@ -632,7 +632,7 @@ class DiscordTradingBot {
       await this.initializePriceHistory();
       
       this.startDailyTracking();
-      this.startAutoUpdating();
+      await this.startAutoUpdating();
       
       // Deploy live dashboard to #private-dashboard (only if it doesn't exist)
       await this.deployLiveDashboard();
@@ -1730,7 +1730,7 @@ class DiscordTradingBot {
     }
   }
 
-  startAutoUpdating() {
+  async startAutoUpdating() {
     console.log('🚀 Starting REAL-TIME portfolio monitoring with live data streams...');
     
     // Initialize real-time monitoring
@@ -1738,7 +1738,13 @@ class DiscordTradingBot {
     
     // REMOVED: All auto-creation triggers disabled - dashboards must be created manually via /portfolio
     
+    // Ensure dashboard tracking is loaded before starting timer
+    console.log('📥 Loading dashboard tracking before starting 60s timer...');
+    await this.loadDashboardTracking();
+    console.log(`✅ Dashboard tracking loaded: messageId=${this.dashboardMessageId}, channelId=${this.dashboardChannelId}`);
+    
     // Timestamp keep-alive: Update every 60 seconds to keep Gemini API alive (no new API calls)
+    console.log('⏰ Setting up 60-second timestamp keep-alive timer...');
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
@@ -1754,10 +1760,10 @@ class DiscordTradingBot {
           console.log('🛑 Dashboard cleared (not recreating)');
         }
       } else {
-        // No dashboard tracked - silently skip (user deleted it)
-        // Do nothing - dashboard was deleted by user
+        console.log('⏰ Timestamp timer fired but no dashboard tracked - skipping update');
       }
     }, 60000); // Timestamp update every 60 seconds (keeps Gemini API alive)
+    console.log('✅ Timestamp keep-alive timer started successfully');
   }
 
   startKeepAlive() {
@@ -3708,13 +3714,6 @@ class DiscordTradingBot {
       
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
-      
-      // CRITICAL: Start the timestamp keep-alive immediately after login
-      // This ensures it runs every time the code loads, not just on 'ready' event
-      setTimeout(() => {
-        console.log('⏰ Starting timestamp keep-alive system (runs ALWAYS, not just on ready)...');
-        this.startAutoUpdating();
-      }, 5000); // Wait 5 seconds for client to be fully ready
     } catch (error) {
       console.error('❌ Failed to start Discord bot:', error.message);
       process.exit(1);
