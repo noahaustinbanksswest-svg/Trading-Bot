@@ -1646,8 +1646,7 @@ class DiscordTradingBot {
       const embed = this.createPortfolioEmbed({
         totalValue: consistentTotalValue, // Now always SOL-only value (matches trading logic)
         usdBalance: displayUsdBalance,
-        holdings: holdings,
-        dailyBuyData // CRITICAL: Include daily buy data for consistent format
+        holdings: holdings
       });
       
       const buttons = this.createPortfolioButtons();
