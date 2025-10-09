@@ -486,6 +486,8 @@ class DiscordTradingBot {
     this.loadDashboardTracking().catch(err => console.log('Dashboard tracking load failed:', err.message));
     this.tradingLock = false; // CRITICAL: Prevent multiple simultaneous trades
     this.lastTradeTime = 0; // CRITICAL: Track last trade for cooldown
+    this.isCheckingAutoTrade = false; // Prevent overlapping auto-trade checks
+    this.isUpdatingDashboard = false; // Prevent overlapping dashboard updates
     // REMOVED: Old tracking system completely eliminated
     this.lowestPortfolioValue = null; // Track LOWEST portfolio value since last trade (smart baseline)
     this.baselineLoaded = false; // Flag to ensure we load baseline from database first
@@ -1521,10 +1523,13 @@ class DiscordTradingBot {
   startSwingMonitoring() {
     console.log('🌊 Starting swing trading monitoring (every 1 second)...');
     
-    // Monitor for swing trading opportunities every 3 seconds
-    setInterval(async () => {
-      await this.checkAutoTradeConditionsRealTime();
-    }, 30000); // Every 30 seconds for swing monitoring (prevent rate limits and restarts)
+    // DISABLED: This duplicate monitoring loop conflicts with the 1-second check in startDailyTracking()
+    // Only one auto-trade monitoring loop should run to prevent race conditions
+    // The 1-second monitoring in startDailyTracking() is sufficient
+    
+    // setInterval(async () => {
+    //   await this.checkAutoTradeConditionsRealTime();
+    // }, 30000);
   }
   
   async getDashboardMessage(forceRefresh = false) {
@@ -1561,6 +1566,13 @@ class DiscordTradingBot {
   }
 
   async updatePortfolioMessageFromRealTimeData() {
+    // CRITICAL: Prevent overlapping dashboard updates
+    if (this.isUpdatingDashboard) {
+      return; // Skip if already updating
+    }
+    
+    this.isUpdatingDashboard = true;
+    
     try {
       // Use cached real-time data instead of making API calls
       const usdBalance = this.realTimeBalances.get('USD') || { amount: 0, available: 0 };
@@ -1643,6 +1655,9 @@ class DiscordTradingBot {
       
     } catch (error) {
       console.error('❌ Real-time portfolio update failed:', error.message);
+    } finally {
+      // CRITICAL: Always release the lock
+      this.isUpdatingDashboard = false;
     }
   }
 
@@ -2550,15 +2565,22 @@ class DiscordTradingBot {
   }
 
   async checkAutoTradeConditions() {
-    // Debug log to show monitoring is running
-    console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
-    
-    if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) {
-      console.log(`⏸️ Auto Trade monitoring skipped - not enabled/active`);
-      return;
+    // CRITICAL: Prevent overlapping executions
+    if (this.isCheckingAutoTrade) {
+      return; // Skip if already checking
     }
-
+    
+    this.isCheckingAutoTrade = true;
+    
     try {
+      // Debug log to show monitoring is running
+      console.log(`🔄 Auto Trade Monitor Check - Enabled: ${autoTradeSettings.enabled}, Active: ${autoTradeSettings.isActive}`);
+      
+      if (!autoTradeSettings.enabled || !autoTradeSettings.isActive) {
+        console.log(`⏸️ Auto Trade monitoring skipped - not enabled/active`);
+        this.isCheckingAutoTrade = false;
+        return;
+      }
       // Get current portfolio data
       const portfolioData = await this.getPortfolioData();
       const { totalValue, holdings } = portfolioData;
@@ -2832,6 +2854,9 @@ class DiscordTradingBot {
 
     } catch (error) {
       console.error('Error checking auto trade conditions:', error.message);
+    } finally {
+      // CRITICAL: Always release the lock
+      this.isCheckingAutoTrade = false;
     }
   }
 
