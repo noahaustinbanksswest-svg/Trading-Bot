@@ -9,32 +9,48 @@ import { eq, sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { spawn } from 'child_process';
 
-// DEPLOYMENT FIX: Start the Express server that serves the trading dashboard
-console.log('🚀 DEPLOYMENT: Starting Express server for web dashboard...');
-const expressServer = spawn('tsx', ['server/index.ts'], {
-  stdio: 'inherit',
-  cwd: process.cwd(),
-  env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
-});
+// DEPLOYMENT FIX: Start the Express server in production only
+// In dev mode, the workflow already runs the server
+const isProductionDeployment = process.env.REPLIT_DEPLOYMENT === 'true' || !process.env.npm_lifecycle_event;
 
-expressServer.on('error', (error) => {
-  console.error('❌ Express server error:', error);
-});
+let expressServer = null;
 
-expressServer.on('exit', (code, signal) => {
-  console.log(`🔄 Express server exited with code ${code}, signal ${signal}`);
-  // Restart if it crashes
-  setTimeout(() => {
-    console.log('🔄 Restarting Express server...');
-    const newServer = spawn('tsx', ['server/index.ts'], {
+if (isProductionDeployment) {
+  console.log('🚀 DEPLOYMENT: Starting Express server for web dashboard...');
+
+  function startExpressServer() {
+    if (expressServer) {
+      try {
+        expressServer.kill('SIGTERM');
+      } catch (e) {
+        console.log('Could not kill old server:', e.message);
+      }
+    }
+    
+    expressServer = spawn('npx', ['tsx', 'server/index.ts'], {
       stdio: 'inherit',
       cwd: process.cwd(),
-      env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
+      env: { ...process.env, NODE_ENV: 'production', PORT: '5000' },
+      shell: true
     });
-  }, 2000);
-});
 
-console.log('✅ Express server started - Trading dashboard will be available on domain URL!');
+    expressServer.on('error', (error) => {
+      console.error('❌ Express server error:', error);
+      setTimeout(startExpressServer, 3000);
+    });
+
+    expressServer.on('exit', (code, signal) => {
+      console.log(`🔄 Express server exited with code ${code}, signal ${signal}`);
+      setTimeout(startExpressServer, 2000);
+    });
+    
+    console.log(`✅ Express server started (PID: ${expressServer.pid}) - Trading dashboard available!`);
+  }
+
+  startExpressServer();
+} else {
+  console.log('💻 DEV MODE: Skipping server spawn (workflow handles it)');
+}
 
 neonConfig.webSocketConstructor = ws;
 
