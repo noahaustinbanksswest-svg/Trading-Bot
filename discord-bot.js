@@ -16,7 +16,14 @@ const isProductionDeployment = process.env.REPLIT_DEPLOYMENT === 'true' || !proc
 let expressServer = null;
 
 if (isProductionDeployment) {
-  console.log('🚀 DEPLOYMENT: Starting Express server for web dashboard...');
+  console.log('🚀 PRODUCTION DEPLOYMENT DETECTED');
+  console.log('📋 Environment:', {
+    REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT,
+    npm_lifecycle: process.env.npm_lifecycle_event,
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT
+  });
+  console.log('🚀 Starting Express server for web dashboard...');
 
   function startExpressServer() {
     if (expressServer) {
@@ -27,6 +34,7 @@ if (isProductionDeployment) {
       }
     }
     
+    console.log('📦 Spawning: npx tsx server/index.ts');
     expressServer = spawn('npx', ['tsx', 'server/index.ts'], {
       stdio: 'inherit',
       cwd: process.cwd(),
@@ -34,17 +42,26 @@ if (isProductionDeployment) {
       shell: true
     });
 
+    expressServer.on('spawn', () => {
+      console.log('✅ Express server process spawned successfully');
+    });
+
     expressServer.on('error', (error) => {
-      console.error('❌ Express server error:', error);
+      console.error('❌ CRITICAL: Express server spawn error:', error);
+      console.error('❌ Stack:', error.stack);
+      console.log('🔄 Retrying in 3 seconds...');
       setTimeout(startExpressServer, 3000);
     });
 
     expressServer.on('exit', (code, signal) => {
-      console.log(`🔄 Express server exited with code ${code}, signal ${signal}`);
+      console.error(`❌ CRITICAL: Express server exited unexpectedly!`);
+      console.error(`   Exit code: ${code}, Signal: ${signal}`);
+      console.log('🔄 Auto-restarting in 2 seconds...');
       setTimeout(startExpressServer, 2000);
     });
     
-    console.log(`✅ Express server started (PID: ${expressServer.pid}) - Trading dashboard available!`);
+    console.log(`✅ Express server started (PID: ${expressServer.pid})`);
+    console.log(`🌐 Trading API should be available on port 5000`);
   }
 
   startExpressServer();
