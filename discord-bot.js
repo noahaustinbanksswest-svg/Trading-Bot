@@ -1423,6 +1423,16 @@ class DiscordTradingBot {
     
     // Fetch fresh balance data every 10 seconds
     setInterval(async () => {
+      // CRITICAL: Wait if dashboard is currently updating
+      while (this.isUpdatingDashboard) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      // CRITICAL: Block dashboard updates while we modify the maps
+      this.isUpdatingBalances = true;
+      
+      let shouldUpdateDashboard = false;
+      
       try {
         const balances = await this.gemini.getBalances();
         
@@ -1439,32 +1449,37 @@ class DiscordTradingBot {
         this.lastBalanceUpdate = Date.now();
         console.log('🚀 LIVE BALANCES UPDATED:', Array.from(this.realTimeBalances.keys()));
         
-        // 📺 ALWAYS UPDATE DISCORD EMBED with fresh Gemini data (no conditional logic)
-        if (this.dashboardMessageId && this.dashboardChannelId) {
-          try {
-            // Load dashboard tracking from database to ensure we have the latest message ID
-            await this.loadDashboardTracking();
-            
-            // Force update dashboard with real-time Gemini data
-            await this.updatePortfolioMessageFromRealTimeData();
-            
-            const newPortfolioValue = this.calculateCurrentPortfolioValue();
-            console.log(`📊 DISCORD EMBED FORCE-UPDATED: $${newPortfolioValue.toFixed(2)} (Gemini API → Discord)`);
-          } catch (updateError) {
-            console.error(`❌ Discord update failed: ${updateError.message}`);
-            // Try to reload dashboard tracking and retry once
-            try {
-              await this.loadDashboardTracking();
-              await this.getDashboardMessage(true); // Force refresh message reference
-            } catch (retryError) {
-              console.error(`❌ Dashboard reload failed: ${retryError.message}`);
-            }
-          }
-        }
+        shouldUpdateDashboard = true;
         
       } catch (error) {
         if (!error.message.includes('429')) {
           console.error('❌ Balance streaming error:', error.message);
+        }
+      } finally {
+        // CRITICAL: Always release the lock BEFORE calling dashboard update
+        this.isUpdatingBalances = false;
+      }
+      
+      // 📺 Update dashboard AFTER releasing the lock
+      if (shouldUpdateDashboard && this.dashboardMessageId && this.dashboardChannelId) {
+        try {
+          // Load dashboard tracking from database to ensure we have the latest message ID
+          await this.loadDashboardTracking();
+          
+          // Force update dashboard with real-time Gemini data
+          await this.updatePortfolioMessageFromRealTimeData();
+          
+          const newPortfolioValue = this.calculateCurrentPortfolioValue();
+          console.log(`📊 DISCORD EMBED FORCE-UPDATED: $${newPortfolioValue.toFixed(2)} (Gemini API → Discord)`);
+        } catch (updateError) {
+          console.error(`❌ Discord update failed: ${updateError.message}`);
+          // Try to reload dashboard tracking and retry once
+          try {
+            await this.loadDashboardTracking();
+            await this.getDashboardMessage(true); // Force refresh message reference
+          } catch (retryError) {
+            console.error(`❌ Dashboard reload failed: ${retryError.message}`);
+          }
         }
       }
     }, 10000); // Every 10 seconds - Gemini API → Discord updates
@@ -1569,6 +1584,11 @@ class DiscordTradingBot {
     // CRITICAL: Prevent overlapping dashboard updates
     if (this.isUpdatingDashboard) {
       return; // Skip if already updating
+    }
+    
+    // CRITICAL: Wait if balances are being updated
+    while (this.isUpdatingBalances) {
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
     
     this.isUpdatingDashboard = true;
