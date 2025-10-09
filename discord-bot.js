@@ -9,13 +9,25 @@ import { eq, sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 neonConfig.webSocketConstructor = ws;
 
-// ALWAYS import the Express server when running discord-bot.js
-// This ensures API stays online 24/7 alongside the Discord bot
-console.log('🚀 Initializing Express server for 24/7 uptime...');
-import('./server/index.ts').catch(err => {
+// START Express server alongside Discord bot for 24/7 uptime
+// Use spawn instead of import to handle TypeScript properly
+import { spawn } from 'child_process';
+
+console.log('🚀 Starting Express server for 24/7 uptime...');
+const serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
+  stdio: 'inherit',
+  cwd: process.cwd(),
+  env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
+});
+
+serverProcess.on('error', (err) => {
   console.error('❌ CRITICAL: Failed to start Express server:', err);
-  console.error('Stack trace:', err.stack);
   process.exit(1);
+});
+
+serverProcess.on('exit', (code, signal) => {
+  console.error(`❌ Express server exited with code ${code}, signal ${signal}`);
+  process.exit(code || 1);
 });
 
 if (!process.env.DATABASE_URL) {
