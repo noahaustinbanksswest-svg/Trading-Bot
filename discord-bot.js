@@ -3673,6 +3673,13 @@ class DiscordTradingBot {
       
       await this.client.login(BOT_TOKEN);
       console.log('✅ Discord login attempt completed');
+      
+      // CRITICAL: Start the timestamp keep-alive immediately after login
+      // This ensures it runs every time the code loads, not just on 'ready' event
+      setTimeout(() => {
+        console.log('⏰ Starting timestamp keep-alive system (runs ALWAYS, not just on ready)...');
+        this.startAutoUpdating();
+      }, 5000); // Wait 5 seconds for client to be fully ready
     } catch (error) {
       console.error('❌ Failed to start Discord bot:', error.message);
       process.exit(1);
