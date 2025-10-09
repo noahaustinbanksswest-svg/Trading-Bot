@@ -9,19 +9,14 @@ import { eq, sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 neonConfig.webSocketConstructor = ws;
 
-// PRODUCTION FIX: Import and start Express server directly in production only
-const isProductionDeployment = process.env.REPLIT_DEPLOYMENT === 'true';
-
-if (isProductionDeployment) {
-  console.log('🚀 PRODUCTION: Starting Express server directly...');
-  // Import and start the server directly - much more reliable than spawning
-  import('./server/index.ts').catch(err => {
-    console.error('❌ CRITICAL: Failed to start Express server:', err);
-    process.exit(1);
-  });
-} else {
-  console.log('💻 DEV MODE: Bot running, Express server handled by workflow');
-}
+// ALWAYS import the Express server when running discord-bot.js
+// This ensures API stays online 24/7 alongside the Discord bot
+console.log('🚀 Initializing Express server for 24/7 uptime...');
+import('./server/index.ts').catch(err => {
+  console.error('❌ CRITICAL: Failed to start Express server:', err);
+  console.error('Stack trace:', err.stack);
+  process.exit(1);
+});
 
 if (!process.env.DATABASE_URL) {
   throw new Error(

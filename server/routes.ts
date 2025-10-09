@@ -956,5 +956,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.type('html').send(dashboardHTML);
   });
 
+  // CODE RELOAD: Force deployment to pick up latest code changes
+  app.post('/api/admin/reload-code', (req, res) => {
+    console.log('🔄 Code reload requested - restarting process to load latest changes...');
+    res.json({ message: 'Process restarting - latest code will be loaded', status: 'restarting' });
+    
+    // Exit cleanly - Reserved VM auto-restarts and loads new code
+    setTimeout(() => {
+      process.exit(0);
+    }, 500);
+  });
+
   return httpServer;
 }
