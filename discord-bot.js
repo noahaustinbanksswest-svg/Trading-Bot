@@ -639,6 +639,9 @@ class DiscordTradingBot {
       
       // Start keep-alive ping system
       this.startKeepAlive();
+      
+      // Start timestamp trigger watcher (server → DB → bot, uses cached data)
+      this.startTimestampTriggerWatcher();
     });
 
     // BULLETPROOF CONNECTION HANDLING
@@ -1809,6 +1812,38 @@ class DiscordTradingBot {
         console.error('💔 Keep-alive heartbeat failed:', error.message);
       }
     }, 60000); // 60 seconds - stable ping
+  }
+
+  startTimestampTriggerWatcher() {
+    console.log('⏰ Starting timestamp trigger watcher (polls database every 5s)...');
+    
+    let lastTriggerValue = 0;
+    
+    // Poll database for timestamp trigger changes every 5 seconds
+    setInterval(async () => {
+      try {
+        const result = await getSetting('timestamp_trigger');
+        const currentTrigger = result ? parseInt(result) : 0;
+        
+        // If trigger changed, update timestamp using cached data
+        if (currentTrigger > lastTriggerValue && this.dashboardMessageId && this.dashboardChannelId) {
+          console.log(`⏰ Timestamp trigger detected: ${lastTriggerValue} → ${currentTrigger} (using cached data)`);
+          lastTriggerValue = currentTrigger;
+          
+          try {
+            await this.updatePortfolioMessageFromRealTimeData();
+            console.log(`📊 Discord timestamp updated via server trigger (no new API calls)`);
+          } catch (error) {
+            console.error('❌ Timestamp update failed:', error.message);
+          }
+        } else if (currentTrigger > lastTriggerValue) {
+          // Update last trigger even if no dashboard (prevents spam on next check)
+          lastTriggerValue = currentTrigger;
+        }
+      } catch (error) {
+        // Silently fail - database might not be ready yet
+      }
+    }, 5000); // Check every 5 seconds for trigger changes
   }
 
   async showActiveOrders(interaction) {
