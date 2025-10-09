@@ -1416,6 +1416,25 @@ class DiscordTradingBot {
     this.startBalanceStreaming();
     this.startPriceStreaming();
     this.startSwingMonitoring();
+    this.startTimestampKeepAlive();
+  }
+  
+  startTimestampKeepAlive() {
+    console.log('⏰ Starting timestamp keep-alive (every 1 minute to maintain API connections)...');
+    
+    // Update timestamp every minute to keep Discord and Gemini APIs alive
+    setInterval(async () => {
+      if (this.dashboardMessageId && this.dashboardChannelId) {
+        try {
+          console.log('⏰ Keep-alive: Forcing timestamp update...');
+          await this.loadDashboardTracking();
+          await this.updatePortfolioMessageFromRealTimeData();
+          console.log('✅ Keep-alive: Timestamp updated successfully');
+        } catch (error) {
+          console.error(`❌ Keep-alive update failed: ${error.message}`);
+        }
+      }
+    }, 60000); // Every 60 seconds (1 minute)
   }
   
   startBalanceStreaming() {
