@@ -65,6 +65,11 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_SECRET = process.env.GEMINI_API_SECRET;
 const GEMINI_BASE_URL = 'https://api.gemini.com';
 
+// API URL - Use external URL for Reserved VM keep-alive (CRITICAL!)
+const API_BASE_URL = process.env.REPLIT_DOMAINS 
+  ? `https://${process.env.REPLIT_DOMAINS}` 
+  : 'http://localhost:5000';
+
 // Database-backed settings - loaded at startup
 let tradingSettings = {};
 let dailyBuyData = {};
@@ -195,7 +200,7 @@ async function saveSettings() {
 // Function to send keep-alive ping to web server
 async function sendKeepAlivePing(status = 'running', errorMessage = null) {
   try {
-    await axios.post('http://localhost:5000/api/bot/ping', {
+    await axios.post(`${API_BASE_URL}/api/bot/ping`, {
       status,
       errorMessage
     });
@@ -542,7 +547,7 @@ class DiscordTradingBot {
   async saveBaselineToDatabase() {
     try {
       if (this.lowestPortfolioValue !== null) {
-        const response = await fetch('http://localhost:5000/api/bot/settings/portfolio_baseline', {
+        const response = await fetch(`${API_BASE_URL}/api/bot/settings/portfolio_baseline`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
