@@ -622,7 +622,7 @@ class DiscordTradingBot {
   }
 
   setupEventHandlers() {
-    this.client.once('ready', async () => {
+    this.client.on('ready', async () => {
       console.log(`🤖 Discord monitoring bot ready! Logged in as ${this.client.user.tag}`);
       
       // Load settings from database
@@ -1422,8 +1422,8 @@ class DiscordTradingBot {
   startTimestampKeepAlive() {
     console.log('⏰ Starting timestamp keep-alive (every 1 minute to maintain API connections)...');
     
-    // Update timestamp every minute to keep Discord and Gemini APIs alive
-    setInterval(async () => {
+    // Function to update timestamp
+    const updateTimestamp = async () => {
       if (this.dashboardMessageId && this.dashboardChannelId) {
         try {
           console.log('⏰ Keep-alive: Forcing timestamp update...');
@@ -1434,7 +1434,15 @@ class DiscordTradingBot {
           console.error(`❌ Keep-alive update failed: ${error.message}`);
         }
       }
-    }, 60000); // Every 60 seconds (1 minute)
+    };
+    
+    // Run immediately on startup
+    setTimeout(async () => {
+      await updateTimestamp();
+    }, 5000); // Wait 5 seconds for bot to fully initialize
+    
+    // Then run every 60 seconds
+    setInterval(updateTimestamp, 60000); // Every 60 seconds (1 minute)
   }
   
   startBalanceStreaming() {
