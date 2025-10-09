@@ -9,27 +9,6 @@ import { eq, sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 neonConfig.webSocketConstructor = ws;
 
-// START Express server alongside Discord bot for 24/7 uptime
-// Use spawn instead of import to handle TypeScript properly
-import { spawn } from 'child_process';
-
-console.log('🚀 Starting Express server for 24/7 uptime...');
-const serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
-  stdio: 'inherit',
-  cwd: process.cwd(),
-  env: { ...process.env, NODE_ENV: 'production', PORT: '5000' }
-});
-
-serverProcess.on('error', (err) => {
-  console.error('❌ CRITICAL: Failed to start Express server:', err);
-  process.exit(1);
-});
-
-serverProcess.on('exit', (code, signal) => {
-  console.error(`❌ Express server exited with code ${code}, signal ${signal}`);
-  process.exit(code || 1);
-});
-
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",

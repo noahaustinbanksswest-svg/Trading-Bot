@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { spawn, type ChildProcess } from "child_process";
 
 const app = express();
 app.use(express.json());
@@ -78,9 +79,52 @@ app.use((req, res, next) => {
     log(`🔗 Keep-alive endpoints available: /api/health, /api/ping`);
     log(`📊 Bot management endpoints: /api/bot/status, /api/bot/ping`);
     
-    // NOTE: Discord bot is NOT spawned here anymore
-    // In production: discord-bot.js is the entry point and imports this server
-    // In dev: workflow runs this server, bot is separate
+    // Start Discord bot
+    let botProcess: ChildProcess | null = null;
+    let restartCount = 0;
+    const MAX_RESTARTS = 25;
+    
+    function startBot() {
+      if (botProcess) {
+        botProcess.kill('SIGTERM');
+        botProcess = null;
+      }
+      
+      log('🤖 Starting Discord bot...');
+      botProcess = spawn('node', ['discord-bot.js'], {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      
+      botProcess.on('error', (error) => {
+        console.error('Discord bot error:', error);
+        scheduleRestart();
+      });
+      
+      botProcess.on('exit', (code, signal) => {
+        console.log(`Discord bot exited with code ${code}, signal ${signal}`);
+        botProcess = null;
+        scheduleRestart();
+      });
+    }
+    
+    function scheduleRestart() {
+      if (restartCount >= MAX_RESTARTS) {
+        console.error(`🛑 Max restarts (${MAX_RESTARTS}) reached. Stopping bot auto-restart.`);
+        return;
+      }
+      
+      restartCount++;
+      const delay = Math.min(10000 + (restartCount * 5000), 120000);
+      
+      setTimeout(() => {
+        log(`🚀 Restarting Discord bot (attempt ${restartCount}/${MAX_RESTARTS})...`);
+        startBot();
+      }, delay);
+    }
+    
+    // Start the bot
+    startBot();
     
     // Add Replit-specific keep-alive mechanism for 24/7 uptime
     if (process.env.REPLIT_DOMAINS) {
