@@ -1416,33 +1416,6 @@ class DiscordTradingBot {
     this.startBalanceStreaming();
     this.startPriceStreaming();
     this.startSwingMonitoring();
-    this.startTimestampKeepAlive();
-  }
-  
-  startTimestampKeepAlive() {
-    console.log('⏰ Starting timestamp keep-alive (every 1 minute to maintain API connections)...');
-    
-    // Function to update timestamp
-    const updateTimestamp = async () => {
-      if (this.dashboardMessageId && this.dashboardChannelId) {
-        try {
-          console.log('⏰ Keep-alive: Forcing timestamp update...');
-          await this.loadDashboardTracking();
-          await this.updatePortfolioMessageFromRealTimeData();
-          console.log('✅ Keep-alive: Timestamp updated successfully');
-        } catch (error) {
-          console.error(`❌ Keep-alive update failed: ${error.message}`);
-        }
-      }
-    };
-    
-    // Run immediately on startup
-    setTimeout(async () => {
-      await updateTimestamp();
-    }, 5000); // Wait 5 seconds for bot to fully initialize
-    
-    // Then run every 60 seconds
-    setInterval(updateTimestamp, 60000); // Every 60 seconds (1 minute)
   }
   
   startBalanceStreaming() {
@@ -1762,15 +1735,15 @@ class DiscordTradingBot {
     
     // REMOVED: All auto-creation triggers disabled - dashboards must be created manually via /portfolio
     
-    // Reduced frequency polling for backup (every 30 seconds instead of 1 second)
+    // Timestamp keep-alive: Update every 60 seconds to keep Gemini API alive (no new API calls)
     setInterval(async () => {
       // Only update the main dashboard embed - don't create new ones
       if (this.dashboardMessageId && this.dashboardChannelId) {
-        console.log(`🔄 Backup sync for message ${this.dashboardMessageId}`);
+        console.log(`⏰ Timestamp keep-alive for message ${this.dashboardMessageId}`);
         try {
           await this.updatePortfolioMessageFromRealTimeData();
         } catch (error) {
-          console.error('❌ Dashboard backup sync failed:', error.message);
+          console.error('❌ Dashboard timestamp update failed:', error.message);
           // Clear tracking but don't recreate (user deleted it)
           this.dashboardMessageId = null;
           this.dashboardChannelId = null;
@@ -1781,7 +1754,7 @@ class DiscordTradingBot {
         // No dashboard tracked - silently skip (user deleted it)
         // Do nothing - dashboard was deleted by user
       }
-    }, 30000); // Backup sync every 30 seconds (much less frequent)
+    }, 60000); // Timestamp update every 60 seconds (keeps Gemini API alive)
   }
 
   startKeepAlive() {
