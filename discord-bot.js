@@ -7,69 +7,21 @@ import ws from "ws";
 // Note: Using direct database tables since we can't easily import TS schema from JS
 import { eq, sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { spawn } from 'child_process';
+neonConfig.webSocketConstructor = ws;
 
-// DEPLOYMENT FIX: Start the Express server in production only
-// In dev mode, the workflow already runs the server
-const isProductionDeployment = process.env.REPLIT_DEPLOYMENT === 'true' || !process.env.npm_lifecycle_event;
-
-let expressServer = null;
+// PRODUCTION FIX: Import and start Express server directly in production only
+const isProductionDeployment = process.env.REPLIT_DEPLOYMENT === 'true';
 
 if (isProductionDeployment) {
-  console.log('🚀 PRODUCTION DEPLOYMENT DETECTED');
-  console.log('📋 Environment:', {
-    REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT,
-    npm_lifecycle: process.env.npm_lifecycle_event,
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT
+  console.log('🚀 PRODUCTION: Starting Express server directly...');
+  // Import and start the server directly - much more reliable than spawning
+  import('./server/index.ts').catch(err => {
+    console.error('❌ CRITICAL: Failed to start Express server:', err);
+    process.exit(1);
   });
-  console.log('🚀 Starting Express server for web dashboard...');
-
-  function startExpressServer() {
-    if (expressServer) {
-      try {
-        expressServer.kill('SIGTERM');
-      } catch (e) {
-        console.log('Could not kill old server:', e.message);
-      }
-    }
-    
-    console.log('📦 Spawning: npx tsx server/index.ts');
-    expressServer = spawn('npx', ['tsx', 'server/index.ts'], {
-      stdio: 'inherit',
-      cwd: process.cwd(),
-      env: { ...process.env, NODE_ENV: 'production', PORT: '5000' },
-      shell: true
-    });
-
-    expressServer.on('spawn', () => {
-      console.log('✅ Express server process spawned successfully');
-    });
-
-    expressServer.on('error', (error) => {
-      console.error('❌ CRITICAL: Express server spawn error:', error);
-      console.error('❌ Stack:', error.stack);
-      console.log('🔄 Retrying in 3 seconds...');
-      setTimeout(startExpressServer, 3000);
-    });
-
-    expressServer.on('exit', (code, signal) => {
-      console.error(`❌ CRITICAL: Express server exited unexpectedly!`);
-      console.error(`   Exit code: ${code}, Signal: ${signal}`);
-      console.log('🔄 Auto-restarting in 2 seconds...');
-      setTimeout(startExpressServer, 2000);
-    });
-    
-    console.log(`✅ Express server started (PID: ${expressServer.pid})`);
-    console.log(`🌐 Trading API should be available on port 5000`);
-  }
-
-  startExpressServer();
 } else {
-  console.log('💻 DEV MODE: Skipping server spawn (workflow handles it)');
+  console.log('💻 DEV MODE: Bot running, Express server handled by workflow');
 }
-
-neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
