@@ -2724,7 +2724,8 @@ class DiscordTradingBot {
               } else {
                 console.log(`🔍 DEBUG: Invalid trigger data, creating new values`);
                 // Set trigger to current portfolio (ready to trigger) and baseline $1 below
-                this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
+                // FIXED: Round to whole dollars to prevent 2-cent discrepancies
+                this.savedTriggerValue = Math.round(currentPortfolioValue);
                 this.baselineValue = this.savedTriggerValue - 1.00;
                 console.log(`🔒 BASELINE SET: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
                 await this.saveTriggerToFile();
@@ -2732,7 +2733,8 @@ class DiscordTradingBot {
             } catch (error) {
               console.log(`🔍 DEBUG: Error loading trigger data:`, error.message);
               // Set trigger to current portfolio (ready to trigger) and baseline $1 below
-              this.savedTriggerValue = parseFloat(currentPortfolioValue.toFixed(2));
+              // FIXED: Round to whole dollars to prevent 2-cent discrepancies
+              this.savedTriggerValue = Math.round(currentPortfolioValue);
               this.baselineValue = this.savedTriggerValue - 1.00;
               console.log(`🔒 BASELINE FALLBACK: $${this.baselineValue.toFixed(2)}, TRIGGER SET: $${this.savedTriggerValue.toFixed(2)} (ready to trigger)`);
               await this.saveTriggerToFile();
@@ -2772,8 +2774,9 @@ class DiscordTradingBot {
             console.log(`   🔄 ADJUSTING BASELINE & TRIGGER...`);
             
             // Recalculate baseline and trigger based on new portfolio value
-            this.baselineValue = currentPortfolioValue;
-            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            // FIXED: Round to whole dollars to prevent 2-cent discrepancies
+            this.baselineValue = Math.round(currentPortfolioValue);
+            this.savedTriggerValue = this.baselineValue + 1.00;
             triggerValue = this.savedTriggerValue;
             await this.saveTriggerToFile();
             
@@ -2798,8 +2801,9 @@ class DiscordTradingBot {
           if (currentPortfolioValue < resetThreshold) {
             // RESET TRIGGER: Portfolio dropped below threshold, reset to current portfolio value
             console.log(`📉 PORTFOLIO DROPPED: $${currentPortfolioValue.toFixed(2)} below threshold $${resetThreshold.toFixed(2)} - RESETTING TRIGGER`);
-            this.baselineValue = currentPortfolioValue;
-            this.savedTriggerValue = currentPortfolioValue + 1.00;
+            // FIXED: Round to whole dollars to prevent 2-cent discrepancies
+            this.baselineValue = Math.round(currentPortfolioValue);
+            this.savedTriggerValue = this.baselineValue + 1.00;
             triggerValue = this.savedTriggerValue;
             await this.saveTriggerToFile();
             console.log(`🔄 NEW BASELINE: $${this.baselineValue.toFixed(2)}, NEW TRIGGER: $${this.savedTriggerValue.toFixed(2)}`);
