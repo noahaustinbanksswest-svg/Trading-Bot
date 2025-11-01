@@ -1352,15 +1352,15 @@ class DiscordTradingBot {
       console.log(`   Crypto Holdings: ${holdings.length} assets`);
       console.log(`   Total Portfolio Value (USD + Crypto): $${realTotalValue.toFixed(2)}`);
       
-      // Filter out zero-value cryptos before displaying
-      const activeHoldings = holdings.filter(h => h.value > 0);
-      console.log(`   Active Holdings (value > $0): ${activeHoldings.map(h => h.currency).join(', ')}`);
+      // Filter out zero-value cryptos before displaying (must be at least $0.01)
+      const activeHoldings = holdings.filter(h => h.value >= 0.01);
+      console.log(`   Active Holdings (value >= $0.01): ${activeHoldings.map(h => h.currency).join(', ') || 'None'}`);
       
       // CRITICAL: Use the SAME embed format as main dashboard (prevents format switching)
       const embed = this.createPortfolioEmbed({
         totalValue: realTotalValue, // Real portfolio value (USD + all cryptos)
         usdBalance: displayUsdBalance,
-        holdings: activeHoldings, // Only show cryptos with value > $0
+        holdings: activeHoldings, // Only show cryptos with value >= $0.01
         dailyBuyData
       });
 
@@ -1657,9 +1657,9 @@ class DiscordTradingBot {
       const realTotalValue = totalValue; // Includes USD + all cryptos
       console.log(`🎆 FULL PORTFOLIO VALUE: $${realTotalValue.toFixed(2)} (USD + Crypto)`);
       
-      // Filter out zero-value cryptos before displaying
-      const activeHoldings = holdings.filter(h => h.value > 0);
-      console.log(`   Active Holdings (value > $0): ${activeHoldings.map(h => h.currency).join(', ')}`);
+      // Filter out zero-value cryptos before displaying (must be at least $0.01)
+      const activeHoldings = holdings.filter(h => h.value >= 0.01);
+      console.log(`   Active Holdings (value >= $0.01): ${activeHoldings.map(h => h.currency).join(', ') || 'None'}`);
       
       // Allow all updates for real-time monitoring
       if (this.lastDisplayedValue !== undefined) {
@@ -1678,7 +1678,7 @@ class DiscordTradingBot {
       const embed = this.createPortfolioEmbed({
         totalValue: realTotalValue, // Real portfolio value (USD + all cryptos)
         usdBalance: displayUsdBalance,
-        holdings: activeHoldings // Only show cryptos with value > $0
+        holdings: activeHoldings // Only show cryptos with value >= $0.01
       });
       
       const buttons = this.createPortfolioButtons();
@@ -2772,9 +2772,9 @@ class DiscordTradingBot {
 
       console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => `${h.currency} ($${h.value.toFixed(2)})`).join(', '));
       
-      // Filter out cryptos with zero or negative value
-      const activeHoldings = holdings.filter(h => h.value > 0);
-      console.log(`🎯 ACTIVE HOLDINGS (value > $0):`, activeHoldings.map(h => h.currency).join(', ') || 'None');
+      // Filter out cryptos with zero or negligible value (must be at least $0.01)
+      const activeHoldings = holdings.filter(h => h.value >= 0.01);
+      console.log(`🎯 ACTIVE HOLDINGS (value >= $0.01):`, activeHoldings.map(h => h.currency).join(', ') || 'None');
       
       // MULTI-CRYPTO MONITORING: Loop through all crypto holdings with value > $0
       for (const holding of activeHoldings) {
