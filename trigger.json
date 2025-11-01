@@ -1,5 +1,17 @@
 {
-  "baseline": 0,
-  "trigger": 1,
-  "timestamp": 1761969767957
+  "cryptoTriggers": {
+    "ZEC": {
+      "baseline": 267.83,
+      "trigger": 268.83
+    },
+    "LPT": {
+      "baseline": 0,
+      "trigger": 1
+    },
+    "SOL": {
+      "baseline": 0,
+      "trigger": 1
+    }
+  },
+  "timestamp": 1761970601494
 }

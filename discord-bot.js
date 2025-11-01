@@ -1038,24 +1038,35 @@ class DiscordTradingBot {
         { name: '💵 USD Balance', value: `$${this.truncateToFixed(data.usdBalance, 2)}`, inline: true }
       ]);
 
-      // SOL-specific info (simplified for trading bot)
-      const solHolding = data.holdings.find(h => h.currency === 'SOL');
-      if (solHolding) {
-        // FIXED DISPLAY: Use saved trigger value to prevent bouncing
-        const displayTrigger = this.savedTriggerValue || (this.baselineValue ? (this.baselineValue + 1.00) : (solHolding.value + 1.00));
-        const displayBaseline = this.baselineValue || (solHolding.value - 1.00);
-        // Fix precision: Round to cents to avoid floating-point errors
-        const needsAmount = Math.round((displayTrigger - solHolding.value) * 100) / 100;
-        const solInfo = `🪙 **Amount**: ${solHolding.amount.toFixed(6)} SOL\n` +
-                       `💰 **Value**: $${this.truncateToFixed(solHolding.value, 2)}\n` +
-                       `🎯 **Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
-                       `📊 **Baseline**: $${this.truncateToFixed(displayBaseline, 2)}\n` +
-                       `⏳ **Need**: $${this.truncateToFixed(needsAmount, 2)} more\n` +
-                       `💲 **Price**: $${this.truncateToFixed(solHolding.price, 2)}`;
+      // MULTI-CRYPTO MONITORS: Show trading monitors for all crypto holdings
+      if (!this.cryptoTriggers) this.cryptoTriggers = {};
+      
+      for (const holding of data.holdings) {
+        const crypto = holding.currency;
+        
+        // Initialize trigger for this crypto if not exists
+        if (!this.cryptoTriggers[crypto]) {
+          this.cryptoTriggers[crypto] = {
+            baseline: parseFloat(holding.value.toFixed(2)),
+            trigger: parseFloat(holding.value.toFixed(2)) + 1.00
+          };
+        }
+        
+        const cryptoTrigger = this.cryptoTriggers[crypto];
+        const displayTrigger = cryptoTrigger.trigger;
+        const displayBaseline = cryptoTrigger.baseline;
+        const needsAmount = Math.max(0, Math.round((displayTrigger - holding.value) * 100) / 100);
+        
+        const cryptoInfo = `🪙 **Amount**: ${holding.amount.toFixed(6)} ${crypto}\n` +
+                          `💰 **Value**: $${this.truncateToFixed(holding.value, 2)}\n` +
+                          `🎯 **Trigger**: $${this.truncateToFixed(displayTrigger, 2)}\n` +
+                          `📊 **Baseline**: $${this.truncateToFixed(displayBaseline, 2)}\n` +
+                          `⏳ **Need**: $${this.truncateToFixed(needsAmount, 2)} more\n` +
+                          `💲 **Price**: $${this.truncateToFixed(holding.price, 2)}`;
         
         embed.addFields({ 
-          name: '⚡ SOL Trading Monitor', 
-          value: solInfo, 
+          name: `⚡ ${crypto} Trading Monitor`, 
+          value: cryptoInfo, 
           inline: false 
         });
       }
@@ -2544,19 +2555,19 @@ class DiscordTradingBot {
     await interaction.editReply({ embeds: [embed] });
   }
 
-  // PERSISTENT TRIGGER: Save/load trigger from file
+  // MULTI-CRYPTO PERSISTENT TRIGGER: Save/load triggers for all cryptos
   async saveTriggerToFile() {
     try {
       const { writeFileSync } = await import('fs');
+      // Save triggers for all cryptos
       const triggerData = {
-        baseline: this.baselineValue,
-        trigger: this.baselineValue + 1.00,
+        cryptoTriggers: this.cryptoTriggers || {},
         timestamp: Date.now()
       };
       writeFileSync('trigger.json', JSON.stringify(triggerData, null, 2));
-      console.log(`💾 BASELINE SAVED: $${this.baselineValue.toFixed(2)}`);
+      console.log(`💾 MULTI-CRYPTO TRIGGERS SAVED: ${Object.keys(this.cryptoTriggers || {}).join(', ')}`);
     } catch (error) {
-      console.error('Error saving baseline:', error.message);
+      console.error('Error saving triggers:', error.message);
     }
   }
 
@@ -2565,13 +2576,28 @@ class DiscordTradingBot {
       const { readFileSync, existsSync } = await import('fs');
       if (existsSync('trigger.json')) {
         const triggerData = JSON.parse(readFileSync('trigger.json', 'utf8'));
-        this.lastTriggerTarget = triggerData.trigger;
-        console.log(`📂 TRIGGER LOADED: $${this.lastTriggerTarget.toFixed(2)} (saved at ${new Date(triggerData.timestamp)})`);
-        return triggerData; // FIXED: Return the actual data object
+        // Support both old single-crypto and new multi-crypto format
+        if (triggerData.cryptoTriggers) {
+          // New multi-crypto format
+          console.log(`📂 MULTI-CRYPTO TRIGGERS LOADED: ${Object.keys(triggerData.cryptoTriggers).join(', ')}`);
+          return triggerData;
+        } else if (triggerData.baseline && triggerData.trigger) {
+          // Old single-crypto format - migrate to SOL
+          console.log(`📂 MIGRATING OLD TRIGGER TO MULTI-CRYPTO FORMAT`);
+          return {
+            cryptoTriggers: {
+              SOL: {
+                baseline: triggerData.baseline,
+                trigger: triggerData.trigger
+              }
+            },
+            timestamp: triggerData.timestamp
+          };
+        }
       }
       return null;
     } catch (error) {
-      console.error('Error loading trigger:', error.message);
+      console.error('Error loading triggers:', error.message);
       return null;
     }
   }
@@ -2624,6 +2650,71 @@ class DiscordTradingBot {
     }
   }
 
+  // Helper: Initialize trigger for a crypto if not exists
+  initializeTriggerForCrypto(crypto, currentValue) {
+    if (!this.cryptoTriggers) this.cryptoTriggers = {};
+    if (!this.cryptoTriggers[crypto]) {
+      this.cryptoTriggers[crypto] = {
+        baseline: parseFloat(currentValue.toFixed(2)),
+        trigger: parseFloat(currentValue.toFixed(2)) + 1.00
+      };
+      console.log(`🆕 INITIALIZED ${crypto}: Baseline $${this.cryptoTriggers[crypto].baseline.toFixed(2)}, Trigger $${this.cryptoTriggers[crypto].trigger.toFixed(2)}`);
+    }
+  }
+
+  // Helper: Check if crypto should trigger a trade
+  shouldTriggerTrade(holding, triggerState) {
+    const currentValue = holding.value;
+    const trigger = triggerState.trigger;
+    const baseline = triggerState.baseline;
+    const resetThreshold = trigger - 1.00;
+
+    console.log(`📊 ${holding.currency} CHECK: Value $${currentValue.toFixed(2)} vs Trigger $${trigger.toFixed(2)}`);
+
+    // Check if value dropped below reset threshold
+    if (currentValue < resetThreshold) {
+      console.log(`📉 ${holding.currency} DROPPED: $${currentValue.toFixed(2)} < $${resetThreshold.toFixed(2)} - RESETTING`);
+      triggerState.baseline = parseFloat(currentValue.toFixed(2));
+      triggerState.trigger = triggerState.baseline + 1.00;
+      return { shouldTrade: false, resetOccurred: true };
+    }
+
+    // Check if trigger hit
+    if (currentValue >= trigger) {
+      console.log(`🚨 ${holding.currency} TRIGGER HIT: $${currentValue.toFixed(2)} >= $${trigger.toFixed(2)}`);
+      return { shouldTrade: true, resetOccurred: false };
+    }
+
+    return { shouldTrade: false, resetOccurred: false };
+  }
+
+  // Helper: Execute trade for specific crypto
+  async executeTradeForCrypto(crypto, holding, reason) {
+    console.log(`💰 EXECUTING $1 TRADE FOR ${crypto}: ${reason}`);
+    
+    // Calculate trade amount with fee buffer
+    const tradeAmountUSD = 1.00;
+    const feeAmountUSD = 0.04;
+    const currentPrice = holding.price;
+    const cryptoAmountToSell = tradeAmountUSD / currentPrice;
+    const feeBufferInCrypto = feeAmountUSD / currentPrice;
+    const totalImpact = cryptoAmountToSell + feeBufferInCrypto;
+    
+    console.log(`   ${crypto} to sell: ${cryptoAmountToSell.toFixed(8)}`);
+    console.log(`   Fee buffer: ${feeBufferInCrypto.toFixed(8)}`);
+    console.log(`   Total impact: ${totalImpact.toFixed(8)}`);
+    
+    // Execute the actual trade
+    await this.executeAutoTrade(reason, crypto);
+    
+    // Reset only this crypto's trigger
+    this.cryptoTriggers[crypto].baseline = parseFloat(holding.value.toFixed(2));
+    this.cryptoTriggers[crypto].trigger = this.cryptoTriggers[crypto].baseline + 1.00;
+    await this.saveTriggerToFile();
+    
+    console.log(`✅ ${crypto} TRIGGER RESET: Baseline $${this.cryptoTriggers[crypto].baseline.toFixed(2)}, Trigger $${this.cryptoTriggers[crypto].trigger.toFixed(2)}`);
+  }
+
   async checkAutoTradeConditions() {
     // CRITICAL: Prevent overlapping executions
     if (this.isCheckingAutoTrade) {
@@ -2641,25 +2732,93 @@ class DiscordTradingBot {
         this.isCheckingAutoTrade = false;
         return;
       }
+      
+      // Initialize multi-crypto tracking structures
+      if (!this.cryptoTriggers) this.cryptoTriggers = {};
+      if (!this.previousBalances) this.previousBalances = {};
+      if (!this.triggerInitialized) this.triggerInitialized = {};
+      
+      // Load triggers from file on first run
+      if (!this.multiCryptoTriggersLoaded) {
+        const triggerData = await this.loadTriggerFromFile();
+        if (triggerData && triggerData.cryptoTriggers) {
+          this.cryptoTriggers = triggerData.cryptoTriggers;
+          console.log(`📂 LOADED TRIGGERS FOR: ${Object.keys(this.cryptoTriggers).join(', ')}`);
+        }
+        this.multiCryptoTriggersLoaded = true;
+      }
+      
       // Get current portfolio data
       const portfolioData = await this.getPortfolioData();
       const { totalValue, holdings } = portfolioData;
 
-      let shouldExecuteTrade = false;
-      let reason = '';
-
-      // DEBUG: Show current auto trade settings
-      console.log(`🔧 AUTO TRADE SETTINGS:`, {
-        enabled: autoTradeSettings.enabled,
-        selectedCrypto: autoTradeSettings.selectedCrypto,
-        stopAtLoss: autoTradeSettings.stopAtLoss,
-        stopAtValue: autoTradeSettings.stopAtValue
-      });
-      console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => h.currency));
+      console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => `${h.currency} ($${h.value.toFixed(2)})`).join(', '));
       
+      // MULTI-CRYPTO MONITORING: Loop through all crypto holdings
+      for (const holding of holdings) {
+        const crypto = holding.currency;
+        const currentBalance = holding.amount;
+        
+        // Initialize trigger for this crypto if needed
+        this.initializeTriggerForCrypto(crypto, holding.value);
+        
+        // Track purchase protection: detect if balance increased
+        if (!this.previousBalances[crypto]) {
+          this.previousBalances[crypto] = currentBalance;
+        }
+        
+        const balanceIncrease = currentBalance - this.previousBalances[crypto];
+        if (balanceIncrease > 0.001) {
+          // Manual purchase detected - adjust trigger
+          console.log(`🛡️ ${crypto} PURCHASE DETECTED: +${balanceIncrease.toFixed(8)} ${crypto}`);
+          this.cryptoTriggers[crypto].baseline = parseFloat(holding.value.toFixed(2));
+          this.cryptoTriggers[crypto].trigger = this.cryptoTriggers[crypto].baseline + 1.00;
+          await this.saveTriggerToFile();
+          console.log(`   New Trigger: $${this.cryptoTriggers[crypto].trigger.toFixed(2)}`);
+        }
+        
+        // Update tracked balance
+        this.previousBalances[crypto] = currentBalance;
+        
+        // Check if this crypto should trigger a trade
+        const triggerCheck = this.shouldTriggerTrade(holding, this.cryptoTriggers[crypto]);
+        
+        if (triggerCheck.resetOccurred) {
+          // Baseline was reset, save to file
+          await this.saveTriggerToFile();
+        }
+        
+        if (triggerCheck.shouldTrade) {
+          // Check if trading lock is active
+          if (this.tradingLock) {
+            console.log(`🔒 ${crypto} TRIGGER HIT BUT TRADING LOCKED - Skipping`);
+            continue;
+          }
+          
+          // Execute trade for this crypto
+          const reason = `💰 ${crypto} SWING TRADE: Value hit $${this.cryptoTriggers[crypto].trigger.toFixed(2)}`;
+          await this.executeTradeForCrypto(crypto, holding, reason);
+          
+          // Only process one crypto per cycle to avoid overwhelming the system
+          break;
+        }
+      }
+
+    } catch (error) {
+      console.error('Error checking auto trade conditions:', error.message);
+    } finally {
+      // CRITICAL: Always release the lock
+      this.isCheckingAutoTrade = false;
+    }
+  }
+
+  async OLD_checkAutoTradeConditions_DISABLED() {
+    // OLD SOL-ONLY CODE - KEPT FOR REFERENCE BUT NOT USED
+    try {
       // Check if selected crypto holdings allow $1 USD sale while protecting base amount
       if (autoTradeSettings.stopAtLoss && autoTradeSettings.selectedCrypto) {
-        const cryptoHolding = holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
+        const cryptoHolding = [];
+        const holdings = [];
         if (cryptoHolding) {
           // Debug portfolio data structure
           console.log(`🔍 DEBUG - SOL Portfolio Data:`, {
@@ -2920,8 +3079,11 @@ class DiscordTradingBot {
     }
   }
 
-  async executeAutoTrade(reason) {
+  async executeAutoTrade(reason, cryptoSymbol = null) {
     try {
+      // Use provided crypto or fall back to selected crypto
+      const targetCrypto = cryptoSymbol || autoTradeSettings.selectedCrypto || 'SOL';
+      
       // CRITICAL: Trading lock to prevent multiple simultaneous executions
       if (this.tradingLock) {
         console.log(`🔒 Trading locked - Another trade in progress, skipping this cycle`);
@@ -2943,16 +3105,16 @@ class DiscordTradingBot {
         return;
       }
       
-      console.log(`🤖 Executing Auto Trade - Reason: ${reason}`);
+      console.log(`🤖 Executing Auto Trade for ${targetCrypto} - Reason: ${reason}`);
       
       // If this would breach base protection, pause briefly but keep monitoring
       if (reason.includes('STOP SELLING') || reason.includes('would breach base')) {
         // Don't disable, just skip this cycle but keep monitoring
-        console.log(`🛡️ Auto Trade cycle skipped - protecting base ${autoTradeSettings.selectedCrypto} amount of ${autoTradeSettings.stopAtLoss}`);
+        console.log(`🛡️ Auto Trade cycle skipped - protecting base ${targetCrypto} amount`);
         
         // Log current portfolio status
         const portfolioData = await this.getPortfolioData();
-        console.log(`📊 Portfolio protected: ${autoTradeSettings.selectedCrypto} holdings at base level, total value: $${portfolioData.totalValue.toFixed(2)}`);
+        console.log(`📊 Portfolio protected: ${targetCrypto} holdings at base level, total value: $${portfolioData.totalValue.toFixed(2)}`);
         
         // Send notification about stopping
         await this.sendAutoTradeNotification(reason, 'STOPPED');
@@ -2961,21 +3123,21 @@ class DiscordTradingBot {
       
       // CRITICAL: Set trading lock
       this.tradingLock = true;
-      console.log(`🔒 Trading lock ENGAGED`);
+      console.log(`🔒 Trading lock ENGAGED for ${targetCrypto}`);
       
       // Execute $1 USD trade instead of selling all crypto
-      console.log(`💰 Executing $1 USD Auto Trade: Selling $1.00 worth of ${autoTradeSettings.selectedCrypto}`);
+      console.log(`💰 Executing $1 USD Auto Trade: Selling $1.00 worth of ${targetCrypto}`);
       
-      // Get current portfolio to calculate exact SOL amount for $1 USD
+      // Get current portfolio to calculate exact amount for $1 USD
       const portfolioData = await this.getPortfolioData();
-      const cryptoHolding = portfolioData.holdings.find(h => h.currency === autoTradeSettings.selectedCrypto);
+      const cryptoHolding = portfolioData.holdings.find(h => h.currency === targetCrypto);
       
       if (!cryptoHolding) {
-        throw new Error(`${autoTradeSettings.selectedCrypto} not found in portfolio`);
+        throw new Error(`${targetCrypto} not found in portfolio`);
       }
       
       // Debug portfolio data structure
-      console.log(`🔍 DEBUG - Execute Trade SOL Data:`, {
+      console.log(`🔍 DEBUG - Execute Trade ${targetCrypto} Data:`, {
         currency: cryptoHolding.currency,
         amount: cryptoHolding.amount,
         price: cryptoHolding.price,
@@ -2983,22 +3145,22 @@ class DiscordTradingBot {
         change: cryptoHolding.change
       });
       
-      // Calculate current price and SOL amount for exactly $1 USD (fix property name)
-      const currentPrice = cryptoHolding.price; // Use price directly
-      const solAmountFor1USD = 1.00 / currentPrice;
+      // Calculate current price and crypto amount for exactly $1 USD
+      const currentPrice = cryptoHolding.price;
+      const cryptoAmountFor1USD = 1.00 / currentPrice;
       
       console.log(`📊 $1 USD Trade Calculation:`);
-      console.log(`   Current ${autoTradeSettings.selectedCrypto} Price: $${currentPrice.toFixed(2)}`);
-      console.log(`   SOL Amount for $1 USD: ${solAmountFor1USD.toFixed(8)}`);
-      console.log(`   Current Holdings: ${cryptoHolding.amount.toFixed(8)} SOL`);
-      console.log(`   After Sale: ${(cryptoHolding.amount - solAmountFor1USD).toFixed(8)} SOL (protecting ${autoTradeSettings.stopAtLoss} base)`);
+      console.log(`   Current ${targetCrypto} Price: $${currentPrice.toFixed(2)}`);
+      console.log(`   ${targetCrypto} Amount for $1 USD: ${cryptoAmountFor1USD.toFixed(8)}`);
+      console.log(`   Current Holdings: ${cryptoHolding.amount.toFixed(8)} ${targetCrypto}`);
+      console.log(`   After Sale: ${(cryptoHolding.amount - cryptoAmountFor1USD).toFixed(8)} ${targetCrypto}`);
       
-      const symbol = `${autoTradeSettings.selectedCrypto.toLowerCase()}usd`;
+      const symbol = `${targetCrypto.toLowerCase()}usd`;
       const sellOrders = [];
       
       // Skip very small amounts that might cause API errors
-      if (solAmountFor1USD < 0.000001) {
-        console.log(`⏭️ Skipping: $1 USD amount too small (${solAmountFor1USD.toFixed(8)} SOL)`);
+      if (cryptoAmountFor1USD < 0.000001) {
+        console.log(`⏭️ Skipping: $1 USD amount too small (${cryptoAmountFor1USD.toFixed(8)} ${targetCrypto})`);
         await this.sendAutoTradeNotification(reason, 'SKIPPED');
         return;
       }
@@ -3007,42 +3169,42 @@ class DiscordTradingBot {
       const estimatedFeeUSD = 0.04; // 4 cent fee for $1 trades
       const netProceedsUSD = 1.00 - estimatedFeeUSD; // $0.96 net proceeds
       
-      console.log(`💰 $1 USD Trade Details:`);
-      console.log(`   SOL Amount to sell: ${solAmountFor1USD.toFixed(8)}`);
+      console.log(`💰 $1 USD Trade Details for ${targetCrypto}:`);
+      console.log(`   ${targetCrypto} Amount to sell: ${cryptoAmountFor1USD.toFixed(8)}`);
       console.log(`   Trade value: $1.00 USD`);
       console.log(`   Estimated fee: $${estimatedFeeUSD.toFixed(2)} USD`);
       console.log(`   Net proceeds: $${netProceedsUSD.toFixed(2)} USD`);
       
-      // BASE PROTECTION COMPLETELY DISABLED - Execute unrestricted trades
-      console.log(`🔥 BASE PROTECTION DISABLED - Executing $1 trade unrestricted!`);
-      console.log(`   Current SOL: ${cryptoHolding.amount.toFixed(8)}`);
-      console.log(`   Trade Amount: ${solAmountFor1USD.toFixed(8)} SOL`);
+      // BASE PROTECTION DISABLED - Execute unrestricted trades
+      console.log(`🔥 EXECUTING $1 TRADE FOR ${targetCrypto}!`);
+      console.log(`   Current ${targetCrypto}: ${cryptoHolding.amount.toFixed(8)}`);
+      console.log(`   Trade Amount: ${cryptoAmountFor1USD.toFixed(8)} ${targetCrypto}`);
       console.log(`   Unrestricted execution enabled!`);
       
       try {
-        console.log(`💰 Placing $1 USD sell order: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} on ${symbol}`);
+        console.log(`💰 Placing $1 USD sell order: ${cryptoAmountFor1USD.toFixed(8)} ${targetCrypto} on ${symbol}`);
         
         // Execute actual sell order via Gemini API for exactly $1 USD worth
-        const order = await this.gemini.sellOrder(symbol, solAmountFor1USD);
+        const order = await this.gemini.sellOrder(symbol, cryptoAmountFor1USD);
         
         // CRITICAL: Record trade time for cooldown 
         this.lastTradeTime = Date.now();
         
-        // KEEP TRIGGER STABLE: Do NOT reset baseline after trades to prevent bouncing
-        console.log(`🎯 TRADE COMPLETED: Keeping baseline at $${this.baselineValue.toFixed(2)} and trigger at $${this.savedTriggerValue.toFixed(2)} (NO RESET TO PREVENT BOUNCING)`);
+        // Trigger reset is now handled per-crypto in executeTradeForCrypto helper
+        console.log(`🎯 ${targetCrypto} TRADE COMPLETED`);
         
         sellOrders.push({
-          currency: autoTradeSettings.selectedCrypto,
-          amount: solAmountFor1USD,
+          currency: targetCrypto,
+          amount: cryptoAmountFor1USD,
           valueUSD: 1.00,
           orderId: order.order_id,
           status: 'submitted'
         });
         
-        console.log(`✅ $1 USD SELL ORDER EXECUTED: ${solAmountFor1USD.toFixed(8)} ${autoTradeSettings.selectedCrypto} → $1.00 USD`);
+        console.log(`✅ $1 USD SELL ORDER EXECUTED: ${cryptoAmountFor1USD.toFixed(8)} ${targetCrypto} → $1.00 USD`);
         console.log(`   Order ID: ${order.order_id}`);
         console.log(`   Net proceeds: ~$${netProceedsUSD.toFixed(2)} USD after $${estimatedFeeUSD.toFixed(2)} fee`);
-        console.log(`   Remaining ${autoTradeSettings.selectedCrypto}: ${(cryptoHolding.amount - solAmountFor1USD).toFixed(8)} (protected base: ${autoTradeSettings.stopAtLoss})`);
+        console.log(`   Remaining ${targetCrypto}: ${(cryptoHolding.amount - cryptoAmountFor1USD).toFixed(8)}`);
         
       } catch (error) {
         console.error(`❌ Failed to execute $1 USD sell order:`, error.message);
