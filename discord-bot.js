@@ -1008,12 +1008,24 @@ class DiscordTradingBot {
   // Helper function to calculate current portfolio value for embed change detection
   calculateCurrentPortfolioValue() {
     try {
-      const solBalance = this.realTimeBalances.get('SOL');
-      const solPrice = this.realTimePrices.get('SOL');
-      if (solBalance && solPrice) {
-        return solBalance.amount * solPrice.price;
+      // Start with USD balance
+      const usdBalance = this.realTimeBalances.get('USD');
+      let totalValue = usdBalance ? usdBalance.available : 0;
+      
+      // Add all crypto holdings with value > $0
+      for (const [currency, balanceData] of this.realTimeBalances) {
+        if (currency !== 'USD') {
+          const priceData = this.realTimePrices.get(currency);
+          if (priceData && balanceData.amount > 0) {
+            const value = balanceData.amount * priceData.price;
+            if (value > 0) {
+              totalValue += value;
+            }
+          }
+        }
       }
-      return 0;
+      
+      return totalValue;
     } catch (error) {
       return 0;
     }
@@ -1332,20 +1344,23 @@ class DiscordTradingBot {
         }
       }
       
-      // FORCE CONSISTENT CALCULATION: Use SOL-only value (same as trading logic)
-      const solHolding = holdings.find(h => h.currency === 'SOL');
-      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
+      // Calculate real portfolio total: USD + all crypto holdings
+      const realTotalValue = totalValue; // Includes USD + all cryptos
       
       console.log(`🎯 Auto-Update Portfolio Summary:`);
       console.log(`   USD Balance: $${displayUsdBalance.toFixed(2)}`);
       console.log(`   Crypto Holdings: ${holdings.length} assets`);
-      console.log(`   CONSISTENT Portfolio Value (SOL-only): $${consistentTotalValue.toFixed(2)}`);
+      console.log(`   Total Portfolio Value (USD + Crypto): $${realTotalValue.toFixed(2)}`);
+      
+      // Filter out zero-value cryptos before displaying
+      const activeHoldings = holdings.filter(h => h.value > 0);
+      console.log(`   Active Holdings (value > $0): ${activeHoldings.map(h => h.currency).join(', ')}`);
       
       // CRITICAL: Use the SAME embed format as main dashboard (prevents format switching)
       const embed = this.createPortfolioEmbed({
-        totalValue: consistentTotalValue, // Always SOL-only (matches trading logic exactly)
+        totalValue: realTotalValue, // Real portfolio value (USD + all cryptos)
         usdBalance: displayUsdBalance,
-        holdings,
+        holdings: activeHoldings, // Only show cryptos with value > $0
         dailyBuyData
       });
 
@@ -1638,14 +1653,17 @@ class DiscordTradingBot {
         }
       }
       
-      // FORCE CONSISTENT CALCULATION: Use SOL-only (same as trading logic)
-      const solHolding = holdings.find(h => h.currency === 'SOL');
-      const consistentTotalValue = solHolding ? solHolding.value : displayUsdBalance; // SOL-only (NO USD)
-      console.log(`🎆 CONSISTENT PORTFOLIO (SOL-only): $${consistentTotalValue.toFixed(2)}`);
+      // Calculate real portfolio total: USD + all crypto holdings
+      const realTotalValue = totalValue; // Includes USD + all cryptos
+      console.log(`🎆 FULL PORTFOLIO VALUE: $${realTotalValue.toFixed(2)} (USD + Crypto)`);
+      
+      // Filter out zero-value cryptos before displaying
+      const activeHoldings = holdings.filter(h => h.value > 0);
+      console.log(`   Active Holdings (value > $0): ${activeHoldings.map(h => h.currency).join(', ')}`);
       
       // Allow all updates for real-time monitoring
       if (this.lastDisplayedValue !== undefined) {
-        const valueChange = Math.abs(consistentTotalValue - this.lastDisplayedValue);
+        const valueChange = Math.abs(realTotalValue - this.lastDisplayedValue);
         console.log(`💹 Value changed by $${valueChange.toFixed(2)} - updating dashboard`);
       }
       
@@ -1658,9 +1676,9 @@ class DiscordTradingBot {
       
       // CRITICAL: Use SAME embed format with ALL data (prevents format switching)
       const embed = this.createPortfolioEmbed({
-        totalValue: consistentTotalValue, // Now always SOL-only value (matches trading logic)
+        totalValue: realTotalValue, // Real portfolio value (USD + all cryptos)
         usdBalance: displayUsdBalance,
-        holdings: holdings
+        holdings: activeHoldings // Only show cryptos with value > $0
       });
       
       const buttons = this.createPortfolioButtons();
@@ -1673,8 +1691,8 @@ class DiscordTradingBot {
         });
         
         // Save the displayed value to prevent unnecessary updates
-        this.lastDisplayedValue = consistentTotalValue;
-        console.log('📊 DISCORD EMBED UPDATED: $' + consistentTotalValue.toFixed(2) + ' (change: value)');
+        this.lastDisplayedValue = realTotalValue;
+        console.log('📊 DISCORD EMBED UPDATED: $' + realTotalValue.toFixed(2) + ' (change: value)');
         
       } catch (editError) {
         // Handle edit failures by refreshing the message reference
@@ -2754,8 +2772,12 @@ class DiscordTradingBot {
 
       console.log(`🔍 PORTFOLIO CURRENCIES:`, holdings.map(h => `${h.currency} ($${h.value.toFixed(2)})`).join(', '));
       
-      // MULTI-CRYPTO MONITORING: Loop through all crypto holdings
-      for (const holding of holdings) {
+      // Filter out cryptos with zero or negative value
+      const activeHoldings = holdings.filter(h => h.value > 0);
+      console.log(`🎯 ACTIVE HOLDINGS (value > $0):`, activeHoldings.map(h => h.currency).join(', ') || 'None');
+      
+      // MULTI-CRYPTO MONITORING: Loop through all crypto holdings with value > $0
+      for (const holding of activeHoldings) {
         const crypto = holding.currency;
         const currentBalance = holding.amount;
         
